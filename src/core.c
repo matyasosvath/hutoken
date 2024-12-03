@@ -48,18 +48,6 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             break;
         assert(min_idx != -1);
 
-        // printf("before merge\n");
-        // for (int i = 0; i < *token_num; i++)
-        // {
-        //     printf("token[%d]: '", i);
-        //     char *s = token_boundaries[i].start;
-        //     char *e = token_boundaries[i].end;
-        //     for (char *ptr = s; ptr <= e; ptr++) {
-        //         putchar(*ptr);
-        //     }
-        //     printf("'\n");
-        // }
-
         // merge pairs, leave rest unchanged
         token_boundaries[min_idx].end = token_boundaries[min_idx + 1].end;
 
@@ -69,19 +57,6 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             token_boundaries[i].end = token_boundaries[i + 1].end;
         }
         *token_num -= 1;
-
-        // printf("after merge\n");
-        // for (int i = 0; i < *token_num; i++)
-        // {
-        //     printf("token[%d]: '", i);
-        //     char *s = token_boundaries[i].start;
-        //     char *e = token_boundaries[i].end;
-        //     for (char *ptr = s; ptr <= e; ptr++) {
-        //         putchar(*ptr);
-        //     }
-        //     printf("'\n");
-        // }
-        // printf("\n\n");
     }
 
     // update tokens
@@ -135,29 +110,15 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
             i += 1;
         }
 
-        // printf("Word: '");
-        // for (int i = 0; i < word_len; i++)
-        // {
-        //     char *s = word_token_boundaries[i].start;
-        //     char *e = word_token_boundaries[i].end;
-        //     for (char *ptr = s; ptr <= e; ptr++) {
-        //         printf("%c", *ptr);
-        //     }
-        // }
-        // printf("'\n");
-
         int word_token_num = word_len;
         int word_tokens[word_len];
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        // printf("word token: ");
         for (int i = 0; i < word_token_num; i++)
         {
             tokens[i + *tokens_size] = word_tokens[i];
-            // printf("%d ", word_tokens[i]);
         }
-        // printf("\n");
 
         cursor += word_end;
 

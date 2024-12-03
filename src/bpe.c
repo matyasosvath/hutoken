@@ -50,19 +50,6 @@ void create_words(
         cursor += word_end;
     }
 
-    // printf("Tokens...\n");
-    // for (int i = 0; i < token_num; i++)
-    // {
-    //     printf("token[%d]: ", i);
-    //     char *s = token_boundaries[i].start;
-    //     char *e = token_boundaries[i].end;
-
-    //     for (char *ptr = s; ptr <= e; ptr++) {
-    //         putchar(*ptr);
-    //     }
-    //     printf("\n");
-    // }
-
     regfree(&regex);
 }
 
@@ -91,8 +78,6 @@ void bpe_train_core(
     int vocab_size
 )
 {
-    // printf("--- bpe train core ---\n");
-
     int token_n = token_num;
     struct Token prev_common_pair = {"", -1};
     struct Token most_common_pair = {"", -1};
@@ -102,7 +87,6 @@ void bpe_train_core(
         struct HashMap *stats = hashmap_new(token_n);
 
         // find most common pair -> next token
-        // printf("-- find most common pair -> next token --- \n");
 
         for (int i = 0; i < token_num -1; i++)
         {
@@ -139,19 +123,16 @@ void bpe_train_core(
                 most_common_pair.value = rank;
                 most_common_pair.key = strdup(pair);
             }
-            // printf("pair: %s len: %d rank: %d\n", pair, len, rank);
         }
 
         int token = vocab->count + 1;
 
         // add new token
-        // printf("-- add new token --\n");
 
         hashmap_set(vocab, &(struct Token){.key=most_common_pair.key, .value=token});
 
         // merge that most common pair in all tokens, i.e.
         // update token boundaries for the new token everywhere
-        // printf("-- merge most common pair --\n");
 
         int j = 0;
         Boundary new_token_boundaries[token_n];
@@ -173,16 +154,12 @@ void bpe_train_core(
             strncpy(pair + l1, s2, l2);
             pair[len] = '\0';
 
-            // printf("pair: '%s' most common pair: '%s'\n", pair, most_common_pair.key);
-            // printf("i: %d j: %d l1: %d l2: %d len: %d\n", i, j, l1, l2, len);
-
             if (strcmp(pair, most_common_pair.key) == 0)
             {
                 Boundary new_token_boundary = {s1, e2};
                 new_token_boundaries[j] = new_token_boundary;
                 j++;
                 i++;
-                // printf("new token here: %s\n", pair); // TODO itt van a hiba, egy idő után nem updateli a határokat
             }
             else {
                 new_token_boundaries[j] = token_boundaries[i];
@@ -251,14 +228,11 @@ void bpe_train(char *text, const int vocab_size, const char *pattern)
     {
         const struct Token *token = item;
         if (!strlen(token->key)) { // handle null character explicitly
-            // printf("0x00");
             fprintf(file, "0x00");
         }
         for (const char *ptr = token->key; *ptr != '\0'; ptr++) {
-            // printf("0x%02X", (unsigned char)*ptr);
             fprintf(file, "0x%02X", (unsigned char)*ptr);
         }
-        // printf(" == %d\n", token->value);
         fprintf(file, " == %d\n", token->value);
     }
 
