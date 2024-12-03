@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "helper.c"
 #include "core.c"
 #include "bpe.c"
 
@@ -13,6 +14,7 @@ static const char *VOCAB_FILE_PATH = "./vocabs/vocab.txt";
 static bool initialized_encode = false;
 static bool initialized_decode = false;
 static int vocab_size = 354; // TODO create configs for separate tokenizers
+static int buffer_size = 100;
 static char *pattern = " ?[A-Za-záéíóúőüöÁÉÍÓÚŐÜÖ]+| ?[0-9]+| ?[^A-Za-z0-9\\s]+|\\s+";
 
 struct HashMap *vocab_encode;
@@ -114,14 +116,6 @@ PyObject *p_initalize_encode(PyObject *self, PyObject *args)
 
     initialized_encode = true;
 
-    // quick checks, remove later
-    // int rank = hashmap_get(vocab_encode, &(struct Token){.key = "sz"});
-    // printf("sz rank: %d\n", rank);
-    // rank = hashmap_get(vocab_encode, &(struct Token){.key = "P"});
-    // printf("P rank: %d\n", rank);
-    // rank = hashmap_get(vocab_encode, &(struct Token){.key = "0x50"});
-    // printf("0x50 (P) rank: %d\n", rank);
-
     return Py_None;
 }
 
@@ -184,36 +178,27 @@ static PyObject *p_initalize_decode(PyObject *self, PyObject *args)
     FILE *file = fopen(VOCAB_FILE_PATH, "r");
     if (!file)
     {
-        perror("Could not open vocab file");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Could not open vocab file!\n");
+        return NULL;
     }
 
     char line[256];
     while (fgets(line, sizeof(line), file))
     {
-
-        char *key = strdup(strtok(line, " == "));
+        char *hex_str = strdup(strtok(line, " == "));
         char *value_str = strtok(NULL, " == ");
 
-        if (key && value_str)
+        if (hex_str && value_str)
         {
-
             int value = atoi(value_str);
 
-            vocab_decode[value] = malloc(strlen(key) * sizeof(char));
+            vocab_decode[value] = malloc((strlen(hex_str) * sizeof(char)) / 2);
 
-            strcpy(vocab_decode[value], key);
-        }
+            char ascii_str[buffer_size];
 
-        // TODO adding 0 to vocab has to be reworked
-        if (atoi(key) == 0 && !value_str)
-        {
+            hex_str_to_ascii(hex_str, ascii_str);
 
-            int value = atoi(key);
-
-            vocab_decode[value] = malloc(strlen(key) * sizeof(char));
-
-            strcpy(vocab_decode[value], " ");
+            strcpy(vocab_decode[value], ascii_str);
         }
     }
 

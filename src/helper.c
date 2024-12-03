@@ -35,4 +35,20 @@ void visualize(int arr[], char *text, int n)
     }
 }
 
+void hex_str_to_ascii(const char *hex_str, char *ascii_str) {
+    int i = 0;
+    while (*hex_str != '\0') {
+        if (*hex_str == '0' && *(hex_str + 1) == 'x') {
+            hex_str += 2;  // skip "0x"
+
+            char hexValue[3] = { hex_str[0], hex_str[1], '\0' };
+            int charValue = (int)strtol(hexValue, NULL, 16);
+
+            ascii_str[i++] = (char)charValue;
+            hex_str += 2;
+        }
+    }
+    ascii_str[i] = '\0';
+}
+
 #endif
