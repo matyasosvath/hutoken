@@ -6,7 +6,7 @@ setup(
     description = 'Fast BPT tokeniser for Hungarian language.',
     author = 'Mátyás Osváth',
     author_email = 'osvath.matyas@hun-ren.nytud.hu',
-    version="0.0.1",
+    version="0.1.0",
     ext_modules=[
         Extension(
             "hutoken",
