@@ -25,21 +25,23 @@ PyObject *p_bpe_train(PyObject *self, PyObject *args)
 {
 
     char *data;
+    char *vocab_file_name;
     int vocab_size = 256;
 
-    if (!PyArg_ParseTuple(args, "si", &data, &vocab_size))
+    if (!PyArg_ParseTuple(args, "sis", &data, &vocab_size, &vocab_file_name))
         return NULL;
 
-    if (vocab_size < 256)
-    {
-        PyErr_SetString(
-            PyExc_RuntimeError,
-            "vocab_size must be at least 256 to encode all bytes."
-        );
+    if (vocab_size < 256) {
+        PyErr_SetString(PyExc_RuntimeError,"vocab_size must be at least 256 to encode all bytes.");
+        return NULL;
+    }
+    int len = strlen(vocab_file_name);
+    if (len < 4 || strcmp(vocab_file_name + (len - 4), ".txt") != 0) {
+        PyErr_SetString(PyExc_RuntimeError, "vocab_file_name file extension must be .txt.");
         return NULL;
     }
 
-    bpe_train(data, vocab_size, pattern);
+    bpe_train(data, vocab_size, pattern, vocab_file_name);
 
     return Py_None;
 }
