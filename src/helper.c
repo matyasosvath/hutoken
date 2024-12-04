@@ -38,6 +38,21 @@ void visualize(int arr[], char *text, int n)
     }
 }
 
+void visualize_bpe_train(
+    char* text,
+    Boundary token_boundaries[],
+    struct Token current_token,
+    int value,
+    int token_num
+)
+{
+    if (VISUALIZE)
+    {
+        printf("Most common pair: '%s', rank: %d\n", current_token.key, current_token.value);
+        printf("New token '%s', value: %d\n\n", current_token.key, value);
+    }
+}
+
 void hex_str_to_ascii(const char *hex_str, char *ascii_str) {
     int i = 0;
     while (*hex_str != '\0') {
