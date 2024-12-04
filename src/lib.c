@@ -9,16 +9,15 @@
 #include "bpe.c"
 
 
-static const char *VOCAB_FILE_PATH = "./vocabs/vocab.txt";
-
 static bool initialized_encode = false;
 static bool initialized_decode = false;
-static int vocab_size = 354; // TODO create configs for separate tokenizers
 static int buffer_size = 100;
 static char *pattern = " ?[A-Za-záéíóúőüöÁÉÍÓÚŐÜÖ]+| ?[0-9]+| ?[^A-Za-z0-9\\s]+|\\s+";
 
 struct HashMap *vocab_encode;
 char **vocab_decode;
+int vocab_size_decode = 0;
+
 
 
 PyObject *p_bpe_train(PyObject *self, PyObject *args)
@@ -48,15 +47,14 @@ PyObject *p_bpe_train(PyObject *self, PyObject *args)
 
 PyObject *p_initalize_encode(PyObject *self, PyObject *args)
 {
-    char *vocab_name;
-    bool add_special = false;
+    char *vocab_file_path; // full file path for now
 
-    if (!PyArg_ParseTuple(args, "sb", &vocab_name, &add_special))
+    if (!PyArg_ParseTuple(args, "s", &vocab_file_path))
         return NULL;
 
-    vocab_encode = hashmap_new(vocab_size);
+    vocab_encode = hashmap_new(256);
 
-    FILE *file = fopen(VOCAB_FILE_PATH, "r");
+    FILE *file = fopen(vocab_file_path, "r");
     if (!file)
     {
         perror("Could not open vocab file");
@@ -163,13 +161,12 @@ PyObject *p_encode(PyObject *self, PyObject *args)
 
 static PyObject *p_initalize_decode(PyObject *self, PyObject *args)
 {
-    const char *vocab_name;
-    const bool add_special = false;
+    char *vocab_file_path; // full file path for now
 
-    if (!PyArg_ParseTuple(args, "sb", &vocab_name, &add_special))
+    if (!PyArg_ParseTuple(args, "si", &vocab_file_path, &vocab_size_decode))
         return NULL;
 
-    vocab_decode = malloc(vocab_size * sizeof(char *));
+    vocab_decode = malloc(vocab_size_decode * sizeof(char *));
 
     if (!vocab_decode)
     {
@@ -177,7 +174,7 @@ static PyObject *p_initalize_decode(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    FILE *file = fopen(VOCAB_FILE_PATH, "r");
+    FILE *file = fopen(vocab_file_path, "r");
     if (!file)
     {
         fprintf(stderr, "Could not open vocab file!\n");
@@ -216,10 +213,17 @@ static PyObject *p_decode(PyObject *self, PyObject *args)
 
     if (!initialized_decode)
     {
-        PyErr_SetString(
-            PyExc_RuntimeError,
+        PyErr_SetString(PyExc_RuntimeError,
             "Vocabulary is not initialized for decoding. "
             "Call 'initialize_decode' function first."
+        );
+        return NULL;
+    }
+    if (!vocab_size_decode)
+    {
+        PyErr_SetString(PyExc_RuntimeError,
+            "Vocab size is not properly set during initialization. "
+            "Please try again."
         );
         return NULL;
     }
@@ -235,7 +239,7 @@ static PyObject *p_decode(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    PyObject *result = decode(tokens, vocab_decode, vocab_size);
+    PyObject *result = decode(tokens, vocab_decode, vocab_size_decode);
 
     return result;
 }
