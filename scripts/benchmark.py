@@ -11,13 +11,13 @@ def benchmark(document: str) -> None:
 
     import hutoken
 
-    hutoken.initialize_encode('vocab', False)
+    hutoken.initialize_encode('/home/osvathm/config/vocab.txt')
     hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    result = hutoken.encode(document)
+    ht_result = hutoken.encode(document)
     end = time.perf_counter_ns()
-    print(f"hutoken \t{num_bytes / (end - start) * 1e9} bytes / s. result {result}")
+    print(f"hutoken \t{num_bytes / (end - start) * 1e9} bytes / s.")
 
 
     import tiktoken
@@ -26,9 +26,9 @@ def benchmark(document: str) -> None:
     enc.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    result = enc.encode(document)
+    tt_result = enc.encode(document)
     end = time.perf_counter_ns()
-    print(f"tiktoken \t{num_bytes / (end - start) * 1e9} bytes / s. result {result}")
+    print(f"tiktoken \t{num_bytes / (end - start) * 1e9} bytes / s.")
 
 
     import transformers
@@ -38,6 +38,18 @@ def benchmark(document: str) -> None:
     hf_enc.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    result = hf_enc(document)
+    hf_result = hf_enc(document)
     end = time.perf_counter_ns()
-    print(f"huggingface \t{num_bytes / (end - start) * 1e9} bytes / s. result {result}")
+    print(f"huggingface \t{num_bytes / (end - start) * 1e9} bytes / s.")
+
+    print(f"\n=== results ===\n")
+    print(f"hutoken result: {ht_result}.\n")
+    print(f"tiktoken result: {tt_result}.\n")
+    print(f"huggingface result: {hf_result}.\n")
+
+
+if __name__ == "__main__":
+
+    document = ""
+
+    benchmark(document)
