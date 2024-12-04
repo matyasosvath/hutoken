@@ -61,7 +61,7 @@ PyObject *p_initalize_encode(PyObject *self, PyObject *args)
         exit(EXIT_FAILURE);
     }
 
-    char line[256];
+    char line[1024];
     while (fgets(line, sizeof(line), file))
     {
 
