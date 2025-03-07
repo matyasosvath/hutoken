@@ -9,59 +9,59 @@
 #include "bpe.c"
 
 
-static const char *VOCAB_FILE_PATH = "./vocabs/vocab.txt";
-
 static bool initialized_encode = false;
 static bool initialized_decode = false;
-static int vocab_size = 354; // TODO create configs for separate tokenizers
 static int buffer_size = 100;
 static char *pattern = " ?[A-Za-záéíóúőüöÁÉÍÓÚŐÜÖ]+| ?[0-9]+| ?[^A-Za-z0-9\\s]+|\\s+";
 
 struct HashMap *vocab_encode;
 char **vocab_decode;
+int vocab_size_decode = 0;
+
 
 
 PyObject *p_bpe_train(PyObject *self, PyObject *args)
 {
 
     char *data;
+    char *vocab_file_name;
     int vocab_size = 256;
 
-    if (!PyArg_ParseTuple(args, "si", &data, &vocab_size))
+    if (!PyArg_ParseTuple(args, "sis", &data, &vocab_size, &vocab_file_name))
         return NULL;
 
-    if (vocab_size < 256)
-    {
-        PyErr_SetString(
-            PyExc_RuntimeError,
-            "vocab_size must be at least 256 to encode all bytes."
-        );
+    if (vocab_size < 256) {
+        PyErr_SetString(PyExc_RuntimeError,"vocab_size must be at least 256 to encode all bytes.");
+        return NULL;
+    }
+    int len = strlen(vocab_file_name);
+    if (len < 4 || strcmp(vocab_file_name + (len - 4), ".txt") != 0) {
+        PyErr_SetString(PyExc_RuntimeError, "vocab_file_name file extension must be .txt.");
         return NULL;
     }
 
-    bpe_train(data, vocab_size, pattern);
+    bpe_train(data, vocab_size, pattern, vocab_file_name);
 
     return Py_None;
 }
 
 PyObject *p_initalize_encode(PyObject *self, PyObject *args)
 {
-    char *vocab_name;
-    bool add_special = false;
+    char *vocab_file_path; // full file path for now
 
-    if (!PyArg_ParseTuple(args, "sb", &vocab_name, &add_special))
+    if (!PyArg_ParseTuple(args, "s", &vocab_file_path))
         return NULL;
 
-    vocab_encode = hashmap_new(vocab_size);
+    vocab_encode = hashmap_new(256);
 
-    FILE *file = fopen(VOCAB_FILE_PATH, "r");
+    FILE *file = fopen(vocab_file_path, "r");
     if (!file)
     {
         perror("Could not open vocab file");
         exit(EXIT_FAILURE);
     }
 
-    char line[256];
+    char line[1024];
     while (fgets(line, sizeof(line), file))
     {
 
@@ -161,13 +161,12 @@ PyObject *p_encode(PyObject *self, PyObject *args)
 
 static PyObject *p_initalize_decode(PyObject *self, PyObject *args)
 {
-    const char *vocab_name;
-    const bool add_special = false;
+    char *vocab_file_path; // full file path for now
 
-    if (!PyArg_ParseTuple(args, "sb", &vocab_name, &add_special))
+    if (!PyArg_ParseTuple(args, "si", &vocab_file_path, &vocab_size_decode))
         return NULL;
 
-    vocab_decode = malloc(vocab_size * sizeof(char *));
+    vocab_decode = malloc(vocab_size_decode * sizeof(char *));
 
     if (!vocab_decode)
     {
@@ -175,7 +174,7 @@ static PyObject *p_initalize_decode(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    FILE *file = fopen(VOCAB_FILE_PATH, "r");
+    FILE *file = fopen(vocab_file_path, "r");
     if (!file)
     {
         fprintf(stderr, "Could not open vocab file!\n");
@@ -214,10 +213,17 @@ static PyObject *p_decode(PyObject *self, PyObject *args)
 
     if (!initialized_decode)
     {
-        PyErr_SetString(
-            PyExc_RuntimeError,
+        PyErr_SetString(PyExc_RuntimeError,
             "Vocabulary is not initialized for decoding. "
             "Call 'initialize_decode' function first."
+        );
+        return NULL;
+    }
+    if (!vocab_size_decode)
+    {
+        PyErr_SetString(PyExc_RuntimeError,
+            "Vocab size is not properly set during initialization. "
+            "Please try again."
         );
         return NULL;
     }
@@ -233,7 +239,7 @@ static PyObject *p_decode(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    PyObject *result = decode(tokens, vocab_decode, vocab_size);
+    PyObject *result = decode(tokens, vocab_decode, vocab_size_decode);
 
     return result;
 }

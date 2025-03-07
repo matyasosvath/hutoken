@@ -53,23 +53,6 @@ void create_words(
     regfree(&regex);
 }
 
-
-void visualize_bpe_train(
-    char* text,
-    Boundary token_boundaries[],
-    struct Token current_token,
-    int value,
-    int token_num
-)
-{
-    if (VISUALIZE)
-    {
-        printf("Most common pair: '%s', rank: %d\n", current_token.key, current_token.value);
-        printf("New token '%s', value: %d\n\n", current_token.key, value);
-    }
-}
-
-
 void bpe_train_core(
     struct HashMap *vocab,
     char *text,
@@ -189,17 +172,14 @@ void bpe_train_core(
 }
 
 
-void bpe_train(char *text, const int vocab_size, const char *pattern)
+void bpe_train(char *text, const int vocab_size, const char *pattern, char *vocab_file_name)
 {
-
     char *k;
     struct HashMap *vocab = hashmap_new(vocab_size);
 
     // add tokens for each individual byte value
-
     for (int i = 0; i < 256; i++)
     {
-
         char key[2];
         key[0] = (char)i; // store ascii character
         key[1] = '\0';
@@ -215,28 +195,8 @@ void bpe_train(char *text, const int vocab_size, const char *pattern)
 
     bpe_train_core(vocab, text, token_boundaries, token_num, vocab_size);
 
-    FILE *file = fopen("./vocabs/vocab.txt", "w");
-    if (file == NULL)
-    {
-        fprintf(stderr, "Error opening file for writing.\n");
-        return;
-    }
+    save_vocab(vocab, vocab_file_name);
 
-    size_t iter = 0;
-    void *item;
-    while (hashmap_iter(vocab, &iter, &item))
-    {
-        const struct Token *token = item;
-        if (!strlen(token->key)) { // handle null character explicitly
-            fprintf(file, "0x00");
-        }
-        for (const char *ptr = token->key; *ptr != '\0'; ptr++) {
-            fprintf(file, "0x%02X", (unsigned char)*ptr);
-        }
-        fprintf(file, " == %d\n", token->value);
-    }
-
-    fclose(file);
     hashmap_free(vocab);
     free(k);
 }
