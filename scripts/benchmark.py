@@ -1,7 +1,11 @@
 from typing import Any, cast
 
-import os
 import time
+import pathlib
+import argparse
+
+
+__doc__ = """Measure tokenizers speed and performance for a given document."""
 
 
 def benchmark(document: str) -> None:
@@ -48,8 +52,36 @@ def benchmark(document: str) -> None:
     print(f"huggingface result: {hf_result}.\n")
 
 
+def benchmark_significance_test(document: str) -> None: # permutation based
+    pass
+
+
+
+def read_file(file_path: str) -> str:
+    path = pathlib.Path(file_path)
+    if not path.is_file():
+        print("Error: The file '%s' does not exist.", file_path)
+        raise RuntimeError("File not found.")
+    with path.open("r", encoding="utf-8") as file:
+        content = file.read()
+        return content
+
+
 if __name__ == "__main__":
 
-    document = ""
+    parser = argparse.ArgumentParser(description='hugme cli tool')
+    parser.add_argument("--file-path", type=str, required=True, help="file path")
+    parser.add_argument("--chunk-size", type=int, nargs="+", default=[100,1000,10000], help="list of chunk size to test tokenizer on")
+    args = parser.parse_args()
 
-    benchmark(document)
+    chunk_size = args.chunk_size
+    document = read_file(args.file_path)
+
+    for chunk_size in chunk_size:
+        if len(document) < chunk_size:
+            print("The document is shorter than the chunk size.")
+            continue
+        doc = document[:chunk_size]
+        print(f"chunk size: {chunk_size}")
+        print(f"document: {doc}")
+        benchmark(doc)
