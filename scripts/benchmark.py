@@ -4,9 +4,6 @@ import time
 import pathlib
 import argparse
 from statistics import mean
-from transformers import logging
-
-logging.set_verbosity_warning() # disable unnecessaryunnecessary  warnings
 
 
 __doc__ = """Measure tokenizers speed and performance for a given document."""
@@ -50,17 +47,20 @@ def benchmark(document, num_bytes):
 
     hf_perf_result = num_bytes / (end - start) * 1e9
 
-    # print(f"\n=== iter results tokens ===\n")
-    # print(f"hutoken result tokens: {ht_result}\n")
-    # print(f"tiktoken result tokens: {tt_result}\n")
-    # print(f"huggingface result tokens: {hf_result["input_ids"]}\n")
+    if not ht_result == tt_result == hf_result["input_ids"]:
 
-    # assert ht_result == tt_result == hf_result["input_ids"], "Tokenizer results are not equal. Check tokenizers."
+        print(f"\n=== iter results tokens ===\n")
+        print(f"hutoken result tokens: {ht_result}\n")
+        print(f"tiktoken result tokens: {tt_result}\n")
+        print(f"huggingface result tokens: {hf_result["input_ids"]}\n")
 
-    # print(f"\n=== iter results speed ===\n")
-    # print(f"hutoken result: {ht_perf_result} bytes / s.")
-    # print(f"tiktoken result: {tt_perf_result} bytes / s.")
-    # print(f"transformers result: {hf_perf_result} bytes / s.")
+        print(f"\n=== iter results speed ===\n")
+        print(f"hutoken result: {ht_perf_result} bytes / s.")
+        print(f"tiktoken result: {tt_perf_result} bytes / s.")
+        print(f"transformers result: {hf_perf_result} bytes / s.")
+
+        raise AssertionError("Tokenizer results are not equal. Check tokenizers.")
+
 
     return ht_perf_result, tt_perf_result, hf_perf_result
 
@@ -68,6 +68,7 @@ def benchmark(document, num_bytes):
 def benchmark_test(document: str, iter: int): # permutation based
 
     num_bytes = len(str.encode(document))
+    print(f"document char len: {len(document)}")
     print(f"document num bytes: {num_bytes}")
 
     count_tt, count_hf = 0, 0
@@ -80,8 +81,8 @@ def benchmark_test(document: str, iter: int): # permutation based
         tt_results.append(tt_result)
         hf_results.append(hf_result)
 
-        if ht_result < mean(tt_results): count_tt += 1
-        elif ht_result < mean(hf_results): count_hf += 1
+        if ht_result < tt_result: count_tt += 1
+        elif ht_result < hf_result: count_hf += 1
 
     print(f"\n=== sig results ===\n")
     print(f"hutoken avg. result: {mean(ht_results)} bytes / s.")
@@ -112,4 +113,7 @@ if __name__ == "__main__":
 
     document = read_file(args.file_path)
 
-    benchmark_test(document[:args.chunk_size], args.iter)
+    doc = document[:args.chunk_size]
+
+    benchmark_test(doc, args.iter)
+
