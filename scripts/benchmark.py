@@ -4,19 +4,19 @@ import time
 import pathlib
 import argparse
 from statistics import mean
+from transformers import logging
+
+logging.set_verbosity_warning() # disable unnecessaryunnecessary  warnings
 
 
 __doc__ = """Measure tokenizers speed and performance for a given document."""
 
 
-def benchmark(document: str):
-
-    num_bytes = len(str.encode(document))
-    print(f"Document num bytes: {num_bytes}")
+def benchmark(document, num_bytes):
 
     import hutoken
 
-    hutoken.initialize_encode('/home/osvathm/config/vocab.txt')
+    hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')
     hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
@@ -24,8 +24,6 @@ def benchmark(document: str):
     end = time.perf_counter_ns()
 
     ht_perf_result = num_bytes / (end - start) * 1e9
-
-    print(f"hutoken \t{ht_perf_result} bytes / s.")
 
 
     import tiktoken
@@ -38,7 +36,6 @@ def benchmark(document: str):
     end = time.perf_counter_ns()
 
     tt_perf_result = num_bytes / (end - start) * 1e9
-    print(f"tiktoken \t{tt_perf_result} bytes / s.")
 
 
     import transformers
@@ -52,26 +49,31 @@ def benchmark(document: str):
     end = time.perf_counter_ns()
 
     hf_perf_result = num_bytes / (end - start) * 1e9
-    print(f"huggingface \t{hf_perf_result} bytes / s.")
 
-    print(f"\n=== iter results tokens ===\n")
-    print(f"hutoken result tokens: {ht_result}.\n")
-    print(f"tiktoken result tokens: {tt_result}.\n")
-    print(f"huggingface result tokens: {hf_result}.\n")
+    # print(f"\n=== iter results tokens ===\n")
+    # print(f"hutoken result tokens: {ht_result}\n")
+    # print(f"tiktoken result tokens: {tt_result}\n")
+    # print(f"huggingface result tokens: {hf_result["input_ids"]}\n")
 
-    print(f"\n=== iter results speed ===\n")
-    print(f"hutoken result: {ht_perf_result} bytes / s.")
-    print(f"tiktoken result: {tt_perf_result} bytes / s.")
-    print(f"transformers result: {hf_perf_result} bytes / s.")
+    # assert ht_result == tt_result == hf_result["input_ids"], "Tokenizer results are not equal. Check tokenizers."
+
+    # print(f"\n=== iter results speed ===\n")
+    # print(f"hutoken result: {ht_perf_result} bytes / s.")
+    # print(f"tiktoken result: {tt_perf_result} bytes / s.")
+    # print(f"transformers result: {hf_perf_result} bytes / s.")
 
     return ht_perf_result, tt_perf_result, hf_perf_result
 
 
-def benchmark_test(document: str, iter: int = 1000): # permutation based
+def benchmark_test(document: str, iter: int): # permutation based
+
+    num_bytes = len(str.encode(document))
+    print(f"Document num bytes: {num_bytes}")
+
     hutoken_results, tiktoken_results, transformers_results = [], [], []
     count_diff_tiktoken, count_diff_transformers = 0, 0
     for _ in range(iter):
-        hutoken_result, tiktoken_result, transformers_result = benchmark(document)
+        hutoken_result, tiktoken_result, transformers_result = benchmark(document, num_bytes)
 
         hutoken_results.append(hutoken_result)
         tiktoken_results.append(tiktoken_result)
@@ -101,7 +103,7 @@ def read_file(file_path: str) -> str:
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='hugme cli tool')
+    parser = argparse.ArgumentParser()
     parser.add_argument("--file-path", type=str, required=True, help="file path")
     parser.add_argument("--iter", type=int, default=1000, help="number of iterations to run the benchmark")
     # parser.add_argument("--chunk-size", type=int, nargs="+", default=[100,1000,10000], help="list of chunk size to test tokenizer on")
@@ -109,4 +111,4 @@ if __name__ == "__main__":
 
     document = read_file(args.file_path)
 
-    benchmark_test(document, args.iter)
+    benchmark_test(document[:100], args.iter)
