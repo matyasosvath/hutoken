@@ -1,2 +1,4 @@
 tiktoken
 transformers
+pytest
+pytest-memray

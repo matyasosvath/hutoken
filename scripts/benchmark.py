@@ -14,6 +14,7 @@ def benchmark(document, num_bytes):
     import hutoken
 
     hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')
+    # hutoken.initialize_decode('./vocabs/gpt2-vocab.txt', 50256)
     hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
@@ -49,12 +50,12 @@ def benchmark(document, num_bytes):
 
     if not ht_result == tt_result == hf_result["input_ids"]:
 
-        print(f"\n=== iter results tokens ===\n")
-        print(f"hutoken result tokens: {ht_result}\n")
+        print("\n=== iter results tokens ===\n")
+        print(f"hutoken result tokens: {ht_result} decoded text hutoken: {hutoken.decode(ht_result)} decode text from correct: {hutoken.decode(tt_result)}\n")
         print(f"tiktoken result tokens: {tt_result}\n")
         print(f"huggingface result tokens: {hf_result["input_ids"]}\n")
 
-        print(f"\n=== iter results speed ===\n")
+        print("\n=== iter results speed ===\n")
         print(f"hutoken result: {ht_perf_result} bytes / s.")
         print(f"tiktoken result: {tt_perf_result} bytes / s.")
         print(f"transformers result: {hf_perf_result} bytes / s.")
@@ -84,7 +85,7 @@ def benchmark_test(document: str, iter: int): # permutation based
         if ht_result < tt_result: count_tt += 1
         elif ht_result < hf_result: count_hf += 1
 
-    print(f"\n=== sig results ===\n")
+    print("\n=== sig results ===\n")
     print(f"hutoken avg. result: {mean(ht_results)} bytes / s.")
     print(f"tiktoken avg. result: {mean(tt_results)} bytes / s.")
     print(f"transformers avg. result: {mean(hf_results)} bytes / s.")
