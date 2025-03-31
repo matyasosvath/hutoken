@@ -11,7 +11,6 @@
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
-static int buffer_size = 100;
 static char *pattern = " ?[A-Za-záéíóúőüöÁÉÍÓÚŐÜÖ]+| ?[0-9]+| ?[^A-Za-z0-9\\s]+|\\s+";
 
 struct HashMap *vocab_encode;
@@ -212,6 +211,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
         // Parse line and check if format is correct
         if (sscanf(line, "%255s == %d", hex_str, &value) != 2) {
+            fprintf(stderr, "Invalid line format encountered: %s\n", line); // Debugging output
             PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
             fclose(file);
             free(vocab_file_path_copy);
@@ -249,7 +249,8 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         }
 
         // Convert hex string to ASCII
-        if (!hex_str_to_ascii(hex_str, ascii_str) || ascii_str[0] == '\0') {
+        hex_str_to_ascii(hex_str, ascii_str);  // Call the function
+        if (ascii_str[0] == '\0') {           // Check if the result is empty
             PyErr_SetString(PyExc_RuntimeError, "Failed to convert hex string to ASCII.");
             fclose(file);
             free(vocab_file_path_copy);
