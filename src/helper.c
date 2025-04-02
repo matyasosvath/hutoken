@@ -53,20 +53,32 @@ void visualize_bpe_train(
     }
 }
 
-void hex_str_to_ascii(const char *hex_str, char *ascii_str) {
-    int i = 0;
+void hex_str_to_ascii(const char *hex_str, char *ascii_str, size_t ascii_str_size) {
+    size_t i = 0;  // Index for ascii_str
     while (*hex_str != '\0') {
         if (*hex_str == '0' && *(hex_str + 1) == 'x') {
-            hex_str += 2;  // skip "0x"
+            hex_str += 2;  // Skip "0x"
 
-            char hexValue[3] = { hex_str[0], hex_str[1], '\0' };
-            int charValue = (int)strtol(hexValue, NULL, 16);
+            if (hex_str[0] != '\0' && hex_str[1] != '\0') {
+                char hexValue[3] = { hex_str[0], hex_str[1], '\0' };
+                int charValue = (int)strtol(hexValue, NULL, 16);
 
-            ascii_str[i++] = (char)charValue;
-            hex_str += 2;
+                // Ensure there is enough space in the output buffer
+                if (i >= ascii_str_size - 1) {
+                    fprintf(stderr, "Error: Output buffer overflow in hex_str_to_ascii\n");
+                    ascii_str[0] = '\0';  // Mark as invalid
+                    return;
+                }
+
+                ascii_str[i++] = (char)charValue;
+            }
+
+            hex_str += 2;  // Move to the next potential '0x'
+        } else {
+            hex_str++;  // Move to the next character if '0x' not found
         }
     }
-    ascii_str[i] = '\0';
+    ascii_str[i] = '\0';  // Null-terminate the resulting ASCII string
 }
 
 int save_vocab(struct HashMap *vocab, char *file_name) {
