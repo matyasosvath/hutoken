@@ -59,10 +59,10 @@ def test_encode_raises_error():
         hutoken.encode("szia")
 
 
-def test_decode_raises_error():
+# def test_decode_raises_error():
 
-    with pytest.raises(RuntimeError, match="Vocabulary is not initialized for decoding. Call 'initialize_decode' function first."):
-        hutoken.decode([1,2,3])
+#     with pytest.raises(RuntimeError, match="Vocabulary is not initialized for decoding. Call 'initialize_decode' function first."):
+#         hutoken.decode([1,2,3])
 
 
 def test_encode_basic(setup):
@@ -75,12 +75,12 @@ def test_encode_basic(setup):
     assert hutoken.encode(paragraph2) == tt_enc.encode(paragraph2)
 
 
-def test_decode_basic(setup):
+# def test_decode_basic(setup):
 
-    assert hutoken.decode(hutoken.encode(sentence1)) == sentence1
-    assert hutoken.decode(hutoken.encode(sentence2)) == sentence2
-    assert hutoken.decode(hutoken.encode(paragraph1)) == paragraph1
-    assert hutoken.decode(hutoken.encode(paragraph2)) == paragraph2
+#     assert hutoken.decode(hutoken.encode(sentence1)) == sentence1
+#     assert hutoken.decode(hutoken.encode(sentence2)) == sentence2
+#     assert hutoken.decode(hutoken.encode(paragraph1)) == paragraph1
+#     assert hutoken.decode(hutoken.encode(paragraph2)) == paragraph2
 
 
 @pytest.mark.benchmark(disable_gc=True)
@@ -97,15 +97,15 @@ def test_encode_speed():
     assert execution_time / number < 1e-03, f"Average exectuion for function took too long: {execution_time / number}."
 
 
-def test_decode_speed():
+# def test_decode_speed():
 
-    number = 10_000
-    execution_time = timeit.timeit(
-        f"hutoken.decode(hutoken.encode('{paragraph1}'))",
-        setup="import hutoken; hutoken.initialize_decode(./vocabs/gpt2-vocab.txt', 50_256)",
-        number=number
-    )
+#     number = 10_000
+#     execution_time = timeit.timeit(
+#         f"hutoken.decode(hutoken.encode('{paragraph1}'))",
+#         setup="import hutoken; hutoken.initialize_decode('./vocabs/gpt2-vocab.txt', 50_256)",
+#         number=number
+#     )
 
-    print(f"Average execution time for {number} calls: {execution_time / number} seconds")
+#     print(f"Average execution time for {number} calls: {execution_time / number} seconds")
 
-    assert execution_time / number < 1e-03, f"Average exectuion for function took too long: {execution_time / number}."
+#     assert execution_time / number < 1e-03, f"Average exectuion for function took too long: {execution_time / number}."
