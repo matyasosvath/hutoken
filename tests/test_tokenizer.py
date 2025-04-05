@@ -136,7 +136,7 @@ def test_decode_invalid_tokens():
     hutoken.initialize_decode('./vocabs/gpt2-vocab.txt', 50258)
 
     invalid_tokens = [999999, -1, 50258]  # Out of bounds or invalid tokens
-    with pytest.raises(ValueError, match="Invalid token value or uninitialized vocabulary entry."):
+    with pytest.raises(ValueError, match="Element must be non-negative and less then vocab size."):
         hutoken.decode(invalid_tokens)
 
 
@@ -152,3 +152,16 @@ def test_decode_using_tiktoken_encode():
     print(f"Decoded text (tiktoken): {decoded}")  # Debugging output
 
     assert decoded == word, f"Decoded text does not match original. Decoded: {decoded}, Original: {word}"
+    
+def test_decode_whole_sentence_tiktoken():
+    """Test decoding a whole sentence encoded using tiktoken."""
+    hutoken.initialize_decode('./vocabs/gpt2-vocab.txt', 50258)
+    tt_enc = tiktoken.get_encoding("gpt2")
+
+    sentence = "How can the net amount of entropy of the universe be massively decreased?"
+    encoded = tt_enc.encode(sentence)
+    print(f"Encoded tokens (tiktoken): {encoded}")  # Debugging output
+    decoded = hutoken.decode(encoded)
+    print(f"Decoded text (tiktoken): {decoded}")  # Debugging output
+
+    assert decoded == sentence, f"Decoded text does not match original. Decoded: {decoded}, Original: {sentence}"
