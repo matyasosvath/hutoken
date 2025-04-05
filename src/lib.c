@@ -165,13 +165,11 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
     char *vocab_file_path;
 
-    // Parse input arguments
     if (!PyArg_ParseTuple(args, "si", &vocab_file_path, &vocab_size_decode)) {
         PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path) and an integer (vocab_size_decode).");
         return NULL;
     }
 
-    // Check if vocab_size_decode is valid
     if (vocab_size_decode <= 0) {
         PyErr_SetString(PyExc_ValueError, "vocab_size_decode must be greater than zero.");
         return NULL;
@@ -184,7 +182,6 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // Initialize vocab_decode array
     vocab_decode = malloc(vocab_size_decode * sizeof(char *));
     if (!vocab_decode) {
         PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab_decode array.");
@@ -192,12 +189,10 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // Initialize all entries to NULL
     for (int i = 0; i < vocab_size_decode; i++) {
         vocab_decode[i] = NULL;
     }
 
-    // Open the vocab file
     FILE *file = fopen(vocab_file_path_copy, "r");
     if (!file) {
         PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
@@ -206,7 +201,6 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // Allocate a buffer for the hex string
     char *hex_str = malloc(MAX_LINE_LENGTH);
     if (!hex_str) {
         PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for hex_str.");
@@ -216,10 +210,8 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // Initialize a buffer for reading lines
     char line[MAX_LINE_LENGTH];
 
-    // Read the vocab file line by line
     while (fgets(line, sizeof(line), file)) {
         // printf("Debug: Processing line: %s\n", line);
 
@@ -239,7 +231,6 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
             return NULL;
         }
 
-        // Check if the value is within the valid range
         if (value < 0 || value >= vocab_size_decode) {
             PyErr_SetString(PyExc_ValueError, "Invalid vocab index in vocab file.");
             fclose(file);
@@ -254,11 +245,8 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
 
         char ascii_str[500] = {0};
-
-        // Convert hex string to ASCII
         hex_str_to_ascii(hex_str, ascii_str, sizeof(ascii_str));
 
-        // Check if conversion was successful
         if (ascii_str[0] == '\0') {
             PyErr_SetString(PyExc_RuntimeError, "Failed to convert hex string to ASCII.");
             fclose(file);
@@ -271,10 +259,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
             return NULL;
         }
 
-        // Parses the hex string and stores it in vocab_decode
         vocab_decode[value] = strdup(ascii_str);
-
-        // Check if strdup was successful
         if (!vocab_decode[value]) {
             PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab entry.");
             fclose(file);
@@ -304,7 +289,6 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
     // printf("Debug: Entered p_decode\n");
     // printf("Debug: vocab_size_decode = %d\n", vocab_size_decode);
 
-    // Check if vocabulary is initialized for decoding
     if (!initialized_decode) {
         PyErr_SetString(PyExc_RuntimeError,
             "Vocabulary is not initialized for decoding. "
@@ -313,7 +297,6 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // Check if vocab_size_decode is properly set
     if (!vocab_size_decode) {
         PyErr_SetString(PyExc_RuntimeError,
             "Vocab size is not properly set during initialization. "
@@ -322,36 +305,31 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // Initialize variables
     PyObject *tokens;
 
-    // Parse input arguments
     if (!PyArg_ParseTuple(args, "O", &tokens)) {
         PyErr_SetString(PyExc_TypeError, "Failed to parse arguments. Expected a single list of tokens.");
         return NULL;
     }
 
-    // Check if tokens is a list
     if (!PyList_Check(tokens)) {
         PyErr_SetString(PyExc_TypeError, "Argument must be a list of integers");
         return NULL;
     }
 
-    // Check if token list is empty
     Py_ssize_t num_tokens = PyList_Size(tokens);
     if (num_tokens <= 0) {
         PyErr_SetString(PyExc_ValueError, "Token list must not be empty.");
         return NULL;
     }
 
-    // Allocate buffer for decoding result dynamically
-    size_t result_size = 1; // Start with 1 for the null terminator
+    size_t result_size = 1;
     char *result = malloc(result_size);
     if (!result) {
         PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for decoding result.");
         return NULL;
     }
-    result[0] = '\0'; // Initialize as an empty string
+    result[0] = '\0';
 
     // printf("Debug: Number of tokens: %zd\n", num_tokens);
 
@@ -359,7 +337,6 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
     for (Py_ssize_t i = 0; i < num_tokens; i++) {
         // printf("Debug: Decoding token %zd/%zd\n", i + 1, num_tokens);
 
-        // Check if token is an integer
         PyObject *token_obj = PyList_GetItem(tokens, i);
         if (!PyLong_Check(token_obj)) {
             PyErr_SetString(PyExc_TypeError, "All tokens must be integers.");
@@ -368,20 +345,19 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
         }
 
         // Get token value
-        int token = (int)PyLong_AsLong(token_obj); // Convert Python object to C integer
-        if (token < 0 || token >= vocab_size_decode || !vocab_decode[token]) { // Check if token is within bounds
+        int token = (int)PyLong_AsLong(token_obj);
+        if (token < 0 || token >= vocab_size_decode || !vocab_decode[token]) { 
             PyErr_SetString(PyExc_ValueError, "Invalid token value or uninitialized vocabulary entry.");
             free(result);
             return NULL;
         }
 
-        //printf("Debug: Decoding token %d, vocab entry: '%s'\n", token, vocab_decode[token]);
+        // printf("Debug: Decoding token %d, vocab entry: '%s'\n", token, vocab_decode[token]);
 
         // Calculate required size for the new token (including space if needed)
         size_t token_len = strlen(vocab_decode[token]);
-        size_t new_size = result_size + token_len + 1; // +1 for a potential space
+        size_t new_size = result_size + token_len + 1; 
 
-        // Reallocate memory for the result buffer
         char *temp = realloc(result, new_size);
         if (!temp) {
             PyErr_SetString(PyExc_MemoryError, "Memory reallocation failed for decoding result.");
@@ -395,7 +371,6 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
         result_size += token_len;
     }
 
-    // Create Python string from decoding result
     PyObject *py_result = PyUnicode_FromString(result);
     if (!py_result) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to create Python string from decoding result.");
