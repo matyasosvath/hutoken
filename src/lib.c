@@ -286,9 +286,6 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
 
 static PyObject *p_decode(PyObject *self, PyObject *args) {
-    // printf("Debug: Entered p_decode\n");
-    // printf("Debug: vocab_size_decode = %d\n", vocab_size_decode);
-
     if (!initialized_decode) {
         PyErr_SetString(PyExc_RuntimeError,
             "Vocabulary is not initialized for decoding. "
@@ -317,70 +314,8 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    Py_ssize_t num_tokens = PyList_Size(tokens);
-    if (num_tokens <= 0) {
-        PyErr_SetString(PyExc_ValueError, "Token list must not be empty.");
-        return NULL;
-    }
-
-    size_t result_size = 1;
-    char *result = malloc(result_size);
-    if (!result) {
-        PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for decoding result.");
-        return NULL;
-    }
-    result[0] = '\0';
-
-    // printf("Debug: Number of tokens: %zd\n", num_tokens);
-
-    // Decode tokens
-    for (Py_ssize_t i = 0; i < num_tokens; i++) {
-        // printf("Debug: Decoding token %zd/%zd\n", i + 1, num_tokens);
-
-        PyObject *token_obj = PyList_GetItem(tokens, i);
-        if (!PyLong_Check(token_obj)) {
-            PyErr_SetString(PyExc_TypeError, "All tokens must be integers.");
-            free(result);
-            return NULL;
-        }
-
-        // Get token value
-        int token = (int)PyLong_AsLong(token_obj);
-        if (token < 0 || token >= vocab_size_decode || !vocab_decode[token]) { 
-            PyErr_SetString(PyExc_ValueError, "Invalid token value or uninitialized vocabulary entry.");
-            free(result);
-            return NULL;
-        }
-
-        // printf("Debug: Decoding token %d, vocab entry: '%s'\n", token, vocab_decode[token]);
-
-        // Calculate required size for the new token (including space if needed)
-        size_t token_len = strlen(vocab_decode[token]);
-        size_t new_size = result_size + token_len + 1; 
-
-        char *temp = realloc(result, new_size);
-        if (!temp) {
-            PyErr_SetString(PyExc_MemoryError, "Memory reallocation failed for decoding result.");
-            free(result);
-            return NULL;
-        }
-        result = temp;
-
-        // Append token to result
-        strncat(result, vocab_decode[token], token_len);
-        result_size += token_len;
-    }
-
-    PyObject *py_result = PyUnicode_FromString(result);
-    if (!py_result) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to create Python string from decoding result.");
-        free(result);
-        return NULL;
-    }
-
-    free(result);
-
-    return py_result;
+    // Call the decode function from core.c
+    return decode(tokens, vocab_decode, vocab_size_decode);
 }
 
 static PyMethodDef huTokenMethods[] = {
