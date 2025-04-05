@@ -161,7 +161,6 @@ PyObject *p_encode(PyObject *self, PyObject *args)
 #define MAX_LINE_LENGTH 10000 // Define a larger buffer size for extreme cases
 
 static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
-    // printf("Debug: Entered p_initialize_decode\n");
 
     char *vocab_file_path;
 
@@ -213,7 +212,6 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
     char line[MAX_LINE_LENGTH];
 
     while (fgets(line, sizeof(line), file)) {
-        // printf("Debug: Processing line: %s\n", line);
 
         int value;
 
@@ -272,7 +270,6 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
             return NULL;
         }
 
-        // printf("Debug: Parsed line. hex_str=%s, value=%d, ascii_str=%s\n", hex_str, value, ascii_str);
     }
 
     free(hex_str);
