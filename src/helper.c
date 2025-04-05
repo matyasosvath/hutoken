@@ -54,7 +54,7 @@ void visualize_bpe_train(
 }
 
 void hex_str_to_ascii(const char *hex_str, char *ascii_str, size_t ascii_str_size) {
-    size_t i = 0;  // Index for ascii_str
+    size_t i = 0;
     while (*hex_str != '\0') {
         if (*hex_str == '0' && *(hex_str + 1) == 'x') {
             hex_str += 2;  // Skip "0x"
@@ -65,7 +65,7 @@ void hex_str_to_ascii(const char *hex_str, char *ascii_str, size_t ascii_str_siz
 
                 // Ensure there is enough space in the output buffer
                 if (i >= ascii_str_size - 1) {
-                    fprintf(stderr, "Error: Output buffer overflow in hex_str_to_ascii\n");
+                    PyErr_SetString(PyExc_BufferError, "Output buffer overflow in hex_str_to_ascii");
                     ascii_str[0] = '\0';  // Mark as invalid
                     return;
                 }
@@ -78,7 +78,7 @@ void hex_str_to_ascii(const char *hex_str, char *ascii_str, size_t ascii_str_siz
             hex_str++;  // Move to the next character if '0x' not found
         }
     }
-    ascii_str[i] = '\0';  // Null-terminate the resulting ASCII string
+    ascii_str[i] = '\0';
 }
 
 int save_vocab(struct HashMap *vocab, char *file_name) {
