@@ -158,7 +158,7 @@ PyObject *p_encode(PyObject *self, PyObject *args)
     return list;
 }
 
-#define MAX_LINE_LENGTH 10000 // Define a larger buffer size for extreme cases
+#define MAX_LINE_LENGTH 10000 
 
 static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
@@ -215,9 +215,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
         int value;
 
-        // Parse the line to extract the hex string and value
         if (sscanf(line, "%9999s == %d", hex_str, &value) != 2) {
-            fprintf(stderr, "Invalid line format encountered: %s\n", line);
             PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
             fclose(file);
             free(hex_str);
@@ -311,7 +309,6 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // Call the decode function from core.c
     return decode(tokens, vocab_decode, vocab_size_decode);
 }
 
@@ -321,7 +318,7 @@ static PyMethodDef huTokenMethods[] = {
     {"initialize_decode", p_initialize_decode, METH_VARARGS, "Initalize tokenizer decoder"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
-    {NULL, NULL, 0, NULL} // signal end of functions
+    {NULL, NULL, 0, NULL} 
 };
 
 static struct PyModuleDef huToken = {
