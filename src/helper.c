@@ -1,6 +1,13 @@
 #ifndef HELPER
 #define HELPER
 
+#include <Python.h>
+
+// Define PyExc_BufferError if it's not already defined
+#ifndef PyExc_BufferError
+#define PyExc_BufferError PyExc_RuntimeError
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,25 +64,24 @@ void hex_str_to_ascii(const char *hex_str, char *ascii_str, size_t ascii_str_siz
     size_t i = 0;
     while (*hex_str != '\0') {
         if (*hex_str == '0' && *(hex_str + 1) == 'x') {
-            hex_str += 2;  // Skip "0x"
+            hex_str += 2;
 
             if (hex_str[0] != '\0' && hex_str[1] != '\0') {
                 char hexValue[3] = { hex_str[0], hex_str[1], '\0' };
                 int charValue = (int)strtol(hexValue, NULL, 16);
 
-                // Ensure there is enough space in the output buffer
                 if (i >= ascii_str_size - 1) {
                     PyErr_SetString(PyExc_BufferError, "Output buffer overflow in hex_str_to_ascii");
-                    ascii_str[0] = '\0';  // Mark as invalid
+                    ascii_str[0] = '\0';
                     return;
                 }
 
                 ascii_str[i++] = (char)charValue;
             }
 
-            hex_str += 2;  // Move to the next potential '0x'
+            hex_str += 2; 
         } else {
-            hex_str++;  // Move to the next character if '0x' not found
+            hex_str++;
         }
     }
     ascii_str[i] = '\0';
