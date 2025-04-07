@@ -3,7 +3,6 @@
 
 #include <Python.h>
 
-// Define PyExc_BufferError if it's not already defined
 #ifndef PyExc_BufferError
 #define PyExc_BufferError PyExc_RuntimeError
 #endif
