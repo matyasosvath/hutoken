@@ -165,24 +165,30 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
     char *vocab_file_path;
 
     if (!PyArg_ParseTuple(args, "si", &vocab_file_path, &vocab_size_decode)) {
+        log_debug("Error: Invalid arguments passed to p_initialize_decode.");
         PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path) and an integer (vocab_size_decode).");
         return NULL;
     }
 
     if (vocab_size_decode <= 0) {
+        log_debug("Error: vocab_size_decode must be greater than zero.");
         PyErr_SetString(PyExc_ValueError, "vocab_size_decode must be greater than zero.");
         return NULL;
     }
 
+    log_debug("Initializing decode with vocab file: %s and vocab size: %d", vocab_file_path, vocab_size_decode);
+    
     // Python garbage collector may delete the string, so we need to copy it
     char *vocab_file_path_copy = strdup(vocab_file_path);
     if (!vocab_file_path_copy) {
+        log_debug("Error: Failed to allocate memory for vocab file path.");
         PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for vocab file path.");
         return NULL;
     }
 
     vocab_decode = malloc(vocab_size_decode * sizeof(char *));
     if (!vocab_decode) {
+        log_debug("Error: Memory allocation failed for vocab_decode array.");
         PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab_decode array.");
         free(vocab_file_path_copy);
         return NULL;
@@ -194,14 +200,18 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
     FILE *file = fopen(vocab_file_path_copy, "r");
     if (!file) {
+        log_debug("Error: Could not open vocab file: %s", vocab_file_path_copy);
         PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
         free(vocab_decode);
         free(vocab_file_path_copy);
         return NULL;
     }
 
+    log_debug("Successfully opened vocab file: %s", vocab_file_path_copy);
+
     char *hex_str = malloc(MAX_LINE_LENGTH);
     if (!hex_str) {
+        log_debug("Error: Memory allocation failed for hex_str.");
         PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for hex_str.");
         fclose(file);
         free(vocab_decode);
@@ -210,12 +220,11 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
     }
 
     char line[MAX_LINE_LENGTH];
-
     while (fgets(line, sizeof(line), file)) {
-
         int value;
 
         if (sscanf(line, "%9999s == %d", hex_str, &value) != 2) {
+            log_debug("Error: Invalid format in vocab file: %s", line);
             PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
             fclose(file);
             free(hex_str);
@@ -228,6 +237,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         }
 
         if (value < 0 || value >= vocab_size_decode) {
+            log_debug("Error: Invalid vocab index %d in vocab file.", value);
             PyErr_SetString(PyExc_ValueError, "Invalid vocab index in vocab file.");
             fclose(file);
             free(hex_str);
@@ -239,11 +249,11 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
             return NULL;
         }
 
-
         char ascii_str[500] = {0};
         hex_str_to_ascii(hex_str, ascii_str, sizeof(ascii_str));
 
         if (ascii_str[0] == '\0') {
+            log_debug("Error: Failed to convert hex string to ASCII: %s", hex_str);
             PyErr_SetString(PyExc_RuntimeError, "Failed to convert hex string to ASCII.");
             fclose(file);
             free(hex_str);
@@ -257,6 +267,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
 
         vocab_decode[value] = strdup(ascii_str);
         if (!vocab_decode[value]) {
+            log_debug("Error: Memory allocation failed for vocab entry at index %d.", value);
             PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab entry.");
             fclose(file);
             free(hex_str);
@@ -268,6 +279,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
             return NULL;
         }
 
+        log_debug("Loaded vocab entry: index=%d, value=%s", value, ascii_str);
     }
 
     free(hex_str);
@@ -275,6 +287,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
     fclose(file);
 
     initialized_decode = true;
+    log_debug("Successfully initialized decode.");
 
     Py_RETURN_NONE;
 }
