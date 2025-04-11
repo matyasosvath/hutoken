@@ -1,4 +1,3 @@
-
 # huToken
 
 **huToken** is a high-performance, C-based tokenization library for Python (inspired by `tiktoken` and `tokenizers`). It provides efficient encoding and decoding of text using Byte Pair Encoding (BPE). Work in progress.
@@ -62,6 +61,14 @@ To verify that everything is working correctly, run:
 ```sh
 pip install pytest pytest-memray
 pytest --memray .
+```
+
+## 🐛 Debugging
+
+To enable debug logs, set the `DEBUG` environment variable to `1` before running your code:
+
+```sh
+DEBUG=1 python your_script.py
 ```
 
 ## 🤝 Contributing
