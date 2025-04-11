@@ -44,51 +44,57 @@ PyObject *p_bpe_train(PyObject *self, PyObject *args)
     return Py_None;
 }
 
-PyObject *p_initalize_encode(PyObject *self, PyObject *args)
-{
-    char *vocab_file_path; // full file path for now
+PyObject *p_initalize_encode(PyObject *self, PyObject *args) {
+    char *vocab_file_path;
 
-    if (!PyArg_ParseTuple(args, "s", &vocab_file_path))
+    if (!PyArg_ParseTuple(args, "s", &vocab_file_path)) {
+        log_debug("Error: Invalid arguments passed to p_initialize_encode.");
+        PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path).");
         return NULL;
+}
+
+    log_debug("Initializing encode with vocab file: %s", vocab_file_path);
 
     vocab_encode = hashmap_new(256);
-
-    FILE *file = fopen(vocab_file_path, "r");
-    if (!file)
-    {
-        perror("Could not open vocab file");
-        exit(EXIT_FAILURE);
+if (!vocab_encode) {
+        log_debug("Error: Failed to create hashmap for vocab_encode.");
+        PyErr_SetString(PyExc_MemoryError, "Failed to create hashmap for vocab_encode.");
+        return NULL;
     }
 
-    char line[1024];
-    while (fgets(line, sizeof(line), file))
-    {
+    FILE *file = fopen(vocab_file_path, "r");
+    if (!file) {
+        log_debug("Error: Could not open vocab file: %s", vocab_file_path);
+        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
+        return NULL;
+    }
 
+    log_debug("Successfully opened vocab file: %s", vocab_file_path);
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file)) {
         char *hex_token = strtok(line, " == ");
         char *value_str = strtok(NULL, " == ");
-        if (!hex_token || !value_str)
-        {
-            fprintf(stderr, "Invalid line format in vocab file.\n");
+        if (!hex_token || !value_str) {
+            log_debug("Error: Invalid line format in vocab file: %s", line);
             continue;
         }
 
         size_t hex_len = strlen(hex_token);
         size_t decoded_string_len = hex_len / 4 + 1;
         char *decoded_string = malloc(decoded_string_len);
-        if (!decoded_string)
-        {
-            perror("Memory allocation failed for decoded string");
-            exit(EXIT_FAILURE);
+        if (!decoded_string) {
+            log_debug("Error: Memory allocation failed for decoded string.");
+            fclose(file);
+            return PyErr_NoMemory();
         }
 
         const char *pos = hex_token;
         size_t char_index = 0;
-        while (pos[0] == '0' && pos[1] == 'x')
-        {
+        while (pos[0] == '0' && pos[1] == 'x') {
             unsigned int byte_value;
-            if (sscanf(pos, "0x%2X", &byte_value) != 1)
-            {
-                fprintf(stderr, "Failed to parse hex byte: %s\n", pos);
+            if (sscanf(pos, "0x%2X", &byte_value) != 1) {
+                log_debug("Error: Failed to parse hex byte: %s", pos);
                 free(decoded_string);
                 continue;
             }
@@ -98,15 +104,16 @@ PyObject *p_initalize_encode(PyObject *self, PyObject *args)
         decoded_string[char_index] = '\0';
 
         char *key = strdup(decoded_string);
-        if (!key)
-        {
-            perror("Memory allocation failed for key string");
+        if (!key) {
+            log_debug("Error: Memory allocation failed for key string.");
             free(decoded_string);
-            exit(EXIT_FAILURE);
+            fclose(file);
+            return PyErr_NoMemory();
         }
         int value = atoi(value_str);
 
         hashmap_set(vocab_encode, &(struct Token){.key = key, .value = value});
+log_debug("Added vocab entry: key=%s, value=%d", key, value);
 
         free(decoded_string);
     }
@@ -114,8 +121,9 @@ PyObject *p_initalize_encode(PyObject *self, PyObject *args)
     fclose(file);
 
     initialized_encode = true;
+log_debug("Successfully initialized encode.");
 
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 PyObject *p_encode(PyObject *self, PyObject *args)
