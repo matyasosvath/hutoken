@@ -97,28 +97,26 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     }
 }
 
-void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size)
-{
+void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size) {
+    log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
-
     int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r)
-    {
+    if (r) {
+        log_debug("Error: Regex could not be compiled.");
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+        return;
     }
 
     regmatch_t match;
-
     char *cursor = text;
 
-    while (regexec(&regex, cursor, 1, &match, 0) == 0)
-    {
-
+    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
-
         int word_len = word_end - word_start;
+
+        log_debug("Matched word: start=%d, end=%d, length=%d", word_start, word_end, word_len);
 
         int i = 0;
         Boundary word_token_boundaries[word_len];
@@ -136,17 +134,17 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        for (int i = 0; i < word_token_num; i++)
-        {
+        for (int i = 0; i < word_token_num; i++) {
             tokens[i + *tokens_size] = word_tokens[i];
+            log_debug("Encoded token: %d", word_tokens[i]);
         }
 
         cursor += word_end;
-
         *tokens_size += word_token_num;
     }
 
     regfree(&regex);
+    log_debug("Completed encode function. Total tokens: %d", *tokens_size);
 }
 
 PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
