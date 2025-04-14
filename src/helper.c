@@ -151,4 +151,23 @@ int save_vocab(struct HashMap *vocab, char *file_name) {
     return EXIT_SUCCESS;
 }
 
+void log_debug(const char *format, ...) {
+    const char *debug_env = getenv("DEBUG");
+    if (debug_env && strcmp(debug_env, "1") == 0) {
+        time_t now = time(NULL);
+        struct tm *local_time = localtime(&now);
+        char timestamp[20];
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", local_time);
+
+        fprintf(stderr, "[%s] DEBUG: ", timestamp);
+
+        va_list args;
+        va_start(args, format);
+        vfprintf(stderr, format, args);
+        va_end(args);
+
+        fprintf(stderr, "\n");
+    }
+}
+
 #endif
