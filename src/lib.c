@@ -161,29 +161,47 @@ PyObject *p_encode(PyObject *self, PyObject *args)
 #define MAX_LINE_LENGTH 10000 
 
 static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
-
     char *vocab_file_path;
 
-    if (!PyArg_ParseTuple(args, "si", &vocab_file_path, &vocab_size_decode)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path) and an integer (vocab_size_decode).");
+    if (!PyArg_ParseTuple(args, "s", &vocab_file_path)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path).");
         return NULL;
     }
 
-    if (vocab_size_decode <= 0) {
-        PyErr_SetString(PyExc_ValueError, "vocab_size_decode must be greater than zero.");
-        return NULL;
-    }
-
-    // Python garbage collector may delete the string, so we need to copy it
+    // Copy the file path to avoid issues with Python's garbage collector
     char *vocab_file_path_copy = strdup(vocab_file_path);
     if (!vocab_file_path_copy) {
         PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for vocab file path.");
         return NULL;
     }
 
+    FILE *file = fopen(vocab_file_path_copy, "r");
+    if (!file) {
+        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
+        free(vocab_file_path_copy);
+        return NULL;
+    }
+
+    // Count the number of lines in the file to determine vocab size
+    vocab_size_decode = 0;
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), file)) {
+        if (strchr(line, '=') != NULL) { // Ensure the line contains a valid entry
+            vocab_size_decode++;
+        }
+    }
+
+    if (vocab_size_decode == 0) {
+        PyErr_SetString(PyExc_ValueError, "Vocab file is empty or contains no valid entries.");
+        fclose(file);
+        free(vocab_file_path_copy);
+        return NULL;
+    }
+
     vocab_decode = malloc(vocab_size_decode * sizeof(char *));
     if (!vocab_decode) {
         PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab_decode array.");
+        fclose(file);
         free(vocab_file_path_copy);
         return NULL;
     }
@@ -192,13 +210,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         vocab_decode[i] = NULL;
     }
 
-    FILE *file = fopen(vocab_file_path_copy, "r");
-    if (!file) {
-        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
-        free(vocab_decode);
-        free(vocab_file_path_copy);
-        return NULL;
-    }
+    rewind(file);
 
     char *hex_str = malloc(MAX_LINE_LENGTH);
     if (!hex_str) {
@@ -209,10 +221,8 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    char line[MAX_LINE_LENGTH];
-
+    int index = 0;
     while (fgets(line, sizeof(line), file)) {
-
         int value;
 
         if (sscanf(line, "%9999s == %d", hex_str, &value) != 2) {
@@ -238,7 +248,6 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
             free(vocab_decode);
             return NULL;
         }
-
 
         char ascii_str[500] = {0};
         hex_str_to_ascii(hex_str, ascii_str, sizeof(ascii_str));
@@ -268,6 +277,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
             return NULL;
         }
 
+        index++;
     }
 
     free(hex_str);
@@ -275,7 +285,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
     fclose(file);
 
     initialized_decode = true;
-
+    
     Py_RETURN_NONE;
 }
 
