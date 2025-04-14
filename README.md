@@ -43,7 +43,7 @@ print(tokens)  # example output: [14, 9, 19, 19, 24, 0, 23, 14, 17, 19, 11]
 Before decoding, initialize the vocabulary:
 
 ```python
-hutoken.initialize_decode("vocab.txt", 5000)
+hutoken.initialize_decode("vocab.txt")
 ```
 
 ### 5️⃣ Decoding Tokens
