@@ -169,24 +169,17 @@ PyObject *p_encode(PyObject *self, PyObject *args)
 #define MAX_LINE_LENGTH 10000 
 
 static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
-
     char *vocab_file_path;
 
-    if (!PyArg_ParseTuple(args, "si", &vocab_file_path, &vocab_size_decode)) {
+    if (!PyArg_ParseTuple(args, "s", &vocab_file_path)) {
         log_debug("Error: Invalid arguments passed to p_initialize_decode.");
-        PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path) and an integer (vocab_size_decode).");
+        PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path).");
         return NULL;
     }
 
-    if (vocab_size_decode <= 0) {
-        log_debug("Error: vocab_size_decode must be greater than zero.");
-        PyErr_SetString(PyExc_ValueError, "vocab_size_decode must be greater than zero.");
-        return NULL;
-    }
+    log_debug("Initializing decode with vocab file: %s", vocab_file_path);
 
-    log_debug("Initializing decode with vocab file: %s and vocab size: %d", vocab_file_path, vocab_size_decode);
-    
-    // Python garbage collector may delete the string, so we need to copy it
+    // Copy the file path to avoid issues with Python's garbage collector
     char *vocab_file_path_copy = strdup(vocab_file_path);
     if (!vocab_file_path_copy) {
         log_debug("Error: Failed to allocate memory for vocab file path.");
@@ -194,10 +187,42 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
+    log_debug("Successfully allocated memory for vocab file path: %s", vocab_file_path_copy);
+
+    FILE *file = fopen(vocab_file_path_copy, "r");
+    if (!file) {
+        log_debug("Error: Could not open vocab file: %s", vocab_file_path_copy);
+        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
+        free(vocab_file_path_copy);
+        return NULL;
+    }
+
+    log_debug("Successfully opened vocab file: %s", vocab_file_path_copy);
+
+    // Count the number of lines in the file to determine vocab size
+    vocab_size_decode = 0;
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), file)) {
+        if (strchr(line, '=') != NULL) { // Ensure the line contains a valid entry
+            vocab_size_decode++;
+        }
+    }
+
+    log_debug("Calculated vocab size: %d", vocab_size_decode);
+
+    if (vocab_size_decode == 0) {
+        log_debug("Error: Vocab file is empty or contains no valid entries.");
+        PyErr_SetString(PyExc_ValueError, "Vocab file is empty or contains no valid entries.");
+        fclose(file);
+        free(vocab_file_path_copy);
+        return NULL;
+    }
+
     vocab_decode = malloc(vocab_size_decode * sizeof(char *));
     if (!vocab_decode) {
         log_debug("Error: Memory allocation failed for vocab_decode array.");
         PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab_decode array.");
+        fclose(file);
         free(vocab_file_path_copy);
         return NULL;
     }
@@ -206,16 +231,7 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         vocab_decode[i] = NULL;
     }
 
-    FILE *file = fopen(vocab_file_path_copy, "r");
-    if (!file) {
-        log_debug("Error: Could not open vocab file: %s", vocab_file_path_copy);
-        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
-        free(vocab_decode);
-        free(vocab_file_path_copy);
-        return NULL;
-    }
-
-    log_debug("Successfully opened vocab file: %s", vocab_file_path_copy);
+    rewind(file);
 
     char *hex_str = malloc(MAX_LINE_LENGTH);
     if (!hex_str) {
@@ -226,8 +242,8 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         free(vocab_file_path_copy);
         return NULL;
     }
+    log_debug("Successfully allocated memory for hex_str.");
 
-    char line[MAX_LINE_LENGTH];
     while (fgets(line, sizeof(line), file)) {
         int value;
 
