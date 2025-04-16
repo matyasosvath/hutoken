@@ -172,7 +172,9 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
     char *vocab_file_path;
 
     if (!PyArg_ParseTuple(args, "s", &vocab_file_path)) {
+
         log_debug("Error: Invalid arguments passed to p_initialize_decode.");
+
         PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path).");
         return NULL;
     }
@@ -242,7 +244,10 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         free(vocab_file_path_copy);
         return NULL;
     }
+
     log_debug("Successfully allocated memory for hex_str.");
+
+    int index = 0;
 
     while (fgets(line, sizeof(line), file)) {
         int value;
@@ -304,6 +309,8 @@ static PyObject *p_initialize_decode(PyObject *self, PyObject *args) {
         }
 
         log_debug("Loaded vocab entry: index=%d, value=%s", value, ascii_str);
+
+        index++;
     }
 
     free(hex_str);

@@ -167,7 +167,6 @@ def test_decode_whole_sentence_tiktoken():
 
     assert decoded == sentence, f"Decoded text does not match original. Decoded: {decoded}, Original: {sentence}"
     
-    
 def test_encode_only():
     """Test the encode function of hutoken."""
     # Initialize the encoder
@@ -185,7 +184,6 @@ def test_encode_only():
 
     # Print the encoded tokens for debugging
     print(f"Encoded tokens: {encoded_tokens}")
-
 
 def test_initialize_decode_dynamic_vocab_size():
     """Test that initialize_decode dynamically calculates vocab size."""
