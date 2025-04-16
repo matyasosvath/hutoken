@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <regex.h>
+#include <time.h>
+#include <stdarg.h>
 
 #include "helper.c"
 #include "hashmap.c"
@@ -76,28 +78,26 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     }
 }
 
-void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size)
-{
+void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size) {
+    log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
-
     int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r)
-    {
+    if (r) {
+        log_debug("Error: Regex could not be compiled.");
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+        return;
     }
 
     regmatch_t match;
-
     char *cursor = text;
 
-    while (regexec(&regex, cursor, 1, &match, 0) == 0)
-    {
-
+    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
-
         int word_len = word_end - word_start;
+
+        log_debug("Matched word: start=%d, end=%d, length=%d", word_start, word_end, word_len);
 
         int i = 0;
         Boundary word_token_boundaries[word_len];
@@ -115,80 +115,91 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        for (int i = 0; i < word_token_num; i++)
-        {
+        for (int i = 0; i < word_token_num; i++) {
             tokens[i + *tokens_size] = word_tokens[i];
+            log_debug("Encoded token: %d", word_tokens[i]);
         }
 
         cursor += word_end;
-
         *tokens_size += word_token_num;
     }
 
     regfree(&regex);
+    log_debug("Completed encode function. Total tokens: %d", *tokens_size);
 }
 
 PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
 {
+    log_debug("Entered decode function");
 
     Py_ssize_t token_num = PyList_Size(tokens);
+    log_debug("Number of tokens to decode: %zd", token_num);
 
     size_t text_size = sizeof(char) * ((int)token_num + 1);
-
     char *text = (char *)malloc(text_size);
 
-    if (!text)
+    if (!text) {
+        log_debug("Error: Memory allocation failed for text buffer");
         return PyErr_NoMemory();
+    }
 
     text[0] = '\0';
+    log_debug("Initialized text buffer to an empty string (size: %zu bytes)", text_size);
 
-    for (Py_ssize_t i = 0; i < token_num; i++)
-    {
+    for (Py_ssize_t i = 0; i < token_num; i++) {
+        log_debug("Processing token at index %zd", i);
 
         PyObject *token = PyList_GetItem(tokens, i);
-
-        if (!PyLong_Check(token))
-        {
+        if (!PyLong_Check(token)) {
+            log_debug("Error: Token at index %zd is not an integer", i);
             PyErr_SetString(PyExc_TypeError, "All elements of the list must be integers");
             free(text);
             return NULL;
         }
 
         int item = (int)PyLong_AsLong(token);
-
-        if (item < 0 || item >= vocab_size)
-        {
-            PyErr_SetString(PyExc_ValueError, "Element must be non-negative and less then vocab size.");
+        if (item < 0 || item >= vocab_size) {
+            log_debug("Error: Token value %d is out of bounds (vocab_size = %d)", item, vocab_size);
+            PyErr_SetString(PyExc_ValueError, "Element must be non-negative and less than vocab size.");
             free(text);
             return NULL;
         }
 
         const char *word = vocab_decode[item];
         size_t word_len = strlen(word);
+        log_debug("Decoded token value %d to word '%s' (length: %zu)", item, word, word_len);
 
         size_t current_len = strlen(text);
-
-        if (current_len + word_len + 1 >= text_size)
-        {
+        if (current_len + word_len + 1 >= text_size) {
+            log_debug("Resizing text buffer: current length = %zu, word length = %zu, current buffer size = %zu", current_len, word_len, text_size);
 
             int buffer_size = current_len + TEXT_SIZE_INCREMENT + word_len + 1;
-
             char *new_text = realloc(text, buffer_size);
 
-            if (new_text == NULL)
-            {
+            if (new_text == NULL) {
+                log_debug("Error: Memory reallocation failed for text buffer");
                 free(text);
                 return PyErr_NoMemory();
             }
             text = new_text;
+            text_size = buffer_size;
+
+            log_debug("Resized text buffer to new size: %d bytes", buffer_size);
         }
 
         strcat(text, word);
+        log_debug("Appended word '%s' to text buffer. Current text: '%s' (buffer size: %zu bytes)", word, text, text_size);
     }
 
     PyObject *result = PyUnicode_FromString(text);
+    if (!result) {
+        log_debug("Error: Failed to create Python string from decoded text");
+        free(text);
+        return NULL;
+    }
+
+    log_debug("Successfully created Python string from decoded text: '%s'", text);
 
     free(text);
-
     return result;
 }

@@ -166,7 +166,24 @@ def test_decode_whole_sentence_tiktoken():
     print(f"Decoded text (tiktoken): {decoded}")  # Debugging output
 
     assert decoded == sentence, f"Decoded text does not match original. Decoded: {decoded}, Original: {sentence}"
+    
+def test_encode_only():
+    """Test the encode function of hutoken."""
+    # Initialize the encoder
+    hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')
 
+    # Input text to encode
+    text = "Hello, world!"
+
+    # Call the encode function
+    encoded_tokens = hutoken.encode(text)
+
+    # Assert that the result is a list of integers
+    assert isinstance(encoded_tokens, list), "Encoded result should be a list"
+    assert all(isinstance(token, int) for token in encoded_tokens), "All elements in the encoded result should be integers"
+
+    # Print the encoded tokens for debugging
+    print(f"Encoded tokens: {encoded_tokens}")
 
 def test_initialize_decode_dynamic_vocab_size():
     """Test that initialize_decode dynamically calculates vocab size."""

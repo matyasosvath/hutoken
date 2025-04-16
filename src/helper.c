@@ -24,6 +24,24 @@ typedef struct {
     char *end;
 } Boundary;
 
+void log_debug(const char *format, ...) {
+    const char *debug_env = getenv("DEBUG");
+    if (debug_env && strcmp(debug_env, "1") == 0) {
+        time_t now = time(NULL);
+        struct tm *local_time = localtime(&now);
+        char timestamp[20];
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", local_time);
+
+        fprintf(stderr, "[%s] DEBUG: ", timestamp);
+
+        va_list args;
+        va_start(args, format);
+        vfprintf(stderr, format, args);
+        va_end(args);
+
+        fprintf(stderr, "\n");
+    }
+}
 
 void visualize(int arr[], char *text, int n)
 {
@@ -60,6 +78,8 @@ void visualize_bpe_train(
 }
 
 void hex_str_to_ascii(const char *hex_str, char *ascii_str, size_t ascii_str_size) {
+    log_debug("Starting hex_str_to_ascii with input: %s", hex_str);
+
     size_t i = 0;
     while (*hex_str != '\0') {
         if (*hex_str == '0' && *(hex_str + 1) == 'x') {
@@ -69,21 +89,29 @@ void hex_str_to_ascii(const char *hex_str, char *ascii_str, size_t ascii_str_siz
                 char hexValue[3] = { hex_str[0], hex_str[1], '\0' };
                 int charValue = (int)strtol(hexValue, NULL, 16);
 
+                log_debug("Parsed hex value: %s -> ASCII char: %c (decimal: %d)", hexValue, (char)charValue, charValue);
+
                 if (i >= ascii_str_size - 1) {
+                    log_debug("Error: Output buffer overflow in hex_str_to_ascii. Buffer size: %zu, Current index: %zu", ascii_str_size, i);
                     PyErr_SetString(PyExc_BufferError, "Output buffer overflow in hex_str_to_ascii");
                     ascii_str[0] = '\0';
                     return;
                 }
 
                 ascii_str[i++] = (char)charValue;
+            } else {
+                log_debug("Error: Incomplete hex pair at position: %s", hex_str);
             }
 
             hex_str += 2; 
         } else {
+            log_debug("Skipping non-hex character: %c", *hex_str);
             hex_str++;
         }
     }
+
     ascii_str[i] = '\0';
+    log_debug("Completed hex_str_to_ascii. Result: %s", ascii_str);
 }
 
 int save_vocab(struct HashMap *vocab, char *file_name) {
