@@ -22,11 +22,11 @@ hutoken.bpe_train("your_text_data_here", 5000, "vocab.txt")
 
 This creates a `vocab.txt` file containing token mappings.
 
-### 2️⃣ Initializing the Encoder
-Before encoding, initialize the vocabulary:
+### 2️⃣ Initializing the Tokenizer
+Before encoding or decoding, initialize the tokenizer with the vocabulary file:
 
 ```python
-hutoken.initialize_encode("vocab.txt")
+hutoken.initialize("vocab.txt")
 ```
 
 ### 3️⃣ Encoding Text
@@ -37,21 +37,12 @@ tokens = hutoken.encode("hello world")
 print(tokens)  # example output: [14, 9, 19, 19, 24, 0, 23, 14, 17, 19, 11]
 ```
 
-### 4️⃣ Initializing the Decoder
-
-Before decoding, initialize the vocabulary:
-
-```python
-hutoken.initialize_decode("vocab.txt")
-```
-
-### 5️⃣ Decoding Tokens
-
+### 4️⃣ Decoding Tokens
 Convert token IDs back into text:
 
 ```python
 text = hutoken.decode([14, 9, 19, 19, 24, 0, 23, 14, 17, 19, 11])
-print(text)  #example output: "hello world"
+print(text)  # example output: "hello world"
 ```
 
 ## 🧪 Running Tests
