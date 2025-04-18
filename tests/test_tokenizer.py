@@ -42,8 +42,7 @@ paragraph2 = (
 @pytest.fixture(autouse=False)
 def setup():
 
-    hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')
-    hutoken.initialize_decode('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab.txt')
 
     tt_enc = tiktoken.get_encoding("gpt2")
 
@@ -89,7 +88,7 @@ def test_encode_speed():
     number = 10_000
     execution_time = timeit.timeit(
         f'hutoken.encode("{paragraph1}")',
-        setup="import hutoken; hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')",
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
         number=number
     )
     print(f"Average execution time for {number} calls: {execution_time / number} seconds")
@@ -102,7 +101,7 @@ def test_decode_speed():
     number = 10_000
     execution_time = timeit.timeit(
         f"hutoken.decode(hutoken.encode('{paragraph1}'))",
-        setup="import hutoken; hutoken.initialize_decode('./vocabs/gpt2-vocab.txt')",
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
         number=number
     )
 
@@ -111,83 +110,70 @@ def test_decode_speed():
     assert execution_time / number < 1e-03, f"Average exectuion for function took too long: {execution_time / number}."
 
 
-def test_initialize_decode_success():
-    """Test successful initialization of the decoder."""
-    hutoken.initialize_decode('./vocabs/gpt2-vocab.txt')
+def test_initialize_success():
+    """Test successful initialization of the tokenizer."""
+    hutoken.initialize('./vocabs/gpt2-vocab.txt')
 
 
-def test_initialize_decode_file_not_found():
-    """Test that initialize_decode raises FileNotFoundError for a missing vocab file."""
+def test_initialize_file_not_found():
+    """Test that initialize raises FileNotFoundError for a missing vocab file."""
     with pytest.raises(FileNotFoundError, match="Could not open vocab file."):
-        hutoken.initialize_decode('./vocabs/nonexistent-vocab.txt')
+        hutoken.initialize('./vocabs/nonexistent-vocab.txt')
 
 
-def test_initialize_decode_invalid_format():
-    """Test that initialize_decode raises ValueError for an invalid vocab file format."""
+def test_initialize_invalid_format():
+    """Test that initialize raises ValueError for an invalid vocab file format."""
     with open('./vocabs/invalid-vocab.txt', 'w') as f:
         f.write("invalid_line_format\n")
-
     with pytest.raises(ValueError, match="Vocab file is empty or contains no valid entries."):
-        hutoken.initialize_decode('./vocabs/invalid-vocab.txt')
+        hutoken.initialize('./vocabs/invalid-vocab.txt')
+        
+        
+def test_encode():
+    """Test the encode function of hutoken."""
+    hutoken.initialize('./vocabs/gpt2-vocab.txt')
 
+    text = "Hello, world!"
+    encoded_tokens = hutoken.encode(text)
+
+    assert isinstance(encoded_tokens, list), "Encoded result should be a list"
+    assert all(isinstance(token, int) for token in encoded_tokens), "All elements in the encoded result should be integers"
+
+    print(f"Encoded tokens: {encoded_tokens}")
+    
 
 def test_decode_invalid_tokens():
     """Test that decode raises ValueError for invalid tokens."""
-    hutoken.initialize_decode('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab.txt')
 
     invalid_tokens = [999999, -1, 50258]  # Out of bounds or invalid tokens
-    with pytest.raises(ValueError, match="Element must be non-negative and less then vocab size."):
+    with pytest.raises(ValueError, match="Element must be non-negative and less than vocab size."):
         hutoken.decode(invalid_tokens)
 
 
 def test_decode_using_tiktoken_encode():
     """Test decoding using tiktoken."""
-    hutoken.initialize_decode('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab.txt')
     tt_enc = tiktoken.get_encoding("gpt2")
 
     word = "entropy"
     encoded = tt_enc.encode(word)
-    print(f"Encoded tokens (tiktoken): {encoded}")  # Debugging output
+    print(f"Encoded tokens (tiktoken): {encoded}")
     decoded = hutoken.decode(encoded)
-    print(f"Decoded text (tiktoken): {decoded}")  # Debugging output
+    print(f"Decoded text (tiktoken): {decoded}")
 
     assert decoded == word, f"Decoded text does not match original. Decoded: {decoded}, Original: {word}"
 
 
-def test_decode_whole_sentence_tiktoken():
+def test_decode_whole_sentence_using_tiktoken_encode():
     """Test decoding a whole sentence encoded using tiktoken."""
-    hutoken.initialize_decode('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab.txt')
     tt_enc = tiktoken.get_encoding("gpt2")
 
     sentence = "How can the net amount of entropy of the universe be massively decreased?"
     encoded = tt_enc.encode(sentence)
-    print(f"Encoded tokens (tiktoken): {encoded}")  # Debugging output
+    print(f"Encoded tokens (tiktoken): {encoded}")
     decoded = hutoken.decode(encoded)
-    print(f"Decoded text (tiktoken): {decoded}")  # Debugging output
+    print(f"Decoded text (tiktoken): {decoded}")
 
     assert decoded == sentence, f"Decoded text does not match original. Decoded: {decoded}, Original: {sentence}"
-    
-def test_encode_only():
-    """Test the encode function of hutoken."""
-    # Initialize the encoder
-    hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')
-
-    # Input text to encode
-    text = "Hello, world!"
-
-    # Call the encode function
-    encoded_tokens = hutoken.encode(text)
-
-    # Assert that the result is a list of integers
-    assert isinstance(encoded_tokens, list), "Encoded result should be a list"
-    assert all(isinstance(token, int) for token in encoded_tokens), "All elements in the encoded result should be integers"
-
-    # Print the encoded tokens for debugging
-    print(f"Encoded tokens: {encoded_tokens}")
-
-def test_initialize_decode_dynamic_vocab_size():
-    """Test that initialize_decode dynamically calculates vocab size."""
-    hutoken.initialize_decode('./vocabs/gpt2-vocab.txt')
-
-    # Ensure the function initializes without errors
-    assert True
