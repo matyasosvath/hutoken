@@ -126,59 +126,49 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     Py_ssize_t token_num = PyList_Size(tokens);
     log_debug("Number of tokens to decode: %zd", token_num);
 
-    size_t text_size = sizeof(char) * ((int)token_num + 1);
-    char *text = (char *)malloc(text_size);
-
-    if (!text) {
-        log_debug("Error: Memory allocation failed for text buffer");
-        return PyErr_NoMemory();
-    }
-
-    text[0] = '\0';
-    log_debug("Initialized text buffer to an empty string (size: %zu bytes)", text_size);
-
+    // 1. Precompute total output length
+    size_t total_len = 0;
     for (Py_ssize_t i = 0; i < token_num; i++) {
-        log_debug("Processing token at index %zd", i);
-
         PyObject *token = PyList_GetItem(tokens, i);
         if (!PyLong_Check(token)) {
             log_debug("Error: Token at index %zd is not an integer", i);
             PyErr_SetString(PyExc_TypeError, "All elements of the list must be integers");
-            free(text);
             return NULL;
         }
-
         int item = (int)PyLong_AsLong(token);
         if (item < 0 || item >= vocab_size) {
             log_debug("Error: Token value %d is out of bounds (vocab_size = %d)", item, vocab_size);
             PyErr_SetString(PyExc_ValueError, "Element must be non-negative and less than vocab size.");
-            free(text);
             return NULL;
         }
+        total_len += strlen(vocab_decode[item]);
+    }
 
+    // 2. Allocate buffer once
+    size_t text_size = total_len + 1;
+    char *text = (char *)malloc(text_size);
+    if (!text) {
+        log_debug("Error: Memory allocation failed for text buffer");
+        return PyErr_NoMemory();
+    }
+    text[0] = '\0';
+    log_debug("Initialized text buffer to an empty string (size: %zu bytes)", text_size);
+
+    // 3. Copy words directly
+    size_t offset = 0;
+    for (Py_ssize_t i = 0; i < token_num; i++) {
+        log_debug("Processing token at index %zd", i);
+
+        PyObject *token = PyList_GetItem(tokens, i);
+        int item = (int)PyLong_AsLong(token);
         const char *word = vocab_decode[item];
         size_t word_len = strlen(word);
         log_debug("Decoded token value %d to word '%s' (length: %zu)", item, word, word_len);
 
-        size_t current_len = strlen(text);
-        if (current_len + word_len + 1 >= text_size) {
-            log_debug("Resizing text buffer: current length = %zu, word length = %zu, current buffer size = %zu", current_len, word_len, text_size);
+        memcpy(text + offset, word, word_len);
+        offset += word_len;
+        text[offset] = '\0';
 
-            int buffer_size = current_len + TEXT_SIZE_INCREMENT + word_len + 1;
-            char *new_text = realloc(text, buffer_size);
-
-            if (new_text == NULL) {
-                log_debug("Error: Memory reallocation failed for text buffer");
-                free(text);
-                return PyErr_NoMemory();
-            }
-            text = new_text;
-            text_size = buffer_size;
-
-            log_debug("Resized text buffer to new size: %d bytes", buffer_size);
-        }
-
-        strcat(text, word);
         log_debug("Appended word '%s' to text buffer. Current text: '%s' (buffer size: %zu bytes)", word, text, text_size);
     }
 
