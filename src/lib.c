@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <regex.h>
 
 #include "helper.c"
 #include "core.c"
@@ -12,6 +13,7 @@
 static bool initialized_encode = false;
 static bool initialized_decode = false;
 static char *pattern = " ?[A-Za-záéíóúőüöÁÉÍÓÚŐÜÖ]+| ?[0-9]+| ?[^A-Za-z0-9\\s]+|\\s+";
+static regex_t precompiled_regex;
 
 struct HashMap *vocab_encode;
 char **vocab_decode;
@@ -58,6 +60,14 @@ static PyObject *p_initialize(PyObject *self, PyObject *args, PyObject *kwargs) 
     }
 
     log_debug("Initializing with vocab file: %s", vocab_file_path);
+
+    // Compile regex pattern once
+    int r = regcomp(&precompiled_regex, pattern, REG_EXTENDED);
+    if (r) {
+        log_debug("Error: Regex could not be compiled.");
+        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+        return NULL;
+    }
 
     // Initialize encoding
     vocab_encode = hashmap_new(256);
@@ -240,14 +250,13 @@ PyObject *p_encode(PyObject *self, PyObject *args)
     }
 
     char *text;
-
     if (!PyArg_ParseTuple(args, "s", &text))
         return NULL;
 
     int tokens_size = 0;
     int tokens[strlen(text)];
 
-    encode(text, vocab_encode, pattern, tokens, &tokens_size);
+    encode(text, vocab_encode, &precompiled_regex, tokens, &tokens_size);
 
     PyObject *list = PyList_New(tokens_size);
     if (!list)
@@ -300,7 +309,7 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
 
 static PyMethodDef huTokenMethods[] = {
     {"bpe_train", p_bpe_train, METH_VARARGS, "BPE training"},
-    {"initialize", p_initialize, METH_VARARGS, "Initalize tokenizer"},
+    {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS, "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
     {NULL, NULL, 0, NULL} 

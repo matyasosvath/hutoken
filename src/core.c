@@ -1,5 +1,4 @@
 #include <Python.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,53 +77,45 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     }
 }
 
-void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size) {
+// Optimized encode: regex is precompiled and passed as a pointer
+void encode(char *text, struct HashMap *vocab, regex_t *regex, int tokens[], int *tokens_size) {
     log_debug("Starting encode function with text: %s", text);
-
-    regex_t regex;
-    int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r) {
-        log_debug("Error: Regex could not be compiled.");
-        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
-        return;
-    }
 
     regmatch_t match;
     char *cursor = text;
 
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
+    while (regexec(regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
         int word_len = word_end - word_start;
+        if (word_len <= 0) {
+            cursor += word_end;
+            continue;
+        }
 
-        log_debug("Matched word: start=%d, end=%d, length=%d", word_start, word_end, word_len);
-
+        Boundary stack_boundaries[256];
+        Boundary *word_token_boundaries = word_len <= 256 ? stack_boundaries : malloc(word_len * sizeof(Boundary));
         int i = 0;
-        Boundary word_token_boundaries[word_len];
-
-        for (char *ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
-            char *start = ptr;
-            char *end = ptr;
-            Boundary word_token_boundary = {start, end};
-            word_token_boundaries[i] = word_token_boundary;
-            i += 1;
+        for (char *ptr = cursor + word_start; ptr < cursor + word_end; ptr++, i++) {
+            word_token_boundaries[i].start = ptr;
+            word_token_boundaries[i].end = ptr;
         }
 
         int word_token_num = word_len;
-        int word_tokens[word_len];
+        int stack_tokens[256];
+        int *word_tokens = word_len <= 256 ? stack_tokens : malloc(word_len * sizeof(int));
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        for (int i = 0; i < word_token_num; i++) {
-            tokens[i + *tokens_size] = word_tokens[i];
-            log_debug("Encoded token: %d", word_tokens[i]);
-        }
+        memcpy(tokens + *tokens_size, word_tokens, word_token_num * sizeof(int));
+        *tokens_size += word_token_num;
+
+        if (word_token_boundaries != stack_boundaries) free(word_token_boundaries);
+        if (word_tokens != stack_tokens) free(word_tokens);
 
         cursor += word_end;
-        *tokens_size += word_token_num;
     }
 
-    regfree(&regex);
     log_debug("Completed encode function. Total tokens: %d", *tokens_size);
 }
 
