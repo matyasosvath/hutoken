@@ -88,7 +88,10 @@ void encode(char *text, struct HashMap *vocab, regex_t *regex, int tokens[], int
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
         int word_len = word_end - word_start;
+        log_debug("Matched word: start=%d, end=%d, length=%d, text='%.*s'", word_start, word_end, word_len, word_len, cursor + word_start);
+
         if (word_len <= 0) {
+            log_debug("Zero or negative word length, skipping...");
             cursor += word_end;
             continue;
         }
@@ -106,6 +109,22 @@ void encode(char *text, struct HashMap *vocab, regex_t *regex, int tokens[], int
         int *word_tokens = word_len <= 256 ? stack_tokens : malloc(word_len * sizeof(int));
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
+
+        // Log every token with its value and string representation
+        for (int j = 0; j < word_token_num; j++) {
+            // Reconstruct the string for this token
+            char *start = word_token_boundaries[j].start;
+            char *end = word_token_boundaries[j].end;
+            int len = (end - start) + 1;
+            char token_str[len + 1];
+            strncpy(token_str, start, len);
+            token_str[len] = '\0';
+
+            log_debug("Encoded token: '%s' -> %d", token_str, word_tokens[j]);
+            if (word_tokens[j] < 0) {
+                log_debug("Warning: Unknown token emitted for '%s'", token_str);
+            }
+        }
 
         memcpy(tokens + *tokens_size, word_tokens, word_token_num * sizeof(int));
         *tokens_size += word_token_num;
