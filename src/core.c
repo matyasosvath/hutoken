@@ -85,6 +85,8 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
     Boundary stack_boundaries[MAX_WORD_LEN];
     int stack_tokens[MAX_WORD_LEN];
 
+    *tokens_size = 0;
+
     while (regexec(regex, (const char *)cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
@@ -101,6 +103,7 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         Boundary *word_token_boundaries = word_len <= MAX_WORD_LEN ? stack_boundaries : malloc(word_len * sizeof(Boundary));
         int *word_tokens = word_len <= MAX_WORD_LEN ? stack_tokens : malloc(word_len * sizeof(int));
 
+        // Set up boundaries for each byte in the word
         for (int i = 0; i < word_len; i++) {
             word_token_boundaries[i].start = cursor + word_start + i;
             word_token_boundaries[i].end = cursor + word_start + i;
@@ -109,21 +112,7 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         int word_token_num = word_len;
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        for (int j = 0; j < word_token_num; j++) {
-            const uint8_t *start = word_token_boundaries[j].start;
-            const uint8_t *end = word_token_boundaries[j].end;
-            int len = (int)(end - start) + 1;
-            // Print first few bytes for debug
-            char debug_str[33];
-            int dbg_len = len > 32 ? 32 : len;
-            memcpy(debug_str, start, dbg_len);
-            debug_str[dbg_len] = '\0';
-            log_debug("Encoded token bytes: [%s] -> %d", debug_str, word_tokens[j]);
-            if (word_tokens[j] < 0) {
-                log_debug("Warning: Unknown token emitted for bytes [%s]", debug_str);
-            }
-        }
-
+        // Copy tokens for this word into the output array
         memcpy(tokens + *tokens_size, word_tokens, word_token_num * sizeof(int));
         *tokens_size += word_token_num;
 
