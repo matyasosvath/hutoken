@@ -77,12 +77,16 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     }
 }
 
-// Optimized encode: regex is precompiled and passed as a pointer
 void encode(char *text, struct HashMap *vocab, regex_t *regex, int tokens[], int *tokens_size) {
     log_debug("Starting encode function with text: %s", text);
 
     regmatch_t match;
     char *cursor = text;
+
+    // Preallocate large enough buffers for most words
+    #define MAX_WORD_LEN 1024
+    Boundary stack_boundaries[MAX_WORD_LEN];
+    int stack_tokens[MAX_WORD_LEN];
 
     while (regexec(regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
@@ -96,23 +100,18 @@ void encode(char *text, struct HashMap *vocab, regex_t *regex, int tokens[], int
             continue;
         }
 
-        Boundary stack_boundaries[256];
-        Boundary *word_token_boundaries = word_len <= 256 ? stack_boundaries : malloc(word_len * sizeof(Boundary));
-        int i = 0;
-        for (char *ptr = cursor + word_start; ptr < cursor + word_end; ptr++, i++) {
-            word_token_boundaries[i].start = ptr;
-            word_token_boundaries[i].end = ptr;
+        Boundary *word_token_boundaries = word_len <= MAX_WORD_LEN ? stack_boundaries : malloc(word_len * sizeof(Boundary));
+        int *word_tokens = word_len <= MAX_WORD_LEN ? stack_tokens : malloc(word_len * sizeof(int));
+
+        for (int i = 0; i < word_len; i++) {
+            word_token_boundaries[i].start = cursor + word_start + i;
+            word_token_boundaries[i].end = cursor + word_start + i;
         }
 
         int word_token_num = word_len;
-        int stack_tokens[256];
-        int *word_tokens = word_len <= 256 ? stack_tokens : malloc(word_len * sizeof(int));
-
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        // Log every token with its value and string representation
         for (int j = 0; j < word_token_num; j++) {
-            // Reconstruct the string for this token
             char *start = word_token_boundaries[j].start;
             char *end = word_token_boundaries[j].end;
             int len = (end - start) + 1;
@@ -145,61 +144,48 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     Py_ssize_t token_num = PyList_Size(tokens);
     log_debug("Number of tokens to decode: %zd", token_num);
 
-    // 1. Precompute total output length
+    // Precompute total output length
     size_t total_len = 0;
+    int *token_ids = malloc(token_num * sizeof(int));
     for (Py_ssize_t i = 0; i < token_num; i++) {
         PyObject *token = PyList_GetItem(tokens, i);
         if (!PyLong_Check(token)) {
             log_debug("Error: Token at index %zd is not an integer", i);
             PyErr_SetString(PyExc_TypeError, "All elements of the list must be integers");
+            free(token_ids);
             return NULL;
         }
         int item = (int)PyLong_AsLong(token);
         if (item < 0 || item >= vocab_size) {
             log_debug("Error: Token value %d is out of bounds (vocab_size = %d)", item, vocab_size);
             PyErr_SetString(PyExc_ValueError, "Element must be non-negative and less than vocab size.");
+            free(token_ids);
             return NULL;
         }
+        token_ids[i] = item;
         total_len += strlen(vocab_decode[item]);
     }
 
-    // 2. Allocate buffer once
-    size_t text_size = total_len + 1;
-    char *text = (char *)malloc(text_size);
+    // Allocate buffer once
+    char *text = (char *)malloc(total_len + 1);
     if (!text) {
         log_debug("Error: Memory allocation failed for text buffer");
+        free(token_ids);
         return PyErr_NoMemory();
     }
-    text[0] = '\0';
-    log_debug("Initialized text buffer to an empty string (size: %zu bytes)", text_size);
 
-    // 3. Copy words directly
+    // Copy words directly
     size_t offset = 0;
     for (Py_ssize_t i = 0; i < token_num; i++) {
-        log_debug("Processing token at index %zd", i);
-
-        PyObject *token = PyList_GetItem(tokens, i);
-        int item = (int)PyLong_AsLong(token);
-        const char *word = vocab_decode[item];
+        const char *word = vocab_decode[token_ids[i]];
         size_t word_len = strlen(word);
-        log_debug("Decoded token value %d to word '%s' (length: %zu)", item, word, word_len);
-
         memcpy(text + offset, word, word_len);
         offset += word_len;
-        text[offset] = '\0';
-
-        log_debug("Appended word '%s' to text buffer. Current text: '%s' (buffer size: %zu bytes)", word, text, text_size);
     }
+    text[offset] = '\0';
+    free(token_ids);
 
     PyObject *result = PyUnicode_FromString(text);
-    if (!result) {
-        log_debug("Error: Failed to create Python string from decoded text");
-        free(text);
-        return NULL;
-    }
-
-    log_debug("Successfully created Python string from decoded text: '%s'", text);
-
     free(text);
     return result;
 }
