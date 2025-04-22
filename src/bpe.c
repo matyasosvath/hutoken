@@ -10,7 +10,6 @@
 #include "helper.c"
 #include "hashmap.c"
 
-
 void create_words(
     const uint8_t *text,
     const char *pattern,
@@ -59,7 +58,7 @@ void bpe_train_core(
 {
     int token_n = token_num;
     struct {
-        uint8_t *bytes;
+        char *bytes;
         int len;
         int value;
     } prev_common_pair = {NULL, 0, -1}, most_common_pair = {NULL, 0, -1};
@@ -80,27 +79,23 @@ void bpe_train_core(
             int l2 = (int)(e2 - s2) + 1;
 
             int len = l1 + l2;
-            uint8_t pair[len];
+            char pair[len + 1];
             memcpy(pair, s1, l1);
             memcpy(pair + l1, s2, l2);
+            pair[len] = '\0'; // Null-terminate
 
-            int freq = hashmap_get_bin(stats, pair, len);
-            if (freq)
-            {
-                hashmap_set_bin(stats, pair, len, freq + 1);
-            }
-            else
-            {
-                hashmap_set_bin(stats, pair, len, 1);
-            }
+            struct Token probe = { .key = pair, .value = 0 };
+            int freq = hashmap_get(stats, &probe);
+            struct Token entry = { .key = pair, .value = freq ? freq + 1 : 1 };
+            hashmap_set(stats, &entry);
 
-            int rank = hashmap_get_bin(stats, pair, len);
+            int rank = freq ? freq + 1 : 1;
 
             if (most_common_pair.value < rank)
             {
                 if (most_common_pair.bytes) free(most_common_pair.bytes);
-                most_common_pair.bytes = malloc(len);
-                memcpy(most_common_pair.bytes, pair, len);
+                most_common_pair.bytes = malloc(len + 1);
+                memcpy(most_common_pair.bytes, pair, len + 1);
                 most_common_pair.len = len;
                 most_common_pair.value = rank;
             }
@@ -111,7 +106,10 @@ void bpe_train_core(
         int token = vocab->count + 1;
 
         // Add new token to vocab
-        hashmap_set_bin(vocab, most_common_pair.bytes, most_common_pair.len, token);
+        char *vocab_key = malloc(most_common_pair.len + 1);
+        memcpy(vocab_key, most_common_pair.bytes, most_common_pair.len + 1);
+        struct Token vocab_entry = { .key = vocab_key, .value = token };
+        hashmap_set(vocab, &vocab_entry);
 
         // Merge that most common pair in all tokens
         int j = 0;
@@ -128,11 +126,12 @@ void bpe_train_core(
             int l2 = (int)(e2 - s2) + 1;
 
             int len = l1 + l2;
-            uint8_t pair[len];
+            char pair[len + 1];
             memcpy(pair, s1, l1);
             memcpy(pair + l1, s2, l2);
+            pair[len] = '\0';
 
-            if (len == most_common_pair.len && memcmp(pair, most_common_pair.bytes, len) == 0)
+            if (len == most_common_pair.len && memcmp(pair, most_common_pair.bytes, len + 1) == 0)
             {
                 Boundary new_token_boundary = {s1, e2};
                 new_token_boundaries[j] = new_token_boundary;
@@ -160,12 +159,12 @@ void bpe_train_core(
         if (prev_common_pair.len == most_common_pair.len &&
             prev_common_pair.value == most_common_pair.value &&
             prev_common_pair.bytes &&
-            memcmp(prev_common_pair.bytes, most_common_pair.bytes, most_common_pair.len) == 0) {
+            memcmp(prev_common_pair.bytes, most_common_pair.bytes, most_common_pair.len + 1) == 0) {
             break;
         } else {
             if (prev_common_pair.bytes) free(prev_common_pair.bytes);
-            prev_common_pair.bytes = malloc(most_common_pair.len);
-            memcpy(prev_common_pair.bytes, most_common_pair.bytes, most_common_pair.len);
+            prev_common_pair.bytes = malloc(most_common_pair.len + 1);
+            memcpy(prev_common_pair.bytes, most_common_pair.bytes, most_common_pair.len + 1);
             prev_common_pair.len = most_common_pair.len;
             prev_common_pair.value = most_common_pair.value;
         }
@@ -186,10 +185,12 @@ void bpe_train(const uint8_t *text, const int vocab_size, const char *pattern, c
     // add tokens for each individual byte value
     for (int i = 0; i < 256; i++)
     {
-        uint8_t key[1] = { (uint8_t)i };
-        k = malloc(1);
-        k[0] = (uint8_t)i;
-        hashmap_set_bin(vocab, key, 1, i);
+        char key[2] = { (char)i, '\0' };
+        k = malloc(2);
+        k[0] = (char)i;
+        k[1] = '\0';
+        struct Token entry = { .key = (char *)k, .value = i };
+        hashmap_set(vocab, &entry);
     }
 
     int token_num = strlen((const char *)text);

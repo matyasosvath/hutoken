@@ -30,12 +30,13 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             int l2 = (int)(e2 - s2) + 1;
 
             int len = l1 + l2;
-            uint8_t pair[len];
+            char pair[len + 1];
             memcpy(pair, s1, l1);
             memcpy(pair + l1, s2, l2);
+            pair[len] = '\0';
 
-            // Use a hash function or a hashmap that supports binary keys
-            int rank = hashmap_get_bin(vocab, pair, len);
+            struct Token probe = { .key = pair, .value = 0 };
+            int rank = hashmap_get(vocab, &probe);
 
             if (rank != -1 && (min_rank == -1 || rank < min_rank))
             {
@@ -64,8 +65,12 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
         const uint8_t *end = token_boundaries[i].end;
         int len = (int)(end - start) + 1;
 
-        // Use binary key lookup
-        int rank = hashmap_get_bin(vocab, start, len);
+        char tmp[len + 1];
+        memcpy(tmp, start, len);
+        tmp[len] = '\0';
+
+        struct Token probe = { .key = tmp, .value = 0 };
+        int rank = hashmap_get(vocab, &probe);
         tokens[i] = rank;
     }
 }
