@@ -20,8 +20,8 @@
 
 
 typedef struct {
-    char *start;
-    char *end;
+    const uint8_t *start;
+    const uint8_t *end;
 } Boundary;
 
 void log_debug(const char *format, ...) {
