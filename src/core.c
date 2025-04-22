@@ -1,4 +1,5 @@
 #include <Python.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,22 +21,21 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
 
         for (int i = 0; i < *token_num - 1; i++)
         {
-            char *s1 = token_boundaries[i].start;
-            char *e1 = token_boundaries[i].end;
-            int l1 = (e1 - s1) + 1;
+            const uint8_t *s1 = token_boundaries[i].start;
+            const uint8_t *e1 = token_boundaries[i].end;
+            int l1 = (int)(e1 - s1) + 1;
 
-            char *s2 = token_boundaries[i + 1].start;
-            char *e2 = token_boundaries[i + 1].end;
-            int l2 = (e2 - s2) + 1;
+            const uint8_t *s2 = token_boundaries[i + 1].start;
+            const uint8_t *e2 = token_boundaries[i + 1].end;
+            int l2 = (int)(e2 - s2) + 1;
 
             int len = l1 + l2;
-            char pair[len + 1];
+            uint8_t pair[len];
+            memcpy(pair, s1, l1);
+            memcpy(pair + l1, s2, l2);
 
-            strncpy(pair, s1, l1);
-            strncpy(pair + l1, s2, l2);
-            pair[len] = '\0';
-
-            int rank = hashmap_get(vocab, &(struct Token){.key = pair});
+            // Use a hash function or a hashmap that supports binary keys
+            int rank = hashmap_get_bin(vocab, pair, len);
 
             if (rank != -1 && (min_rank == -1 || rank < min_rank))
             {
@@ -44,12 +44,10 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             }
         }
 
-        // no pairs to merge
         if (min_rank == -1)
             break;
         assert(min_idx != -1);
 
-        // merge pairs, leave rest unchanged
         token_boundaries[min_idx].end = token_boundaries[min_idx + 1].end;
 
         for (int i = min_idx + 1; i < *token_num - 1; i++)
@@ -60,39 +58,34 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
         *token_num -= 1;
     }
 
-    // update tokens
     for (int i = 0; i < *token_num; i++)
     {
-        char *start = token_boundaries[i].start;
-        char *end = token_boundaries[i].end;
-        int len = (end - start) + 1;
+        const uint8_t *start = token_boundaries[i].start;
+        const uint8_t *end = token_boundaries[i].end;
+        int len = (int)(end - start) + 1;
 
-        char string[len + 1];
-        strncpy(string, start, len);
-        string[len] = '\0';
-
-        int rank = hashmap_get(vocab, &(struct Token){.key = string});
-
+        // Use binary key lookup
+        int rank = hashmap_get_bin(vocab, start, len);
         tokens[i] = rank;
     }
 }
 
-void encode(char *text, struct HashMap *vocab, regex_t *regex, int tokens[], int *tokens_size) {
-    log_debug("Starting encode function with text: %s", text);
+void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int tokens[], int *tokens_size) {
+    log_debug("Starting encode function with text: %.64s", text);
 
     regmatch_t match;
-    char *cursor = text;
+    const uint8_t *cursor = text;
 
-    // Preallocate large enough buffers for most words
     #define MAX_WORD_LEN 1024
     Boundary stack_boundaries[MAX_WORD_LEN];
     int stack_tokens[MAX_WORD_LEN];
 
-    while (regexec(regex, cursor, 1, &match, 0) == 0) {
+    while (regexec(regex, (const char *)cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
         int word_len = word_end - word_start;
-        log_debug("Matched word: start=%d, end=%d, length=%d, text='%.*s'", word_start, word_end, word_len, word_len, cursor + word_start);
+
+        log_debug("Matched word: start=%d, end=%d, length=%d", word_start, word_end, word_len);
 
         if (word_len <= 0) {
             log_debug("Zero or negative word length, skipping...");
@@ -112,16 +105,17 @@ void encode(char *text, struct HashMap *vocab, regex_t *regex, int tokens[], int
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
         for (int j = 0; j < word_token_num; j++) {
-            char *start = word_token_boundaries[j].start;
-            char *end = word_token_boundaries[j].end;
-            int len = (end - start) + 1;
-            char token_str[len + 1];
-            strncpy(token_str, start, len);
-            token_str[len] = '\0';
-
-            log_debug("Encoded token: '%s' -> %d", token_str, word_tokens[j]);
+            const uint8_t *start = word_token_boundaries[j].start;
+            const uint8_t *end = word_token_boundaries[j].end;
+            int len = (int)(end - start) + 1;
+            // Print first few bytes for debug
+            char debug_str[33];
+            int dbg_len = len > 32 ? 32 : len;
+            memcpy(debug_str, start, dbg_len);
+            debug_str[dbg_len] = '\0';
+            log_debug("Encoded token bytes: [%s] -> %d", debug_str, word_tokens[j]);
             if (word_tokens[j] < 0) {
-                log_debug("Warning: Unknown token emitted for '%s'", token_str);
+                log_debug("Warning: Unknown token emitted for bytes [%s]", debug_str);
             }
         }
 
@@ -144,7 +138,6 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     Py_ssize_t token_num = PyList_Size(tokens);
     log_debug("Number of tokens to decode: %zd", token_num);
 
-    // Precompute total output length
     size_t total_len = 0;
     int *token_ids = malloc(token_num * sizeof(int));
     for (Py_ssize_t i = 0; i < token_num; i++) {
@@ -166,15 +159,13 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
         total_len += strlen(vocab_decode[item]);
     }
 
-    // Allocate buffer once
-    char *text = (char *)malloc(total_len + 1);
+    uint8_t *text = (uint8_t *)malloc(total_len + 1);
     if (!text) {
         log_debug("Error: Memory allocation failed for text buffer");
         free(token_ids);
         return PyErr_NoMemory();
     }
 
-    // Copy words directly
     size_t offset = 0;
     for (Py_ssize_t i = 0; i < token_num; i++) {
         const char *word = vocab_decode[token_ids[i]];
@@ -185,7 +176,7 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     text[offset] = '\0';
     free(token_ids);
 
-    PyObject *result = PyUnicode_FromString(text);
+    PyObject *result = PyUnicode_FromString((const char *)text);
     free(text);
     return result;
 }
