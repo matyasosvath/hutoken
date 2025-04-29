@@ -300,7 +300,7 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
 
 static PyMethodDef huTokenMethods[] = {
     {"bpe_train", p_bpe_train, METH_VARARGS, "BPE training"},
-    {"initialize", p_initialize, METH_VARARGS, "Initalize tokenizer"},
+    {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS, "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
     {NULL, NULL, 0, NULL} 
@@ -314,6 +314,6 @@ static struct PyModuleDef huToken = {
     huTokenMethods
 };
 
-PyMODINIT_FUNC PyInit_hutoken(void) {
+PyMODINIT_FUNC PyInit__hutoken(void) {
     return PyModule_Create(&huToken);
 }
