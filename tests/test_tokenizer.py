@@ -41,10 +41,6 @@ paragraph2 = (
     
 )
 
-paragraph3 = (
-    "azt, amelyben kijelentették, hogy óvakodnotok kell, nehogy rászedjelek, minthogy félelmes szónok vagyok. Nem szégyellték,"
-)
-
 @pytest.fixture(autouse=False)
 def setup():
 
@@ -77,9 +73,8 @@ def test_encode_basic(setup):
     assert hutoken.encode(sentence1) == tt_enc.encode(sentence1)
     assert hutoken.encode(sentence2) == tt_enc.encode(sentence2)
     assert hutoken.encode(paragraph1) == tt_enc.encode(paragraph1)
-    #assert hutoken.encode(paragraph2) == tt_enc.encode(paragraph2)
-    #assert hutoken.encode(paragraph3) == tt_enc.encode(paragraph3)
-
+    assert hutoken.encode(paragraph2) == tt_enc.encode(paragraph2)
+    
 # def test_decode_basic(setup):
 
 #     assert hutoken.decode(hutoken.encode(sentence1)) == sentence1
@@ -88,18 +83,18 @@ def test_encode_basic(setup):
 #     assert hutoken.decode(hutoken.encode(paragraph2)) == paragraph2
 
 
-# @pytest.mark.benchmark(disable_gc=True)
-# def test_encode_speed():
+@pytest.mark.benchmark(disable_gc=True)
+def test_encode_speed():
 
-#     number = 10_000
-#     execution_time = timeit.timeit(
-#         f'hutoken.encode("{paragraph1}")',
-#         setup="import hutoken; hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')",
-#         number=number
-#     )
-#     print(f"Average execution time for {number} calls: {execution_time / number} seconds")
+     number = 10_000
+     execution_time = timeit.timeit(
+         f'hutoken.encode("{paragraph1}")',
+         setup="import hutoken; hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')",
+         number=number
+     )
+     print(f"Average execution time for {number} calls: {execution_time / number} seconds")
 
-#     assert execution_time / number < 1e-03, f"Average exectuion for function took too long: {execution_time / number}."
+     assert execution_time / number < 1e-03, f"Average exectuion for function took too long: {execution_time / number}."
 
 
 # def test_decode_speed():
