@@ -11,14 +11,12 @@
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
-static int buffer_size = 100;
-// original static char *pattern = " ?[A-Za-záéíóúőüöÁÉÍÓÚŐÜÖ]+| ?[0-9]+| ?[^A-Za-z0-9\\s]+|\\s+";
-
 static char *pattern = "[ ]?[A-Za-záéíóúőűüöÁÉÍÓÚŐÜŰÖ]+|[ ]?[0-9]+|[ ]?[^[:space:][:alpha:][:digit:]]+|[ ]+";
 
 struct HashMap *vocab_encode;
 char **vocab_decode;
-int vocab_size_decode = 0;
+int vocab_size_decode;
+#define MAX_LINE_LENGTH 10000 
 
 
 
@@ -47,51 +45,61 @@ PyObject *p_bpe_train(PyObject *self, PyObject *args)
     return Py_None;
 }
 
-PyObject *p_initalize_encode(PyObject *self, PyObject *args)
-{
-    char *vocab_file_path; // full file path for now
+static PyObject *p_initialize(PyObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"vocab_file_path", "special_token_id", NULL};
+    char *vocab_file_path;
+    int special_token_id = -1; // Optional parameter for special token ID
 
-    if (!PyArg_ParseTuple(args, "s", &vocab_file_path))
+    // Parse arguments
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i", kwlist, &vocab_file_path, &special_token_id)) {
+        log_debug("Error: Invalid arguments passed to initialize.");
+        PyErr_SetString(PyExc_TypeError, "Invalid arguments. Expected a string (vocab_file_path) and an optional integer (special_token_id).");
         return NULL;
-
-    vocab_encode = hashmap_new(256);
-
-    FILE *file = fopen(vocab_file_path, "r");
-    if (!file)
-    {
-        perror("Could not open vocab file");
-        exit(EXIT_FAILURE);
     }
 
-    char line[1024];
-    while (fgets(line, sizeof(line), file))
-    {
+    log_debug("Initializing with vocab file: %s", vocab_file_path);
 
+    // Initialize encoding
+    vocab_encode = hashmap_new(256);
+    if (!vocab_encode) {
+        log_debug("Error: Failed to create hashmap for vocab_encode.");
+        PyErr_SetString(PyExc_MemoryError, "Failed to create hashmap for vocab_encode.");
+        return NULL;
+    }
+
+    FILE *file = fopen(vocab_file_path, "r");
+    if (!file) {
+        log_debug("Error: Could not open vocab file: %s", vocab_file_path);
+        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
+        return NULL;
+    }
+
+    log_debug("Successfully opened vocab file for encoding: %s", vocab_file_path);
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file)) {
         char *hex_token = strtok(line, " == ");
         char *value_str = strtok(NULL, " == ");
-        if (!hex_token || !value_str)
-        {
-            fprintf(stderr, "Invalid line format in vocab file.\n");
+        if (!hex_token || !value_str) {
+            log_debug("Error: Invalid line format in vocab file: %s", line);
             continue;
         }
 
         size_t hex_len = strlen(hex_token);
         size_t decoded_string_len = hex_len / 4 + 1;
         char *decoded_string = malloc(decoded_string_len);
-        if (!decoded_string)
-        {
-            perror("Memory allocation failed for decoded string");
-            exit(EXIT_FAILURE);
+        if (!decoded_string) {
+            log_debug("Error: Memory allocation failed for decoded string.");
+            fclose(file);
+            return PyErr_NoMemory();
         }
 
         const char *pos = hex_token;
         size_t char_index = 0;
-        while (pos[0] == '0' && pos[1] == 'x')
-        {
+        while (pos[0] == '0' && pos[1] == 'x') {
             unsigned int byte_value;
-            if (sscanf(pos, "0x%2X", &byte_value) != 1)
-            {
-                fprintf(stderr, "Failed to parse hex byte: %s\n", pos);
+            if (sscanf(pos, "0x%2X", &byte_value) != 1) {
+                log_debug("Error: Failed to parse hex byte: %s", pos);
                 free(decoded_string);
                 continue;
             }
@@ -101,24 +109,121 @@ PyObject *p_initalize_encode(PyObject *self, PyObject *args)
         decoded_string[char_index] = '\0';
 
         char *key = strdup(decoded_string);
-        if (!key)
-        {
-            perror("Memory allocation failed for key string");
+        if (!key) {
+            log_debug("Error: Memory allocation failed for key string.");
             free(decoded_string);
-            exit(EXIT_FAILURE);
+            fclose(file);
+            return PyErr_NoMemory();
         }
         int value = atoi(value_str);
 
         hashmap_set(vocab_encode, &(struct Token){.key = key, .value = value});
+        log_debug("Added vocab entry for encoding: key=%s, value=%d", key, value);
 
         free(decoded_string);
     }
 
     fclose(file);
-
     initialized_encode = true;
+    log_debug("Successfully initialized encoding.");
 
-    return Py_None;
+    // Initialize decoding
+    file = fopen(vocab_file_path, "r");
+    if (!file) {
+        log_debug("Error: Could not open vocab file for decoding: %s", vocab_file_path);
+        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
+        return NULL;
+    }
+
+    log_debug("Successfully opened vocab file for decoding: %s", vocab_file_path);
+
+    // Count the number of lines in the file to determine vocab size
+    vocab_size_decode = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (strchr(line, '=') != NULL) { // Ensure the line contains a valid entry
+            vocab_size_decode++;
+        }
+    }
+
+    log_debug("Calculated vocab size for decoding: %d", vocab_size_decode);
+
+    if (vocab_size_decode == 0) {
+        log_debug("Error: Vocab file is empty or contains no valid entries.");
+        PyErr_SetString(PyExc_ValueError, "Vocab file is empty or contains no valid entries.");
+        fclose(file);
+        return NULL;
+    }
+
+    vocab_decode = malloc(vocab_size_decode * sizeof(char *));
+    if (!vocab_decode) {
+        log_debug("Error: Memory allocation failed for vocab_decode array.");
+        PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab_decode array.");
+        fclose(file);
+        return NULL;
+    }
+
+    for (int i = 0; i < vocab_size_decode; i++) {
+        vocab_decode[i] = NULL;
+    }
+
+    rewind(file);
+
+    char *hex_str = malloc(1024);
+    if (!hex_str) {
+        log_debug("Error: Memory allocation failed for hex_str.");
+        PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for hex_str.");
+        fclose(file);
+        free(vocab_decode);
+        return NULL;
+    }
+
+    int index = 0;
+    while (fgets(line, sizeof(line), file)) {
+        int value;
+
+        if (sscanf(line, "%9999s == %d", hex_str, &value) != 2) {
+            log_debug("Error: Invalid format in vocab file: %s", line);
+            PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
+            fclose(file);
+            free(hex_str);
+            free(vocab_decode);
+            return NULL;
+        }
+
+        char ascii_str[500] = {0};
+        hex_str_to_ascii(hex_str, ascii_str, sizeof(ascii_str));
+
+        if (ascii_str[0] == '\0') {
+            log_debug("Error: Failed to convert hex string to ASCII: %s", hex_str);
+            PyErr_SetString(PyExc_RuntimeError, "Failed to convert hex string to ASCII.");
+            fclose(file);
+            free(hex_str);
+            free(vocab_decode);
+            return NULL;
+        }
+
+        vocab_decode[value] = strdup(ascii_str);
+        if (!vocab_decode[value]) {
+            log_debug("Error: Memory allocation failed for vocab entry at index %d.", value);
+            PyErr_SetString(PyExc_MemoryError, "Memory allocation failed for vocab entry.");
+            fclose(file);
+            free(hex_str);
+            free(vocab_decode);
+            return NULL;
+        }
+
+        log_debug("Loaded vocab entry for decoding: index=%d, value=%s", value, ascii_str);
+
+        index++;
+    }
+
+    free(hex_str);
+    fclose(file);
+
+    initialized_decode = true;
+    log_debug("Successfully initialized decoding.");
+
+    Py_RETURN_NONE;
 }
 
 PyObject *p_encode(PyObject *self, PyObject *args)
@@ -161,68 +266,16 @@ PyObject *p_encode(PyObject *self, PyObject *args)
     return list;
 }
 
-static PyObject *p_initalize_decode(PyObject *self, PyObject *args)
-{
-    char *vocab_file_path; // full file path for now
-
-    if (!PyArg_ParseTuple(args, "si", &vocab_file_path, &vocab_size_decode))
-        return NULL;
-
-    vocab_decode = malloc(vocab_size_decode * sizeof(char *));
-
-    if (!vocab_decode)
-    {
-        fprintf(stderr, "Memory allocation failed for vocab decode array\n");
-        return NULL;
-    }
-
-    FILE *file = fopen(vocab_file_path, "r");
-    if (!file)
-    {
-        fprintf(stderr, "Could not open vocab file!\n");
-        return NULL;
-    }
-
-    char line[256];
-    while (fgets(line, sizeof(line), file))
-    {
-        char *hex_str = strdup(strtok(line, " == "));
-        char *value_str = strtok(NULL, " == ");
-
-        if (hex_str && value_str)
-        {
-            int value = atoi(value_str);
-
-            vocab_decode[value] = malloc((strlen(hex_str) * sizeof(char)) / 2);
-
-            char ascii_str[buffer_size];
-
-            hex_str_to_ascii(hex_str, ascii_str);
-
-            strcpy(vocab_decode[value], ascii_str);
-        }
-    }
-
-    fclose(file);
-
-    initialized_decode = true;
-
-    return Py_None;
-}
-
-static PyObject *p_decode(PyObject *self, PyObject *args)
-{
-
-    if (!initialized_decode)
-    {
+static PyObject *p_decode(PyObject *self, PyObject *args) {
+    if (!initialized_decode) {
         PyErr_SetString(PyExc_RuntimeError,
             "Vocabulary is not initialized for decoding. "
             "Call 'initialize_decode' function first."
         );
         return NULL;
     }
-    if (!vocab_size_decode)
-    {
+
+    if (!vocab_size_decode) {
         PyErr_SetString(PyExc_RuntimeError,
             "Vocab size is not properly set during initialization. "
             "Please try again."
@@ -232,27 +285,25 @@ static PyObject *p_decode(PyObject *self, PyObject *args)
 
     PyObject *tokens;
 
-    if (!PyArg_ParseTuple(args, "O", &tokens))
+    if (!PyArg_ParseTuple(args, "O", &tokens)) {
+        PyErr_SetString(PyExc_TypeError, "Failed to parse arguments. Expected a single list of tokens.");
         return NULL;
+    }
 
-    if (!PyList_Check(tokens))
-    {
+    if (!PyList_Check(tokens)) {
         PyErr_SetString(PyExc_TypeError, "Argument must be a list of integers");
         return NULL;
     }
 
-    PyObject *result = decode(tokens, vocab_decode, vocab_size_decode);
-
-    return result;
+    return decode(tokens, vocab_decode, vocab_size_decode);
 }
 
 static PyMethodDef huTokenMethods[] = {
     {"bpe_train", p_bpe_train, METH_VARARGS, "BPE training"},
-    {"initialize_encode", p_initalize_encode, METH_VARARGS, "Initalize tokenizer encoder"},
-    {"initialize_decode", p_initalize_decode, METH_VARARGS, "Initalize tokenizer decoder"},
+    {"initialize", p_initialize, METH_VARARGS, "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
-    {NULL, NULL, 0, NULL} // signal end of functions
+    {NULL, NULL, 0, NULL} 
 };
 
 static struct PyModuleDef huToken = {
@@ -260,9 +311,9 @@ static struct PyModuleDef huToken = {
     "huToken",
     "hutoken module description",
     -1,
-    huTokenMethods};
+    huTokenMethods
+};
 
-PyMODINIT_FUNC PyInit_hutoken(void)
-{
+PyMODINIT_FUNC PyInit_hutoken(void) {
     return PyModule_Create(&huToken);
 }

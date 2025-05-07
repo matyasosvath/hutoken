@@ -13,8 +13,7 @@ def benchmark(document, num_bytes):
 
     import hutoken
 
-    hutoken.initialize_encode('./vocabs/gpt2-vocab.txt')
-    # hutoken.initialize_decode('./vocabs/gpt2-vocab.txt', 50256)
+    hutoken.initialize('./vocabs/gpt2-vocab.txt')
     hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
@@ -117,4 +116,3 @@ if __name__ == "__main__":
     doc = document[:args.chunk_size]
 
     benchmark_test(doc, args.iter)
-
