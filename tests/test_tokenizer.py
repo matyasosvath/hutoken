@@ -181,33 +181,22 @@ def test_huggingface_initialize_and_encode_decode():
     except ImportError:
         pytest.skip("transformers not installed")
 
-    # Try a model we know has a vocab dictionary
     model_name = "NYTK/PULI-LlumiX-32K"
-    
-    # Include Unicode, special characters, and multi-byte sequences
     test_text = "Ez egy Hugging Face teszt! 😊 こんにちは [CLS] <|endoftext|>"
     
     try:
-        # Check if model has a vocab attribute before testing
         hf_tokenizer = transformers.AutoTokenizer.from_pretrained(model_name)
         if not hasattr(hf_tokenizer, "vocab"):
             pytest.skip(f"Model {model_name} doesn't have a .vocab attribute")
             
-        # Initialize hutoken with a Hugging Face model
         hutoken.initialize(model_name)
-        
-        # Encode and decode using hutoken
         tokens = hutoken.encode(test_text)
         decoded = hutoken.decode(tokens)
         
-        # Encode and decode using transformers directly
         hf_tokens = hf_tokenizer.encode(test_text, add_special_tokens=False)
         hf_decoded = hf_tokenizer.decode(hf_tokens)
         
-        # Check decoded text rather than token IDs
         assert decoded == hf_decoded, f"Decoded text differs: {decoded} vs {hf_decoded}"
-        
-        # Optional: Compare token counts, which should be same even if IDs differ
         assert len(tokens) == len(hf_tokens), f"Token count differs: {len(tokens)} vs {len(hf_tokens)}"
         
     except Exception as e:
