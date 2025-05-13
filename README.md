@@ -23,11 +23,25 @@ hutoken.bpe_train("your_text_data_here", 5000, "vocab.txt")
 This creates a `vocab.txt` file containing token mappings.
 
 ### 2️⃣ Initializing the Tokenizer
+
+#### Using a Local Vocabulary File (C Extension)
 Before encoding or decoding, initialize the tokenizer with the vocabulary file:
 
 ```python
 hutoken.initialize("vocab.txt")
 ```
+
+#### Using a Hugging Face Model
+You can also initialize directly from a Hugging Face tokenizer/model name:
+
+```python
+hutoken.initialize("NYTK/PULI-LlumiX-32K")
+```
+
+> **Note:** This requires the `transformers` library. Install it with:
+> ```sh
+> pip install transformers
+> ```
 
 ### 3️⃣ Encoding Text
 Convert text into token IDs:
@@ -61,6 +75,26 @@ To enable debug logs, set the `DEBUG` environment variable to `1` before running
 ```sh
 DEBUG=1 python your_script.py
 ```
+
+## 🤗 Hugging Face Integration
+
+- You can use any tokenizer from the Hugging Face Hub by passing its model name to `hutoken.initialize()`.
+- The same `encode` and `decode` API is used, regardless of backend.
+- If the model name or path is not a file, `hutoken` will attempt to load it via Hugging Face.
+
+**Example:**
+```python
+import hutoken
+
+# Initialize with a Hugging Face model
+hutoken.initialize("NYTK/PULI-LlumiX-32K")
+tokens = hutoken.encode("Ez egy Hugging Face teszt.")
+text = hutoken.decode(tokens)
+print(tokens)
+print(text)
+```
+
+> If the model cannot be found or loaded, a clear error message will be shown.
 
 ## 🤝 Contributing
 Contributions are welcome! Please open an issue or submit a pull request.
