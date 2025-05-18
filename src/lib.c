@@ -11,7 +11,7 @@
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
-static char *pattern = " ?[A-Za-záéíóúőüöÁÉÍÓÚŐÜÖ]+| ?[0-9]+| ?[^A-Za-z0-9\\s]+|\\s+";
+static char *pattern = "[ ]?[A-Za-záéíóúőűüöÁÉÍÓÚŐÜŰÖ]+|[ ]?[0-9]+|[ ]?[^[:space:][:alpha:][:digit:]]+|[ ]+";
 
 struct HashMap *vocab_encode;
 char **vocab_decode;

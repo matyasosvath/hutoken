@@ -116,4 +116,3 @@ if __name__ == "__main__":
     doc = document[:args.chunk_size]
 
     benchmark_test(doc, args.iter)
-
