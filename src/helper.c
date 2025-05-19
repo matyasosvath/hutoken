@@ -18,6 +18,8 @@
 #define VISUALIZE 1
 #define TEXT_SIZE_INCREMENT 50
 #define DEBUG_ENABLED() (getenv("DEBUG") && strcmp(getenv("DEBUG"), "1") == 0)
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 typedef struct {
     const uint8_t *start;
