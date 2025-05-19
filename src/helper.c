@@ -17,7 +17,7 @@
 
 #define VISUALIZE 1
 #define TEXT_SIZE_INCREMENT 50
-
+#define DEBUG_ENABLED() (getenv("DEBUG") && strcmp(getenv("DEBUG"), "1") == 0)
 
 typedef struct {
     const uint8_t *start;
@@ -25,8 +25,7 @@ typedef struct {
 } Boundary;
 
 void log_debug(const char *format, ...) {
-    const char *debug_env = getenv("DEBUG");
-    if (debug_env && strcmp(debug_env, "1") == 0) {
+    if (DEBUG_ENABLED()) {
         time_t now = time(NULL);
         struct tm *local_time = localtime(&now);
         char timestamp[20];

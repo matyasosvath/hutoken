@@ -118,18 +118,20 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         int word_token_num = word_len;
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        // Log each token from this word
-        for (int i = 0; i < word_token_num; i++) {
-            // Get the actual token text for debugging
-            const uint8_t *start = word_token_boundaries[i].start;
-            const uint8_t *end = word_token_boundaries[i].end;
-            int len = (int)(end - start) + 1;
-            
-            char token_text[len + 1];
-            memcpy(token_text, start, len);
-            token_text[len] = '\0';
-            
-            log_debug("Token #%d: ID=%d, Text='%s'", *tokens_size + i, word_tokens[i], token_text);
+       // Only extract and log token text when debugging is enabled
+        if (DEBUG_ENABLED()) {
+            for (int i = 0; i < word_token_num; i++) {
+                // Get the actual token text for debugging
+                const uint8_t *start = word_token_boundaries[i].start;
+                const uint8_t *end = word_token_boundaries[i].end;
+                int len = (int)(end - start) + 1;
+                
+                char token_text[len + 1];
+                memcpy(token_text, start, len);
+                token_text[len] = '\0';
+                
+                log_debug("Token #%d: ID=%d, Text='%s'", *tokens_size + i, word_tokens[i], token_text);
+            }
         }
 
         // Copy tokens for this word into the output array
