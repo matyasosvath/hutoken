@@ -110,22 +110,22 @@ static PyObject *p_initialize(PyObject *self, PyObject *args, PyObject *kwargs) 
     }
 
     // --- Second pass: fill both encode and decode structures ---
-rewind(file);
-while (fgets(line, sizeof(line), file)) {
-    char hex_token[512];
-    int value;
-    if (sscanf(line, "%s == %d", hex_token, &value) == 2) {
-        char ascii_str[512] = {0};
-        hex_str_to_ascii(hex_token, ascii_str, sizeof(ascii_str));
-        char *key = strdup(ascii_str);
-        if (key) {
-            hashmap_set(vocab_encode, &(struct Token){.key = key, .value = value});
-        }
-        if (!vocab_decode[value]) {
-            vocab_decode[value] = strdup(ascii_str);
+    rewind(file);
+    while (fgets(line, sizeof(line), file)) {
+        char hex_token[512];
+        int value;
+        if (sscanf(line, "%s == %d", hex_token, &value) == 2) {
+            char ascii_str[512] = {0};
+            hex_str_to_ascii(hex_token, ascii_str, sizeof(ascii_str));
+            char *key = strdup(ascii_str);
+            if (key) {
+                hashmap_set(vocab_encode, &(struct Token){.key = key, .value = value});
+            }
+            if (!vocab_decode[value]) {
+                vocab_decode[value] = strdup(ascii_str);
+            }
         }
     }
-}
     fclose(file);
 
     initialized_encode = true;
