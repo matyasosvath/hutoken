@@ -42,7 +42,7 @@ paragraph2 = (
 @pytest.fixture(autouse=False)
 def setup():
 
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')
 
     tt_enc = tiktoken.get_encoding("gpt2")
 
@@ -88,7 +88,7 @@ def test_encode_speed():
     number = 10_000
     execution_time = timeit.timeit(
         f'hutoken.encode("{sentence1}")',
-        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')",
         number=number
     )
     print(f"Average execution time for {number} calls: {execution_time / number} seconds")
@@ -101,7 +101,7 @@ def test_decode_speed():
     number = 10_000
     execution_time = timeit.timeit(
         f"hutoken.decode(hutoken.encode('{sentence1}'))",
-        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')",
         number=number
     )
 
@@ -112,7 +112,7 @@ def test_decode_speed():
 
 def test_initialize_success():
     """Test successful initialization of the tokenizer."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')
 
 
 def test_initialize_file_not_found():
@@ -131,7 +131,7 @@ def test_initialize_invalid_format():
         
 def test_encode():
     """Test the encode function of hutoken."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')
 
     text = "Hello, world!"
     encoded_tokens = hutoken.encode(text)
@@ -144,7 +144,7 @@ def test_encode():
 
 def test_decode_invalid_tokens():
     """Test that decode raises ValueError for invalid tokens."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')
 
     invalid_tokens = [999999, -1, 50258]  # Out of bounds or invalid tokens
     with pytest.raises(ValueError, match="Element must be non-negative and less than vocab size."):
@@ -153,7 +153,7 @@ def test_decode_invalid_tokens():
 
 def test_decode_using_tiktoken_encode():
     """Test decoding using tiktoken."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')
     tt_enc = tiktoken.get_encoding("gpt2")
 
     word = "entropy"
@@ -167,7 +167,7 @@ def test_decode_using_tiktoken_encode():
 
 def test_decode_whole_sentence_using_tiktoken_encode():
     """Test decoding a whole sentence encoded using tiktoken."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize('./vocabs/gpt2-vocab-from-json.txt.bak')
     tt_enc = tiktoken.get_encoding("gpt2")
 
     sentence = "How can the net amount of entropy of the universe be massively decreased?"
