@@ -71,6 +71,12 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
 
         struct Token probe = { .key = tmp, .value = 0 };
         int rank = hashmap_get(vocab, &probe);
+        
+        // Tokens that get -1 rank
+        if (rank < 0) {
+            log_debug("WARNING: Token '%s' not found in vocabulary! Assigned rank %d", tmp, rank);
+        }
+        
         tokens[i] = rank;
     }
 }
@@ -112,6 +118,20 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         int word_token_num = word_len;
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
+        // Log each token from this word
+        for (int i = 0; i < word_token_num; i++) {
+            // Get the actual token text for debugging
+            const uint8_t *start = word_token_boundaries[i].start;
+            const uint8_t *end = word_token_boundaries[i].end;
+            int len = (int)(end - start) + 1;
+            
+            char token_text[len + 1];
+            memcpy(token_text, start, len);
+            token_text[len] = '\0';
+            
+            log_debug("Token #%d: ID=%d, Text='%s'", *tokens_size + i, word_tokens[i], token_text);
+        }
+
         // Copy tokens for this word into the output array
         memcpy(tokens + *tokens_size, word_tokens, word_token_num * sizeof(int));
         *tokens_size += word_token_num;
@@ -144,7 +164,8 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
         }
         int item = (int)PyLong_AsLong(token);
         if (item < 0 || item >= vocab_size) {
-            log_debug("Error: Token value %d is out of bounds (vocab_size = %d)", item, vocab_size);
+            log_debug("Error: Token value %d at index %zd is out of bounds (vocab_size = %d)", 
+                     item, i, vocab_size);
             PyErr_SetString(PyExc_ValueError, "Element must be non-negative and less than vocab size.");
             free(token_ids);
             return NULL;
