@@ -139,7 +139,7 @@ def test_decode_invalid_tokens():
         hutoken.decode(invalid_tokens)
 
 
-def test_huggingface_encode():
+def test_encode_with_hugginface():
 
     model_name = "NYTK/PULI-LlumiX-32K"
     text = "Ez egy Hugging Face teszt!"
@@ -153,7 +153,21 @@ def test_huggingface_encode():
     assert ht_tokens == hf_tokens, f"Encoded tokens differs: {ht_tokens} vs {hf_tokens}"
 
 
-def test_huggingface_decode():
+def test_decode_with_hugginface():
+
+    model_name = "NYTK/PULI-LlumiX-32K"
+    text = "Ez egy Hugging Face teszt!"
+
+    hf_tokenizer = AutoTokenizer.from_pretrained(model_name)
+    hf_tokens = hf_tokenizer.encode(text, add_special_tokens=False)
+    hf_decoded = hf_tokenizer.decode(hf_tokens)
+
+    hutoken.initialize(model_name)
+    ht_decoded = hutoken.decode(hf_tokens)
+
+    assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
+
+def test_decode_with_hugginface_using_hutoken_encdoe():
 
     model_name = "NYTK/PULI-LlumiX-32K"
     text = "Ez egy Hugging Face teszt!"
@@ -164,8 +178,6 @@ def test_huggingface_decode():
 
     hutoken.initialize(model_name)
     ht_tokens = hutoken.encode(text)
-    ht_decoded = hutoken.decode(hf_tokens)
-    ht_decoded2 = hutoken.decode(ht_tokens)
+    ht_decoded = hutoken.decode(ht_tokens)
 
     assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
-    assert ht_decoded == ht_decoded2, f"Decoded text differs: {ht_decoded} vs {ht_decoded2}"
