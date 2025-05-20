@@ -1,9 +1,7 @@
-from typing import Any, cast
-
 import timeit
 import pytest
 import tiktoken
-import transformers
+from transformers import AutoTokenizer
 
 import hutoken
 
@@ -39,18 +37,6 @@ paragraph2 = (
     "vajon igazat mondok-e vagy nem: a bírónak ugyanis ez az erénye, a szónoké pedig az igazmondás."
 )
 
-@pytest.fixture(autouse=False)
-def setup():
-
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
-
-    tt_enc = tiktoken.get_encoding("gpt2")
-
-    hf_enc = cast(Any, transformers).GPT2TokenizerFast.from_pretrained("gpt2")
-    hf_enc.model_max_length = 1e30  # silence!
-
-    yield tt_enc, hf_enc
-
 
 def test_encode_raises_error():
 
@@ -64,9 +50,31 @@ def test_decode_raises_error():
         hutoken.decode([1,2,3])
 
 
-def test_encode_basic(setup):
+def test_encode_basic():
 
-    tt_enc, hf_enc = setup
+    hutoken.initialize("NYTK/PULI-LlumiX-32K")
+    hf_enc = AutoTokenizer.from_pretrained("NYTK/PULI-LlumiX-32K")
+
+    assert hutoken.encode(sentence1) == hf_enc.encode(sentence1)
+    assert hutoken.encode(sentence2) == hf_enc.encode(sentence2)
+    assert hutoken.encode(paragraph1) == hf_enc.encode(paragraph1)
+    assert hutoken.encode(paragraph2) == hf_enc.encode(paragraph2)
+
+
+def test_decode_basic():
+
+    hutoken.initialize("NYTK/PULI-LlumiX-32K")
+
+    assert hutoken.decode(hutoken.encode(sentence1)) == sentence1
+    assert hutoken.decode(hutoken.encode(sentence2)) == sentence2
+    assert hutoken.decode(hutoken.encode(paragraph1)) == paragraph1
+    assert hutoken.decode(hutoken.encode(paragraph2)) == paragraph2
+
+
+def test_encode_basic_with_tiktoken():
+
+    tt_enc = tiktoken.get_encoding("gpt2")
+    hutoken.initialize("openai-community/gpt2")
 
     assert hutoken.encode(sentence1) == tt_enc.encode(sentence1)
     assert hutoken.encode(sentence2) == tt_enc.encode(sentence2)
@@ -74,7 +82,9 @@ def test_encode_basic(setup):
     assert hutoken.encode(paragraph2) == tt_enc.encode(paragraph2)
 
 
-def test_decode_basic(setup):
+def test_decode_basic_with_tiktoken():
+
+    hutoken.initialize("openai-community/gpt2")
 
     assert hutoken.decode(hutoken.encode(sentence1)) == sentence1
     assert hutoken.decode(hutoken.encode(sentence2)) == sentence2
@@ -87,7 +97,7 @@ def test_encode_speed():
 
     number = 10_000
     execution_time = timeit.timeit(
-        f'hutoken.encode("{paragraph1}")',
+        f'hutoken.encode("{sentence1}")',
         setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
         number=number
     )
@@ -100,7 +110,7 @@ def test_decode_speed():
 
     number = 10_000
     execution_time = timeit.timeit(
-        f"hutoken.decode(hutoken.encode('{paragraph1}'))",
+        f"hutoken.decode(hutoken.encode('{sentence1}'))",
         setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
         number=number
     )
@@ -111,69 +121,63 @@ def test_decode_speed():
 
 
 def test_initialize_success():
-    """Test successful initialization of the tokenizer."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
-
-
-def test_initialize_file_not_found():
-    """Test that initialize raises FileNotFoundError for a missing vocab file."""
-    with pytest.raises(FileNotFoundError, match="Could not open vocab file."):
-        hutoken.initialize('./vocabs/nonexistent-vocab.txt')
+    hutoken.initialize("NYTK/PULI-LlumiX-32K")
 
 
 def test_initialize_invalid_format():
-    """Test that initialize raises ValueError for an invalid vocab file format."""
     with open('./vocabs/invalid-vocab.txt', 'w') as f:
         f.write("invalid_line_format\n")
     with pytest.raises(ValueError, match="Vocab file is empty or contains no valid entries."):
         hutoken.initialize('./vocabs/invalid-vocab.txt')
-        
-        
-def test_encode():
-    """Test the encode function of hutoken."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
 
-    text = "Hello, world!"
-    encoded_tokens = hutoken.encode(text)
-
-    assert isinstance(encoded_tokens, list), "Encoded result should be a list"
-    assert all(isinstance(token, int) for token in encoded_tokens), "All elements in the encoded result should be integers"
-
-    print(f"Encoded tokens: {encoded_tokens}")
-    
 
 def test_decode_invalid_tokens():
-    """Test that decode raises ValueError for invalid tokens."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.initialize("openai-community/gpt2")
 
-    invalid_tokens = [999999, -1, 50258]  # Out of bounds or invalid tokens
+    invalid_tokens = [999999, -1, 50258]  # out of bounds and invalid tokens
     with pytest.raises(ValueError, match="Element must be non-negative and less than vocab size."):
         hutoken.decode(invalid_tokens)
 
 
-def test_decode_using_tiktoken_encode():
-    """Test decoding using tiktoken."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
-    tt_enc = tiktoken.get_encoding("gpt2")
+def test_encode_with_hugginface():
 
-    word = "entropy"
-    encoded = tt_enc.encode(word)
-    print(f"Encoded tokens (tiktoken): {encoded}")
-    decoded = hutoken.decode(encoded)
-    print(f"Decoded text (tiktoken): {decoded}")
+    model_name = "NYTK/PULI-LlumiX-32K"
+    text = "Ez egy Hugging Face teszt!"
 
-    assert decoded == word, f"Decoded text does not match original. Decoded: {decoded}, Original: {word}"
+    hutoken.initialize(model_name)
+    hf_tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    ht_tokens = hutoken.encode(text)
+    hf_tokens = hf_tokenizer.encode(text, add_special_tokens=False)
+
+    assert ht_tokens == hf_tokens, f"Encoded tokens differs: {ht_tokens} vs {hf_tokens}"
 
 
-def test_decode_whole_sentence_using_tiktoken_encode():
-    """Test decoding a whole sentence encoded using tiktoken."""
-    hutoken.initialize('./vocabs/gpt2-vocab.txt')
-    tt_enc = tiktoken.get_encoding("gpt2")
+def test_decode_with_hugginface():
 
-    sentence = "How can the net amount of entropy of the universe be massively decreased?"
-    encoded = tt_enc.encode(sentence)
-    print(f"Encoded tokens (tiktoken): {encoded}")
-    decoded = hutoken.decode(encoded)
-    print(f"Decoded text (tiktoken): {decoded}")
+    model_name = "NYTK/PULI-LlumiX-32K"
+    text = "Ez egy Hugging Face teszt!"
 
-    assert decoded == sentence, f"Decoded text does not match original. Decoded: {decoded}, Original: {sentence}"
+    hf_tokenizer = AutoTokenizer.from_pretrained(model_name)
+    hf_tokens = hf_tokenizer.encode(text, add_special_tokens=False)
+    hf_decoded = hf_tokenizer.decode(hf_tokens)
+
+    hutoken.initialize(model_name)
+    ht_decoded = hutoken.decode(hf_tokens)
+
+    assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
+
+def test_decode_with_hugginface_using_hutoken_encdoe():
+
+    model_name = "NYTK/PULI-LlumiX-32K"
+    text = "Ez egy Hugging Face teszt!"
+
+    hf_tokenizer = AutoTokenizer.from_pretrained(model_name)
+    hf_tokens = hf_tokenizer.encode(text, add_special_tokens=False)
+    hf_decoded = hf_tokenizer.decode(hf_tokens)
+
+    hutoken.initialize(model_name)
+    ht_tokens = hutoken.encode(text)
+    ht_decoded = hutoken.decode(ht_tokens)
+
+    assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
