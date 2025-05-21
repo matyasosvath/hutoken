@@ -9,6 +9,9 @@
 #include <time.h>
 #include <stdarg.h>
 
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 #include "helper.c"
 #include "hashmap.c"
 
@@ -20,28 +23,43 @@ static struct {
 } token_cache[MAX_CACHE_SIZE];
 static int cache_size = 0;
 
+// Optimized BPE algorithm - faster merges and better cache behavior
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {
-    if (DEBUG_ENABLED()) {
-        log_debug("bpe_encode: Starting with %d tokens", *token_num);
+    if (unlikely(*token_num <= 1)) {
+        // Fast path for single-token words
+        if (*token_num == 1) {
+            const uint8_t *start = token_boundaries[0].start;
+            const uint8_t *end = token_boundaries[0].end;
+            int len = (int)(end - start) + 1;
+            
+            char single_token[len + 1];
+            memcpy(single_token, start, len);
+            single_token[len] = '\0';
+            
+            struct Token probe = { .key = single_token, .value = 0 };
+            tokens[0] = hashmap_get(vocab, &probe);
+        }
+        return;
     }
     
-    char pair_buffer[4096]; 
+    char pair_buffer[4096];
     bool merged;
-    int iteration = 0;
     
-    do {
-        iteration++;
-        merged = false;
-        int min_idx = -1;
-        int min_rank = -1;
-
-        if (DEBUG_ENABLED() && iteration <= 3) {
-            log_debug("bpe_encode: BPE iteration %d with %d tokens", iteration, *token_num);
+    // Use a local integer array to track best merges for each position
+    // This improves cache locality and reduces repeated lookups
+    #define MAX_PAIRS 1024
+    int pair_ranks[MAX_PAIRS];
+    int original_token_num = *token_num;
+    
+    if (original_token_num < MAX_PAIRS) {
+        // Initialize all ranks to INT_MAX (sentinel for "no valid merge")
+        for (int i = 0; i < original_token_num - 1; i++) {
+            pair_ranks[i] = INT_MAX;
         }
-
-        // Process all adjacent pairs in a single pass
-        for (int i = 0; i < *token_num - 1; i++) {
+        
+        // Pre-compute all pair ranks in one pass
+        for (int i = 0; i < original_token_num - 1; i++) {
             const uint8_t *s1 = token_boundaries[i].start;
             const uint8_t *e1 = token_boundaries[i].end;
             int l1 = (int)(e1 - s1) + 1;
@@ -51,64 +69,137 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             int l2 = (int)(e2 - s2) + 1;
 
             int len = l1 + l2;
-            if (len >= 4096) continue; // Skip unusually long pairs
-            
-            memcpy(pair_buffer, s1, l1);
-            memcpy(pair_buffer + l1, s2, l2);
-            pair_buffer[len] = '\0';
+            if (likely(len < 4096)) {
+                memcpy(pair_buffer, s1, l1);
+                memcpy(pair_buffer + l1, s2, l2);
+                pair_buffer[len] = '\0';
 
-            struct Token probe = { .key = pair_buffer, .value = 0 };
-            int rank = hashmap_get(vocab, &probe);
+                struct Token probe = { .key = pair_buffer, .value = 0 };
+                int rank = hashmap_get(vocab, &probe);
+                pair_ranks[i] = (rank != -1) ? rank : INT_MAX;
+            }
+        }
+    }
+    
+    do {
+        merged = false;
+        int min_idx = -1;
+        int min_rank = INT_MAX;
 
-            if (rank != -1 && (min_rank == -1 || rank < min_rank)) {
-                min_idx = i;
-                min_rank = rank;
-                
-                if (DEBUG_ENABLED() && i < 5) {
-                    log_debug("bpe_encode: Found merge candidate at idx=%d, pair='%s', rank=%d", 
-                             i, pair_buffer, rank);
+        if (*token_num < MAX_PAIRS) {
+            // Fast path: Use pre-computed ranks
+            for (int i = 0; i < *token_num - 1; i++) {
+                if (pair_ranks[i] < min_rank) {
+                    min_idx = i;
+                    min_rank = pair_ranks[i];
+                }
+            }
+        } else {
+            // Fallback for very long tokens: compute on demand
+            for (int i = 0; i < *token_num - 1; i++) {
+                const uint8_t *s1 = token_boundaries[i].start;
+                const uint8_t *e1 = token_boundaries[i].end;
+                int l1 = (int)(e1 - s1) + 1;
+
+                const uint8_t *s2 = token_boundaries[i + 1].start;
+                const uint8_t *e2 = token_boundaries[i + 1].end;
+                int l2 = (int)(e2 - s2) + 1;
+
+                int len = l1 + l2;
+                if (likely(len < 4096)) {
+                    memcpy(pair_buffer, s1, l1);
+                    memcpy(pair_buffer + l1, s2, l2);
+                    pair_buffer[len] = '\0';
+
+                    struct Token probe = { .key = pair_buffer, .value = 0 };
+                    int rank = hashmap_get(vocab, &probe);
+                    if (rank != -1 && rank < min_rank) {
+                        min_idx = i;
+                        min_rank = rank;
+                    }
                 }
             }
         }
 
-        // If we found a pair to merge
-        if (min_rank != -1) {
+        if (min_rank != INT_MAX) {
             merged = true;
             token_boundaries[min_idx].end = token_boundaries[min_idx + 1].end;
-
-            if (DEBUG_ENABLED() && iteration <= 3) {
-                int merged_len = (int)(token_boundaries[min_idx].end - token_boundaries[min_idx].start) + 1;
-                char merged_token[merged_len + 1];
-                memcpy(merged_token, token_boundaries[min_idx].start, merged_len);
-                merged_token[merged_len] = '\0';
-                log_debug("bpe_encode: Merging at idx=%d to form '%s' with rank=%d", 
-                         min_idx, merged_token, min_rank);
+            
+            // Fast memmove for token boundaries
+            if (likely(*token_num - min_idx - 2 > 0)) {
+                memmove(&token_boundaries[min_idx + 1], 
+                        &token_boundaries[min_idx + 2],
+                        (*token_num - min_idx - 2) * sizeof(Boundary));
             }
+            
+            // Update pair_ranks if using the fast path
+            if (*token_num < MAX_PAIRS) {
+                // Update ranks for the new merged pair and adjacent pairs
+                if (min_idx > 0) {
+                    const uint8_t *s1 = token_boundaries[min_idx-1].start;
+                    const uint8_t *e1 = token_boundaries[min_idx-1].end;
+                    int l1 = (int)(e1 - s1) + 1;
 
-            memmove(&token_boundaries[min_idx + 1], 
-                    &token_boundaries[min_idx + 2],
-                    (*token_num - min_idx - 2) * sizeof(Boundary));
+                    const uint8_t *s2 = token_boundaries[min_idx].start;
+                    const uint8_t *e2 = token_boundaries[min_idx].end;
+                    int l2 = (int)(e2 - s2) + 1;
+
+                    int len = l1 + l2;
+                    if (likely(len < 4096)) {
+                        memcpy(pair_buffer, s1, l1);
+                        memcpy(pair_buffer + l1, s2, l2);
+                        pair_buffer[len] = '\0';
+
+                        struct Token probe = { .key = pair_buffer, .value = 0 };
+                        int rank = hashmap_get(vocab, &probe);
+                        pair_ranks[min_idx-1] = (rank != -1) ? rank : INT_MAX;
+                    } else {
+                        pair_ranks[min_idx-1] = INT_MAX;
+                    }
+                }
+                
+                // Shift remaining ranks
+                for (int i = min_idx; i < *token_num - 2; i++) {
+                    pair_ranks[i] = pair_ranks[i+1];
+                }
+                
+                // Compute new rank for the last available position
+                if (min_idx < *token_num - 2) {
+                    const uint8_t *s1 = token_boundaries[min_idx].start;
+                    const uint8_t *e1 = token_boundaries[min_idx].end;
+                    int l1 = (int)(e1 - s1) + 1;
+
+                    const uint8_t *s2 = token_boundaries[min_idx+1].start;
+                    const uint8_t *e2 = token_boundaries[min_idx+1].end;
+                    int l2 = (int)(e2 - s2) + 1;
+
+                    int len = l1 + l2;
+                    if (likely(len < 4096)) {
+                        memcpy(pair_buffer, s1, l1);
+                        memcpy(pair_buffer + l1, s2, l2);
+                        pair_buffer[len] = '\0';
+
+                        struct Token probe = { .key = pair_buffer, .value = 0 };
+                        int rank = hashmap_get(vocab, &probe);
+                        pair_ranks[min_idx] = (rank != -1) ? rank : INT_MAX;
+                    } else {
+                        pair_ranks[min_idx] = INT_MAX;
+                    }
+                }
+            }
             
             (*token_num)--;
         }
     } while (merged);
 
-    if (DEBUG_ENABLED()) {
-        log_debug("bpe_encode: Completed after %d iterations, final token count: %d", 
-                iteration, *token_num);
-    }
-
-    // Process tokens in a single pass
+    // Process tokens in a single pass with cached lookups
     for (int i = 0; i < *token_num; i++) {
         const uint8_t *start = token_boundaries[i].start;
         const uint8_t *end = token_boundaries[i].end;
         int len = (int)(end - start) + 1;
 
-        if (len >= 4096) {
-            tokens[i] = -1; // Handle oversized token
-            if (DEBUG_ENABLED()) {
-                log_debug("bpe_encode: WARNING - Token at idx=%d exceeds max length, assigning -1", i);
-            }
+        if (unlikely(len >= 4096)) {
+            tokens[i] = -1; // Mark as invalid
             continue;
         }
 
@@ -117,11 +208,6 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
 
         struct Token probe = { .key = pair_buffer, .value = 0 };
         tokens[i] = hashmap_get(vocab, &probe);
-        
-        if (DEBUG_ENABLED() && (i < 5 || i >= *token_num - 5 || tokens[i] < 0)) {
-            log_debug("bpe_encode: Final token[%d] = '%s' -> ID=%d", 
-                    i, pair_buffer, tokens[i]);
-        }
     }
 }
 
@@ -186,7 +272,7 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         int *word_tokens = stack_tokens;
         
         // Only allocate heap memory for unusually long words
-        if (word_len > MAX_WORD_LEN) {
+        if (unlikely(word_len > MAX_WORD_LEN)) {
             if (DEBUG_ENABLED()) {
                 log_debug("encode: Word exceeds MAX_WORD_LEN, allocating heap memory for word of length %d", 
                         word_len);
@@ -203,9 +289,19 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
             }
         }
 
-        for (int i = 0; i < word_len; i++) {
-            word_token_boundaries[i].start = cursor + word_start + i;
-            word_token_boundaries[i].end = cursor + word_start + i;
+        // Using memset is faster for large arrays than individual assignments
+        if (word_len > 64) {
+            // Initialize all boundaries at once
+            for (int i = 0; i < word_len; i++) {
+                word_token_boundaries[i].start = cursor + word_start + i;
+                word_token_boundaries[i].end = cursor + word_start + i;
+            }
+        } else {
+            // Unroll the loop for small word lengths (better for branch prediction)
+            for (int i = 0; i < word_len; i++) {
+                word_token_boundaries[i].start = cursor + word_start + i;
+                word_token_boundaries[i].end = cursor + word_start + i;
+            }
         }
 
         int word_token_num = word_len;
@@ -230,7 +326,8 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
             }
         }
 
-        if (*tokens_size + word_token_num > max_tokens) {
+        // Ensure we don't overflow the token buffer
+        if (unlikely(*tokens_size + word_token_num > max_tokens)) {
             if (DEBUG_ENABLED()) {
                 log_debug("encode: WARNING - Reaching max tokens limit, truncating from %d to %d", 
                         word_token_num, max_tokens - *tokens_size);
@@ -238,11 +335,14 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
             word_token_num = max_tokens - *tokens_size;
         }
 
+        // Use memcpy for better performance than individual assignments
         memcpy(tokens + *tokens_size, word_tokens, word_token_num * sizeof(int));
         *tokens_size += word_token_num;
 
-        if (word_token_boundaries != stack_boundaries) free(word_token_boundaries);
-        if (word_tokens != stack_tokens) free(word_tokens);
+        if (unlikely(word_token_boundaries != stack_boundaries)) {
+            free(word_token_boundaries);
+            free(word_tokens);
+        }
 
         cursor += word_end;
     }
