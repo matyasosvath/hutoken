@@ -211,93 +211,128 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     }
 }
 
+static inline uint32_t fnv1a_hash(const char *data, size_t len) {
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < len; i++) {
+        hash ^= (uint8_t)data[i];
+        hash *= 16777619;
+    }
+    return hash;
+}
+
+static inline int* lookup_cache(const char* key, int* token_count) {
+    uint32_t hash = fnv1a_hash(key, strlen(key));
+    uint32_t index = hash % MAX_CACHE_SIZE;
+    
+    if (token_cache[index].key && strcmp(token_cache[index].key, key) == 0) {
+        *token_count = token_cache[index].token_count;
+        return token_cache[index].tokens;
+    }
+    return NULL;
+}
+
+static inline void update_cache(const char* key, int* tokens, int token_count) {
+    uint32_t hash = fnv1a_hash(key, strlen(key));
+    uint32_t index = hash % MAX_CACHE_SIZE;
+    
+    // Free existing entry if needed
+    if (token_cache[index].key) {
+        free(token_cache[index].key);
+        free(token_cache[index].tokens);
+    }
+    
+    token_cache[index].key = strdup(key);
+    token_cache[index].tokens = malloc(token_count * sizeof(int));
+    memcpy(token_cache[index].tokens, tokens, token_count * sizeof(int));
+    token_cache[index].token_count = token_count;
+}
+
 void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int tokens[], int *tokens_size) {
+    #define MAX_CACHE_STR_LEN 128
+    size_t text_len = strlen((const char*)text);
+    
+    // Try cache for small strings (huge performance boost for common strings)
+    if (likely(text_len <= MAX_CACHE_STR_LEN)) {
+        int token_count = 0;
+        int* cached_tokens = lookup_cache((const char*)text, &token_count);
+        if (cached_tokens) {
+            memcpy(tokens, cached_tokens, token_count * sizeof(int));
+            *tokens_size = token_count;
+            return;
+        }
+    }
+
     if (DEBUG_ENABLED()) {
-        log_debug("encode: Starting with text (first 32 chars): '%.32s%s'", 
-                text, strlen((const char*)text) > 32 ? "..." : "");
+        log_debug("encode: Processing text of length %zu", text_len);
     }
     
     regmatch_t match;
     const uint8_t *cursor = text;
-    const uint8_t *end = text + strlen((const char*)text);
-    size_t text_len = end - cursor;
+    const uint8_t *end = text + text_len;
 
+    // Stack allocate buffers for common case (much faster than heap)
     #define MAX_WORD_LEN 1024
     Boundary stack_boundaries[MAX_WORD_LEN];
     int stack_tokens[MAX_WORD_LEN];
 
     *tokens_size = 0;
     int max_tokens = 65536;
-    int word_count = 0;
-
-    if (DEBUG_ENABLED()) {
-        log_debug("encode: Processing text of length %zu", text_len);
-    }
-
-    // Fast path for common case
-    while (cursor < end && *tokens_size < max_tokens) {
-        if (regexec(regex, (const char *)cursor, 1, &match, 0) != 0) {
-            if (DEBUG_ENABLED()) {
-                log_debug("encode: No more regex matches, breaking at cursor offset %ld", cursor - text);
-            }
+    
+    // Main tokenization loop - optimized for most common path
+    while (likely(cursor < end && *tokens_size < max_tokens)) {
+        if (unlikely(regexec(regex, (const char *)cursor, 1, &match, 0) != 0)) {
             break;
         }
             
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
         int word_len = word_end - word_start;
-        word_count++;
 
-        if (DEBUG_ENABLED() && (word_count <= 3 || word_count % 100 == 0)) {
-            char word_buf[word_len < 32 ? word_len + 1 : 33];
-            int copy_len = word_len < 32 ? word_len : 32;
-            memcpy(word_buf, cursor + word_start, copy_len);
-            word_buf[copy_len] = '\0';
-            
-            log_debug("encode: Match #%d: '%s%s' (start=%d, end=%d, len=%d)", 
-                    word_count, word_buf, word_len > 32 ? "..." : "", 
-                    word_start, word_end, word_len);
-        }
-
-        if (word_len <= 0) {
-            if (DEBUG_ENABLED()) {
-                log_debug("encode: Zero or negative length match, advancing cursor %d positions", 
-                        (word_end > 0) ? word_end : 1);
-            }
+        if (unlikely(word_len <= 0)) {
             cursor += (word_end > 0) ? word_end : 1;
             continue;
         }
 
+        // Fast stack allocation path (avoids malloc/free overhead)
         Boundary *word_token_boundaries = stack_boundaries;
         int *word_tokens = stack_tokens;
         
-        // Only allocate heap memory for unusually long words
+        // Only allocate heap for unusually long words
         if (unlikely(word_len > MAX_WORD_LEN)) {
-            if (DEBUG_ENABLED()) {
-                log_debug("encode: Word exceeds MAX_WORD_LEN, allocating heap memory for word of length %d", 
-                        word_len);
-            }
             word_token_boundaries = malloc(word_len * sizeof(Boundary));
             word_tokens = malloc(word_len * sizeof(int));
-            if (!word_token_boundaries || !word_tokens) {
-                if (DEBUG_ENABLED()) {
-                    log_debug("encode: ERROR - Memory allocation failed for word of length %d", word_len);
-                }
+            if (unlikely(!word_token_boundaries || !word_tokens)) {
                 if (word_token_boundaries) free(word_token_boundaries);
                 if (word_tokens) free(word_tokens);
                 return;
             }
         }
 
-        // Using memset is faster for large arrays than individual assignments
-        if (word_len > 64) {
-            // Initialize all boundaries at once
-            for (int i = 0; i < word_len; i++) {
-                word_token_boundaries[i].start = cursor + word_start + i;
+        // Performance optimization: unroll small loops, use direct assignment
+        if (likely(word_len <= 16)) {
+            // Unrolled loop for small words (better branch prediction, fewer jumps)
+            #define INIT_BOUNDARY(i) \
+                word_token_boundaries[i].start = cursor + word_start + i; \
                 word_token_boundaries[i].end = cursor + word_start + i;
+                
+            // Manual loop unrolling for extremely common small token case
+            if (likely(word_len <= 8)) {
+                if (word_len > 0) INIT_BOUNDARY(0);
+                if (word_len > 1) INIT_BOUNDARY(1);
+                if (word_len > 2) INIT_BOUNDARY(2);
+                if (word_len > 3) INIT_BOUNDARY(3);
+                if (word_len > 4) INIT_BOUNDARY(4);
+                if (word_len > 5) INIT_BOUNDARY(5);
+                if (word_len > 6) INIT_BOUNDARY(6);
+                if (word_len > 7) INIT_BOUNDARY(7);
+            } else {
+                for (int i = 0; i < word_len; i++) {
+                    INIT_BOUNDARY(i);
+                }
             }
+            #undef INIT_BOUNDARY
         } else {
-            // Unroll the loop for small word lengths (better for branch prediction)
+            // For larger arrays, use normal loop (compiler can optimize)
             for (int i = 0; i < word_len; i++) {
                 word_token_boundaries[i].start = cursor + word_start + i;
                 word_token_boundaries[i].end = cursor + word_start + i;
@@ -307,38 +342,17 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         int word_token_num = word_len;
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        if (DEBUG_ENABLED() && (word_count <= 3 || word_count % 50 == 0)) {
-            log_debug("encode: Word #%d compressed from %d bytes to %d tokens", 
-                    word_count, word_len, word_token_num);
-            
-            if (word_count <= 3) {
-                for (int i = 0; i < word_token_num && i < 5; i++) {
-                    const uint8_t *start = word_token_boundaries[i].start;
-                    const uint8_t *end = word_token_boundaries[i].end;
-                    int len = (int)(end - start) + 1;
-                    char token_text[len + 1];
-                    memcpy(token_text, start, len);
-                    token_text[len] = '\0';
-                    
-                    log_debug("encode: Token #%d: ID=%d, Text='%s'", 
-                            *tokens_size + i, word_tokens[i], token_text);
-                }
-            }
+        // Check for token buffer overflow
+        int tokens_to_copy = word_token_num;
+        if (unlikely(*tokens_size + tokens_to_copy > max_tokens)) {
+            tokens_to_copy = max_tokens - *tokens_size;
         }
 
-        // Ensure we don't overflow the token buffer
-        if (unlikely(*tokens_size + word_token_num > max_tokens)) {
-            if (DEBUG_ENABLED()) {
-                log_debug("encode: WARNING - Reaching max tokens limit, truncating from %d to %d", 
-                        word_token_num, max_tokens - *tokens_size);
-            }
-            word_token_num = max_tokens - *tokens_size;
-        }
+        // Fast bulk copy of tokens (much faster than loop)
+        memcpy(tokens + *tokens_size, word_tokens, tokens_to_copy * sizeof(int));
+        *tokens_size += tokens_to_copy;
 
-        // Use memcpy for better performance than individual assignments
-        memcpy(tokens + *tokens_size, word_tokens, word_token_num * sizeof(int));
-        *tokens_size += word_token_num;
-
+        // Clean up if we used heap
         if (unlikely(word_token_boundaries != stack_boundaries)) {
             free(word_token_boundaries);
             free(word_tokens);
@@ -347,118 +361,79 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         cursor += word_end;
     }
 
-    if (DEBUG_ENABLED()) {
-        log_debug("encode: Completed processing %d words into %d tokens", 
-                word_count, *tokens_size);
-        
-        if (*tokens_size > 0) {
-            log_debug("encode: First tokens: [%d, %d, %d%s]", 
-                    tokens[0], 
-                    *tokens_size > 1 ? tokens[1] : 0,
-                    *tokens_size > 2 ? tokens[2] : 0,
-                    *tokens_size > 3 ? ", ..." : "");
-                    
-            if (*tokens_size > 3) {
-                log_debug("encode: Last tokens: [..., %d, %d, %d]", 
-                        tokens[*tokens_size-3], 
-                        tokens[*tokens_size-2], 
-                        tokens[*tokens_size-1]);
-            }
-        }
+    // Cache result for small strings
+    if (likely(text_len <= MAX_CACHE_STR_LEN)) {
+        update_cache((const char*)text, tokens, *tokens_size);
     }
 }
 
 PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
 {
-    if (DEBUG_ENABLED()) {
-        log_debug("decode: Starting with %zd tokens", PyList_Size(tokens));
-    }
-
     Py_ssize_t token_num = PyList_Size(tokens);
     
-    // Allocate a single block for both token IDs and resulting text
-    size_t total_len = 0;
-    int *token_ids = malloc(token_num * sizeof(int));
-    
-    if (DEBUG_ENABLED()) {
-        log_debug("decode: First pass - validating tokens and calculating total length");
+    // Fast path for empty token list
+    if (unlikely(token_num == 0)) {
+        return PyUnicode_FromString("");
     }
     
-    // First pass - validate tokens and calculate total length
+    // Single allocation for token IDs (reduces memory fragmentation)
+    int *token_ids = malloc(token_num * sizeof(int));
+    if (unlikely(!token_ids)) {
+        return PyErr_NoMemory();
+    }
+    
+    // Pre-calculate total length to avoid reallocation
+    size_t total_len = 0;
+    bool need_validation = true;
+    
+    // First pass: validate and calculate size in one loop
     for (Py_ssize_t i = 0; i < token_num; i++) {
         PyObject *token = PyList_GetItem(tokens, i);
-        int item = (int)PyLong_AsLong(token);
         
-        // Fast path for typical case - skip repeated checks
-        if (likely(item >= 0 && item < vocab_size)) {
-            token_ids[i] = item;
-            total_len += strlen(vocab_decode[item]);
+        // Fast-path for token integer check
+        if (likely(PyLong_Check(token))) {
+            int item = (int)PyLong_AsLong(token);
             
-            if (DEBUG_ENABLED() && (i < 5 || i >= token_num - 5)) {
-                log_debug("decode: Token[%zd] = %d -> '%s'", 
-                        i, item, vocab_decode[item]);
+            if (likely(item >= 0 && item < vocab_size)) {
+                token_ids[i] = item;
+                total_len += strlen(vocab_decode[item]);
+                continue;
             }
-            continue;
-        }
-        
-        if (DEBUG_ENABLED()) {
-            log_debug("decode: ERROR - Token at index %zd is %s (value = %d)", 
-                    i, !PyLong_Check(token) ? "not an integer" : "out of range", item);
-        }
-        
-        if (!PyLong_Check(token)) {
+            
             free(token_ids);
-            PyErr_SetString(PyExc_TypeError, "All elements of the list must be integers");
+            PyErr_SetString(PyExc_ValueError, 
+                "Token ID out of range (must be 0 <= id < vocab_size)");
             return NULL;
         }
         
+        // Slow path - handle error
         free(token_ids);
-        PyErr_SetString(PyExc_ValueError, "Element must be non-negative and less than vocab size.");
+        PyErr_SetString(PyExc_TypeError, "All tokens must be integers");
         return NULL;
     }
 
-    if (DEBUG_ENABLED()) {
-        log_debug("decode: All tokens valid. Allocating text buffer of size %zu", total_len);
-    }
-
-    // One allocation with exact size
-    uint8_t *text = (uint8_t *)malloc(total_len + 1);
-    if (!text) {
-        if (DEBUG_ENABLED()) {
-            log_debug("decode: ERROR - Failed to allocate text buffer");
-        }
+    // Allocate exactly the right size for the result
+    char *text = (char *)malloc(total_len + 1);
+    if (unlikely(!text)) {
         free(token_ids);
         return PyErr_NoMemory();
     }
 
-    if (DEBUG_ENABLED()) {
-        log_debug("decode: Second pass - copying vocabulary strings");
-    }
-
-    // Second pass - copy vocabulary strings without checking bounds again
+    // Second pass: copy strings with single-pass concatenation
     size_t offset = 0;
     for (Py_ssize_t i = 0; i < token_num; i++) {
         const char *word = vocab_decode[token_ids[i]];
         size_t word_len = strlen(word);
+        
+        // Use memcpy which is highly optimized
         memcpy(text + offset, word, word_len);
         offset += word_len;
     }
     text[offset] = '\0';
+    
+    // Clean up and return
     free(token_ids);
-
-    if (DEBUG_ENABLED()) {
-        size_t preview_len = total_len > 64 ? 64 : total_len;
-        char preview[preview_len + 4];
-        memcpy(preview, text, preview_len);
-        preview[preview_len] = '\0';
-        if (total_len > 64) {
-            strcat(preview, "...");
-        }
-        log_debug("decode: Successfully generated text (length=%zu): '%s'", 
-                total_len, preview);
-    }
-
-    PyObject *result = PyUnicode_FromString((const char *)text);
+    PyObject *result = PyUnicode_FromString(text);
     free(text);
     return result;
 }
