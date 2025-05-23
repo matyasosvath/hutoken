@@ -17,6 +17,10 @@
 
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {
+    if (DEBUG_ENABLED()) {
+        log_debug("bpe_encode: Starting with %d tokens", *token_num);
+    }
+
     if (unlikely(*token_num <= 1)) {
         // Fast path for single-token words
         if (*token_num == 1) {
@@ -28,8 +32,16 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             memcpy(single_token, start, len);
             single_token[len] = '\0';
             
+            if (DEBUG_ENABLED()) {
+                log_debug("bpe_encode: Single token fast path, token='%s'", single_token);
+            }
+            
             struct Token probe = { .key = single_token, .value = 0 };
             tokens[0] = hashmap_get(vocab, &probe);
+            
+            if (DEBUG_ENABLED()) {
+                log_debug("bpe_encode: Single token mapped to ID=%d", tokens[0]);
+            }
         }
         return;
     }
@@ -41,12 +53,22 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     int pair_ranks[MAX_PAIRS];
     int original_token_num = *token_num;
     
+    if (DEBUG_ENABLED()) {
+        log_debug("bpe_encode: Using %s approach for %d tokens", 
+                 original_token_num < MAX_PAIRS ? "pre-computed ranks" : "on-demand ranks", 
+                 original_token_num);
+    }
+    
     if (original_token_num < MAX_PAIRS) {
         for (int i = 0; i < original_token_num - 1; i++) {
             pair_ranks[i] = INT_MAX;
         }
         
         // Pre-compute all pair ranks in one pass
+        if (DEBUG_ENABLED()) {
+            log_debug("bpe_encode: Pre-computing pair ranks for %d pairs", original_token_num - 1);
+        }
+        
         for (int i = 0; i < original_token_num - 1; i++) {
             const uint8_t *s1 = token_boundaries[i].start;
             const uint8_t *e1 = token_boundaries[i].end;
@@ -65,11 +87,20 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
                 struct Token probe = { .key = pair_buffer, .value = 0 };
                 int rank = hashmap_get(vocab, &probe);
                 pair_ranks[i] = (rank != -1) ? rank : INT_MAX;
+                
+                if (DEBUG_ENABLED() && rank != -1 && i < 5) {
+                    // Only log first few pairs to avoid flooding log
+                    log_debug("bpe_encode: Pair[%d]='%s', rank=%d", i, pair_buffer, rank);
+                }
             }
         }
     }
     
+    int iteration = 0;
+    int total_merges = 0;
+    
     do {
+        iteration++;
         merged = false;
         int min_idx = -1;
         int min_rank = INT_MAX;
@@ -84,6 +115,10 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             }
         } else {
             // Fallback for very long tokens: compute on demand
+            if (DEBUG_ENABLED()) {
+                log_debug("bpe_encode: Computing ranks on-demand for %d tokens", *token_num);
+            }
+            
             for (int i = 0; i < *token_num - 1; i++) {
                 const uint8_t *s1 = token_boundaries[i].start;
                 const uint8_t *e1 = token_boundaries[i].end;
@@ -111,6 +146,27 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
 
         if (min_rank != INT_MAX) {
             merged = true;
+            total_merges++;
+            
+            if (DEBUG_ENABLED() && (total_merges <= 5 || total_merges % 100 == 0)) {
+                const uint8_t *s1 = token_boundaries[min_idx].start;
+                const uint8_t *e1 = token_boundaries[min_idx].end;
+                int l1 = (int)(e1 - s1) + 1;
+                const uint8_t *s2 = token_boundaries[min_idx + 1].start;
+                const uint8_t *e2 = token_boundaries[min_idx + 1].end;
+                int l2 = (int)(e2 - s2) + 1;
+                
+                char debug_buffer1[l1 + 1];
+                char debug_buffer2[l2 + 1];
+                memcpy(debug_buffer1, s1, l1);
+                memcpy(debug_buffer2, s2, l2);
+                debug_buffer1[l1] = '\0';
+                debug_buffer2[l2] = '\0';
+                
+                log_debug("bpe_encode: Merge #%d: '%s' + '%s' at position %d, rank=%d", 
+                         total_merges, debug_buffer1, debug_buffer2, min_idx, min_rank);
+            }
+            
             token_boundaries[min_idx].end = token_boundaries[min_idx + 1].end;
             
             // Fast memmove for token boundaries
@@ -140,6 +196,10 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
                         struct Token probe = { .key = pair_buffer, .value = 0 };
                         int rank = hashmap_get(vocab, &probe);
                         pair_ranks[min_idx-1] = (rank != -1) ? rank : INT_MAX;
+                        
+                        if (DEBUG_ENABLED() && rank != -1 && total_merges <= 3) {
+                            log_debug("bpe_encode: Updated left context pair rank to %d", rank);
+                        }
                     } else {
                         pair_ranks[min_idx-1] = INT_MAX;
                     }
@@ -168,6 +228,10 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
                         struct Token probe = { .key = pair_buffer, .value = 0 };
                         int rank = hashmap_get(vocab, &probe);
                         pair_ranks[min_idx] = (rank != -1) ? rank : INT_MAX;
+                        
+                        if (DEBUG_ENABLED() && rank != -1 && total_merges <= 3) {
+                            log_debug("bpe_encode: Updated right context pair rank to %d", rank);
+                        }
                     } else {
                         pair_ranks[min_idx] = INT_MAX;
                     }
@@ -178,7 +242,16 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
         }
     } while (merged);
 
+    if (DEBUG_ENABLED()) {
+        log_debug("bpe_encode: Completed %d merge iterations, performed %d total merges, final token count=%d",
+                 iteration, total_merges, *token_num);
+    }
+
     // Process tokens in a single pass with cached lookups
+    if (DEBUG_ENABLED()) {
+        log_debug("bpe_encode: Converting %d boundaries to token IDs", *token_num);
+    }
+    
     for (int i = 0; i < *token_num; i++) {
         const uint8_t *start = token_boundaries[i].start;
         const uint8_t *end = token_boundaries[i].end;
@@ -186,6 +259,9 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
 
         if (unlikely(len >= 4096)) {
             tokens[i] = -1;
+            if (DEBUG_ENABLED()) {
+                log_debug("bpe_encode: Warning - token at index %d exceeds buffer size (len=%d)", i, len);
+            }
             continue;
         }
 
@@ -201,6 +277,17 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
     #define MAX_CACHE_STR_LEN 128
     size_t text_len = strlen((const char*)text);
     
+    if (DEBUG_ENABLED()) {
+        if (text_len < 50) {
+            log_debug("encode: Starting with text '%s' (length %zu)", text, text_len);
+        } else {
+            // Only show beginning of text for long strings
+            char preview[51] = {0};
+            memcpy(preview, text, 50);
+            log_debug("encode: Starting with text '%.50s...' (length %zu)", preview, text_len);
+        }
+    }
+    
     // Try cache for small strings
     if (likely(text_len <= MAX_CACHE_STR_LEN)) {
         int token_count = 0;
@@ -208,6 +295,10 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         if (cached_tokens) {
             memcpy(tokens, cached_tokens, token_count * sizeof(int));
             *tokens_size = token_count;
+            
+            if (DEBUG_ENABLED()) {
+                log_debug("encode: Cache hit! Returning %d tokens", token_count);
+            }
             return;
         }
     }
@@ -231,6 +322,9 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
     // Main tokenization loop - optimized for most common path
     while (likely(cursor < end && *tokens_size < max_tokens)) {
         if (unlikely(regexec(regex, (const char *)cursor, 1, &match, 0) != 0)) {
+            if (DEBUG_ENABLED()) {
+                log_debug("encode: Regex match failed, breaking at position %ld", cursor - text);
+            }
             break;
         }
             
@@ -239,6 +333,10 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         int word_len = word_end - word_start;
 
         if (unlikely(word_len <= 0)) {
+            if (DEBUG_ENABLED()) {
+                log_debug("encode: Skipping zero or negative length match (%d) at position %ld", 
+                          word_len, cursor - text);
+            }
             cursor += (word_end > 0) ? word_end : 1;
             continue;
         }
@@ -249,9 +347,15 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         
         // Only allocate heap for unusually long words
         if (unlikely(word_len > MAX_WORD_LEN)) {
+            if (DEBUG_ENABLED()) {
+                log_debug("encode: Using heap allocation for large word (len=%d)", word_len);
+            }
             word_token_boundaries = malloc(word_len * sizeof(Boundary));
             word_tokens = malloc(word_len * sizeof(int));
             if (unlikely(!word_token_boundaries || !word_tokens)) {
+                if (DEBUG_ENABLED()) {
+                    log_debug("encode: Memory allocation failed for word_len=%d", word_len);
+                }
                 if (word_token_boundaries) free(word_token_boundaries);
                 if (word_tokens) free(word_tokens);
                 return;
@@ -289,11 +393,25 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         }
 
         int word_token_num = word_len;
+        
+        if (DEBUG_ENABLED()) {
+            log_debug("encode: Calling bpe_encode with %d characters", word_len);
+        }
+        
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
+        
+        if (DEBUG_ENABLED()) {
+            log_debug("encode: bpe_encode returned %d tokens", word_token_num);
+        }
 
         int tokens_to_copy = word_token_num;
         if (unlikely(*tokens_size + tokens_to_copy > max_tokens)) {
             tokens_to_copy = max_tokens - *tokens_size;
+            
+            if (DEBUG_ENABLED()) {
+                log_debug("encode: Token limit reached! Truncating from %d to %d tokens", 
+                         word_token_num, tokens_to_copy);
+            }
         }
 
         memcpy(tokens + *tokens_size, word_tokens, tokens_to_copy * sizeof(int));
@@ -316,13 +434,23 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
 {
     Py_ssize_t token_num = PyList_Size(tokens);
     
+    if (DEBUG_ENABLED()) {
+        log_debug("decode: Starting with %zd tokens", token_num);
+    }
+    
     // Fast path for empty token list
     if (unlikely(token_num == 0)) {
+        if (DEBUG_ENABLED()) {
+            log_debug("decode: Empty token list, returning empty string");
+        }
         return PyUnicode_FromString("");
     }
     
     int *token_ids = malloc(token_num * sizeof(int));
     if (unlikely(!token_ids)) {
+        if (DEBUG_ENABLED()) {
+            log_debug("decode: Memory allocation failed for token_ids array");
+        }
         return PyErr_NoMemory();
     }
     
@@ -330,6 +458,10 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     bool need_validation = true;
     
     // First pass: validate and calculate size in one loop
+    if (DEBUG_ENABLED()) {
+        log_debug("decode: Pass 1 - Validating tokens and calculating total length");
+    }
+    
     for (Py_ssize_t i = 0; i < token_num; i++) {
         PyObject *token = PyList_GetItem(tokens, i);
         
@@ -343,6 +475,10 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
                 continue;
             }
             
+            if (DEBUG_ENABLED()) {
+                log_debug("decode: Invalid token ID %d at position %zd", item, i);
+            }
+            
             free(token_ids);
             PyErr_SetString(PyExc_ValueError, 
                 "Token ID out of range (must be 0 <= id < vocab_size)");
@@ -350,30 +486,65 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
         }
         
         // Slow path - handle error
+        if (DEBUG_ENABLED()) {
+            log_debug("decode: Non-integer token at position %zd", i);
+        }
+        
         free(token_ids);
         PyErr_SetString(PyExc_TypeError, "All tokens must be integers");
         return NULL;
     }
 
+    if (DEBUG_ENABLED()) {
+        log_debug("decode: All tokens valid. Total text length will be %zu bytes", total_len);
+    }
+
     char *text = (char *)malloc(total_len + 1);
     if (unlikely(!text)) {
+        if (DEBUG_ENABLED()) {
+            log_debug("decode: Memory allocation failed for text buffer");
+        }
         free(token_ids);
         return PyErr_NoMemory();
     }
 
     // Second pass: copy strings with single-pass concatenation
+    if (DEBUG_ENABLED()) {
+        log_debug("decode: Pass 2 - Concatenating token texts");
+    }
+    
     size_t offset = 0;
     for (Py_ssize_t i = 0; i < token_num; i++) {
         const char *word = vocab_decode[token_ids[i]];
         size_t word_len = strlen(word);
+        
+        if (DEBUG_ENABLED() && (i < 3 || i == token_num - 1)) {
+            log_debug("decode: Token[%zd]=ID:%d, text='%s', len=%zu", 
+                     i, token_ids[i], word, word_len);
+        }
         
         memcpy(text + offset, word, word_len);
         offset += word_len;
     }
     text[offset] = '\0';
     
+    if (DEBUG_ENABLED()) {
+        log_debug("decode: Final text length: %zu bytes", offset);
+        
+        if (offset <= 100) {
+            log_debug("decode: Result text: '%s'", text);
+        } else {
+            log_debug("decode: Result text (first 100 chars): '%.100s...'", text);
+        }
+    }
+    
     free(token_ids);
     PyObject *result = PyUnicode_FromString(text);
     free(text);
+    
+    if (DEBUG_ENABLED()) {
+        log_debug("decode: Completed successfully");
+    }
+    
     return result;
 }
