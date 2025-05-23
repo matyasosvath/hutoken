@@ -15,7 +15,6 @@
 #include "helper.c"
 #include "hashmap.c"
 
-// Optimized BPE algorithm - faster merges and better cache behavior
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {
     if (unlikely(*token_num <= 1)) {
@@ -38,14 +37,11 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     char pair_buffer[4096];
     bool merged;
     
-    // Use a local integer array to track best merges for each position
-    // This improves cache locality and reduces repeated lookups
     #define MAX_PAIRS 1024
     int pair_ranks[MAX_PAIRS];
     int original_token_num = *token_num;
     
     if (original_token_num < MAX_PAIRS) {
-        // Initialize all ranks to INT_MAX (sentinel for "no valid merge")
         for (int i = 0; i < original_token_num - 1; i++) {
             pair_ranks[i] = INT_MAX;
         }
@@ -126,7 +122,6 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
             
             // Update pair_ranks if using the fast path
             if (*token_num < MAX_PAIRS) {
-                // Update ranks for the new merged pair and adjacent pairs
                 if (min_idx > 0) {
                     const uint8_t *s1 = token_boundaries[min_idx-1].start;
                     const uint8_t *e1 = token_boundaries[min_idx-1].end;
@@ -150,7 +145,6 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
                     }
                 }
                 
-                // Shift remaining ranks
                 for (int i = min_idx; i < *token_num - 2; i++) {
                     pair_ranks[i] = pair_ranks[i+1];
                 }
@@ -191,7 +185,7 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
         int len = (int)(end - start) + 1;
 
         if (unlikely(len >= 4096)) {
-            tokens[i] = -1; // Mark as invalid
+            tokens[i] = -1;
             continue;
         }
 
@@ -207,7 +201,7 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
     #define MAX_CACHE_STR_LEN 128
     size_t text_len = strlen((const char*)text);
     
-    // Try cache for small strings (huge performance boost for common strings)
+    // Try cache for small strings
     if (likely(text_len <= MAX_CACHE_STR_LEN)) {
         int token_count = 0;
         int* cached_tokens = lookup_cache((const char*)text, &token_count);
@@ -226,7 +220,7 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
     const uint8_t *cursor = text;
     const uint8_t *end = text + text_len;
 
-    // Stack allocate buffers for common case (much faster than heap)
+    // Stack allocate buffers for common case
     #define MAX_WORD_LEN 1024
     Boundary stack_boundaries[MAX_WORD_LEN];
     int stack_tokens[MAX_WORD_LEN];
@@ -249,7 +243,7 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
             continue;
         }
 
-        // Fast stack allocation path (avoids malloc/free overhead)
+        // Fast stack allocation path
         Boundary *word_token_boundaries = stack_boundaries;
         int *word_tokens = stack_tokens;
         
@@ -266,7 +260,6 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
 
         // Performance optimization: unroll small loops, use direct assignment
         if (likely(word_len <= 16)) {
-            // Unrolled loop for small words (better branch prediction, fewer jumps)
             #define INIT_BOUNDARY(i) \
                 word_token_boundaries[i].start = cursor + word_start + i; \
                 word_token_boundaries[i].end = cursor + word_start + i;
@@ -288,7 +281,7 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
             }
             #undef INIT_BOUNDARY
         } else {
-            // For larger arrays, use normal loop (compiler can optimize)
+            // For larger arrays, use normal loop 
             for (int i = 0; i < word_len; i++) {
                 word_token_boundaries[i].start = cursor + word_start + i;
                 word_token_boundaries[i].end = cursor + word_start + i;
@@ -298,17 +291,14 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         int word_token_num = word_len;
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        // Check for token buffer overflow
         int tokens_to_copy = word_token_num;
         if (unlikely(*tokens_size + tokens_to_copy > max_tokens)) {
             tokens_to_copy = max_tokens - *tokens_size;
         }
 
-        // Fast bulk copy of tokens (much faster than loop)
         memcpy(tokens + *tokens_size, word_tokens, tokens_to_copy * sizeof(int));
         *tokens_size += tokens_to_copy;
 
-        // Clean up if we used heap
         if (unlikely(word_token_boundaries != stack_boundaries)) {
             free(word_token_boundaries);
             free(word_tokens);
@@ -317,7 +307,6 @@ void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int toke
         cursor += word_end;
     }
 
-    // Cache result for small strings
     if (likely(text_len <= MAX_CACHE_STR_LEN)) {
         update_cache((const char*)text, tokens, *tokens_size);
     }
@@ -332,13 +321,11 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
         return PyUnicode_FromString("");
     }
     
-    // Single allocation for token IDs (reduces memory fragmentation)
     int *token_ids = malloc(token_num * sizeof(int));
     if (unlikely(!token_ids)) {
         return PyErr_NoMemory();
     }
     
-    // Pre-calculate total length to avoid reallocation
     size_t total_len = 0;
     bool need_validation = true;
     
@@ -368,7 +355,6 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
         return NULL;
     }
 
-    // Allocate exactly the right size for the result
     char *text = (char *)malloc(total_len + 1);
     if (unlikely(!text)) {
         free(token_ids);
@@ -381,13 +367,11 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
         const char *word = vocab_decode[token_ids[i]];
         size_t word_len = strlen(word);
         
-        // Use memcpy which is highly optimized
         memcpy(text + offset, word, word_len);
         offset += word_len;
     }
     text[offset] = '\0';
     
-    // Clean up and return
     free(token_ids);
     PyObject *result = PyUnicode_FromString(text);
     free(text);
