@@ -15,14 +15,6 @@
 #include "helper.c"
 #include "hashmap.c"
 
-#define MAX_CACHE_SIZE 1024
-static struct {
-    char *key;
-    int *tokens;
-    int token_count;
-} token_cache[MAX_CACHE_SIZE];
-static int cache_size = 0;
-
 // Optimized BPE algorithm - faster merges and better cache behavior
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {
@@ -209,42 +201,6 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
         struct Token probe = { .key = pair_buffer, .value = 0 };
         tokens[i] = hashmap_get(vocab, &probe);
     }
-}
-
-static inline uint32_t fnv1a_hash(const char *data, size_t len) {
-    uint32_t hash = 2166136261u;
-    for (size_t i = 0; i < len; i++) {
-        hash ^= (uint8_t)data[i];
-        hash *= 16777619;
-    }
-    return hash;
-}
-
-static inline int* lookup_cache(const char* key, int* token_count) {
-    uint32_t hash = fnv1a_hash(key, strlen(key));
-    uint32_t index = hash % MAX_CACHE_SIZE;
-    
-    if (token_cache[index].key && strcmp(token_cache[index].key, key) == 0) {
-        *token_count = token_cache[index].token_count;
-        return token_cache[index].tokens;
-    }
-    return NULL;
-}
-
-static inline void update_cache(const char* key, int* tokens, int token_count) {
-    uint32_t hash = fnv1a_hash(key, strlen(key));
-    uint32_t index = hash % MAX_CACHE_SIZE;
-    
-    // Free existing entry if needed
-    if (token_cache[index].key) {
-        free(token_cache[index].key);
-        free(token_cache[index].tokens);
-    }
-    
-    token_cache[index].key = strdup(key);
-    token_cache[index].tokens = malloc(token_count * sizeof(int));
-    memcpy(token_cache[index].tokens, tokens, token_count * sizeof(int));
-    token_cache[index].token_count = token_count;
 }
 
 void encode(const uint8_t *text, struct HashMap *vocab, regex_t *regex, int tokens[], int *tokens_size) {

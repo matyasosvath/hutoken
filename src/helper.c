@@ -18,6 +18,14 @@
 #define VISUALIZE 1
 #define TEXT_SIZE_INCREMENT 50
 #define DEBUG_ENABLED() (getenv("DEBUG") && strcmp(getenv("DEBUG"), "1") == 0)
+#define MAX_CACHE_SIZE 1024
+
+static struct {
+    char *key;
+    int *tokens;
+    int token_count;
+} token_cache[MAX_CACHE_SIZE];
+static int cache_size = 0;
 
 typedef struct {
     const uint8_t *start;
@@ -40,6 +48,41 @@ void log_debug(const char *format, ...) {
 
         fprintf(stderr, "\n");
     }
+}
+
+static inline uint32_t fnv1a_hash(const char *data, size_t len) {
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < len; i++) {
+        hash ^= (uint8_t)data[i];
+        hash *= 16777619;
+    }
+    return hash;
+}
+
+static inline int* lookup_cache(const char* key, int* token_count) {
+    uint32_t hash = fnv1a_hash(key, strlen(key));
+    uint32_t index = hash % MAX_CACHE_SIZE;
+    
+    if (token_cache[index].key && strcmp(token_cache[index].key, key) == 0) {
+        *token_count = token_cache[index].token_count;
+        return token_cache[index].tokens;
+    }
+    return NULL;
+}
+
+static inline void update_cache(const char* key, int* tokens, int token_count) {
+    uint32_t hash = fnv1a_hash(key, strlen(key));
+    uint32_t index = hash % MAX_CACHE_SIZE;
+    
+    if (token_cache[index].key) {
+        free(token_cache[index].key);
+        free(token_cache[index].tokens);
+    }
+    
+    token_cache[index].key = strdup(key);
+    token_cache[index].tokens = malloc(token_count * sizeof(int));
+    memcpy(token_cache[index].tokens, tokens, token_count * sizeof(int));
+    token_cache[index].token_count = token_count;
 }
 
 void visualize(int arr[], char *text, int n)
