@@ -14,6 +14,7 @@ def benchmark(document, num_bytes):
     import hutoken
 
     hutoken.initialize('./vocabs/gpt2-vocab.txt')
+    hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
     ht_result = hutoken.encode(document)
