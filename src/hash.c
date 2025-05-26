@@ -89,4 +89,3 @@ uint64_t hashmap_murmur(const void *data, size_t len)
 {
     return MM86128(data, len);
 }
-

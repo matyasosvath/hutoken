@@ -222,6 +222,6 @@ static struct PyModuleDef huToken = {
     huTokenMethods
 };
 
-PyMODINIT_FUNC PyInit_hutoken(void) {
+PyMODINIT_FUNC PyInit__hutoken(void) {
     return PyModule_Create(&huToken);
 }
