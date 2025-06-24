@@ -146,8 +146,11 @@ void encode(char* text,
 
         //while (regexec(&regex, cursor, 1, &match, 0) == 0) {
 
-        int word_start = match.rm_so;
-        int word_end = match.rm_eo;
+        //int word_start = match.rm_so;
+        int word_start = ovector[0];
+        //int word_end = match.rm_eo;
+        int word_end = ovector[1];
+
         int word_len = word_end - word_start;
 
         log_debug("Matched word: start=%d, end=%d, length=%d", word_start,
