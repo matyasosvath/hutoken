@@ -85,6 +85,8 @@ void bpe_encode(struct HashMap* vocab,
     }
 }
 
+void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size) {
+    
 void encode(char* text,
             struct HashMap* vocab,
             char* pattern,
@@ -92,8 +94,8 @@ void encode(char* text,
             int* tokens_size) {
     log_debug("Starting encode function with text: %s", text);
 
-    int error_number;
-    PCRE2_SIZE error_offset;
+    PCRE2_SPTR pattern = (PCRE2_SPTR) pattern;
+    PCRE2_SPTR subject = (PCRE2_SPTR) text;
 
     pcre2_code *regex = pcre2_compile(
         (PCRE2_SPTR) pattern,
@@ -111,17 +113,19 @@ void encode(char* text,
         return;
     }
 
-    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(regex,NULL);
+    re = pcre2_compile(pattern,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
 
-    if(match_data == NULL){
-        log_debug("Error: Failed to create PCRE2 match data.");
-        PyErr_SetString(PyExc_RuntimeError, "Failed to create PCRE2 match data.");
-        pcre2_code_free(regex);
+    if (re = NULL)
+    {
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(errornumber,buffer,sizeof(buffer));
+        log_debug("PCRE2 compilation failed at offset %d: %s\n",(int)errorofset, buffer);
+        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
     }
+    
+    match_data = pcre2_match_data_create_from_pattern(re,NULL);
 
-    PCRE2_SPTR subject = (PCRE2_SPTR) text;
-    PCRE2_SIZE subject_length = strlen(text);
     PCRE2_SIZE start_offset = 0;
 
     while(start_offset < subject_length){
@@ -137,14 +141,9 @@ void encode(char* text,
         if(rc < 0){
             if(rc == PCRE2_ERROR_NOMATCH){
                 break;
-            }else{
-                log_debug("Error: PCRE2 matching error: %d", rc);
-                PyErr_Format(PyExc_RuntimeError, "PCRE2 matching error: %d", rc);
-                pcre2_match_data_free(match_data);
-                pcre2_code_free(regex);
-                return;
             }
         }
+        
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         PCRE2_SIZE match_start = ovector[0];
