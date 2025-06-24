@@ -144,6 +144,7 @@ void encode(char* text,
             }
         }
         
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         PCRE2_SIZE match_start = ovector[0];
