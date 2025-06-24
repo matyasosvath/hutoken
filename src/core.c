@@ -5,6 +5,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <assert.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 #include <regex.h>
 #include <time.h>
 #include <stdarg.h>
@@ -79,18 +81,64 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
 }
 
 void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size) {
+    
     log_debug("Starting encode function with text: %s", text);
 
-    regex_t regex;
-    int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r) {
-        log_debug("Error: Regex could not be compiled.");
+    PCRE2_SPTR pattern = (PCRE2_SPTR) pattern;
+    PCRE2_SPTR subject = (PCRE2_SPTR) text;
+
+    pcre2_code *re;
+    pcre2_match_data *match_data;
+    int errornumber;
+    PCRE2_SIZE errorofset;
+    int rc;
+
+    re = pcre2_compile(pattern,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
+
+    if (re = NULL)
+    {
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(errornumber,buffer,sizeof(buffer));
+        log_debug("PCRE2 compilation failed at offset %d: %s\n",(int)errorofset, buffer);
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
     }
+    
+    match_data = pcre2_match_data_create_from_pattern(re,NULL);
 
-    regmatch_t match;
-    char *cursor = text;
+    PCRE2_SIZE start_offset = 0;
+
+    // regex_t regex;
+    // int r = regcomp(&regex, pattern, REG_EXTENDED);
+    // if (r) {
+    //    log_debug("Error: Regex could not be compiled.");
+    //    PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+    //    return;
+    // }
+
+    // regmatch_t match;
+    
+    // char *cursor = text;
+
+    while(1){
+        rc = pcre2_match(re, subject, strlen((char*)subject),
+        start_offset, 0, match_data, NULL);
+
+        if (rc < 0)
+        {
+            if (rc == PCRE2_ERROR_NOMATCH)
+            {
+                break;
+            }
+            else
+            {
+                printf("Matching error %d\n", rc);
+                break;
+            }
+        }
+        
+
+    }
 
     while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
