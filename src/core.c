@@ -142,10 +142,10 @@ void encode(char* text,
             }
         }
         
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
 
-    }
+        //while (regexec(&regex, cursor, 1, &match, 0) == 0) {
 
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
         int word_len = word_end - word_start;
@@ -178,7 +178,9 @@ void encode(char* text,
         *tokens_size += word_token_num;
     }
 
-    regfree(&regex);
+    //regfree(&regex);
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(re);
     log_debug("Completed encode function. Total tokens: %d", *tokens_size);
 }
 
