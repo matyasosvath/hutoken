@@ -123,10 +123,10 @@ void encode(char* text,
 
     // regmatch_t match;
     
-    // char *cursor = text;
+    char *cursor = text;
 
     while(1){
-        rc = pcre2_match(re, subject, strlen((char*)subject),
+        rc = pcre2_match(re, cursor, strlen((char*)cursor),
         start_offset, 0, match_data, NULL);
 
         if (rc < 0)
@@ -147,9 +147,9 @@ void encode(char* text,
         //while (regexec(&regex, cursor, 1, &match, 0) == 0) {
 
         //int word_start = match.rm_so;
-        int word_start = ovector[0];
+        int word_start = (int) ovector[0];
         //int word_end = match.rm_eo;
-        int word_end = ovector[1];
+        int word_end = (int) ovector[1];
 
         int word_len = word_end - word_start;
 
