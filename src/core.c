@@ -94,7 +94,7 @@ void encode(char* text,
             int* tokens_size) {
     log_debug("Starting encode function with text: %s", text);
 
-    PCRE2_SPTR pattern = (PCRE2_SPTR) pattern;
+    PCRE2_SPTR search_term = (PCRE2_SPTR) pattern;
     PCRE2_SPTR subject = (PCRE2_SPTR) text;
 
     pcre2_code *regex = pcre2_compile(
