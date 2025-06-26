@@ -84,7 +84,7 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
     
     log_debug("Starting encode function with text: %s", text);
 
-    PCRE2_SPTR pattern = (PCRE2_SPTR) pattern;
+    PCRE2_SPTR search_term = (PCRE2_SPTR) pattern;
     PCRE2_SPTR subject = (PCRE2_SPTR) text;
 
     pcre2_code *re;
