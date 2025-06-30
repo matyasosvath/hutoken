@@ -124,7 +124,7 @@ void encode(char* text,
 
     // regmatch_t match;
     
-    // char *cursor = text;
+    char *cursor = text;
 
     while(1){
         rc = pcre2_match(re, subject, strlen((char*)subject),
@@ -142,7 +142,7 @@ void encode(char* text,
                 break;
             }
         }
-        
+
         match_count++;
         
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
@@ -150,9 +150,11 @@ void encode(char* text,
         //while (regexec(&regex, cursor, 1, &match, 0) == 0) {
 
         //int word_start = match.rm_so;
-        int word_start = (int) ovector[0];
+        //int word_start = (int) ovector[0];
+        PCRE2_SIZE word_start = ovector[0];
         //int word_end = match.rm_eo;
-        int word_end = (int) ovector[1];
+        PCRE2_SIZE word_end = ovector[1];
+        //int word_end = (int) ovector[1];
 
         int word_len = word_end - word_start;
 
@@ -167,7 +169,7 @@ void encode(char* text,
             char* end = ptr;
             struct Boundary word_token_boundary = {start, end};
             word_token_boundaries[i] = word_token_boundary;
-            i += 1;
+            i++;
         }
 
         int word_token_num = word_len;
