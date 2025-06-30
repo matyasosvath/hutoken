@@ -107,6 +107,7 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
     match_data = pcre2_match_data_create_from_pattern(re,NULL);
 
     PCRE2_SIZE start_offset = 0;
+    int match_count = 0;
 
     // regex_t regex;
     // int r = regcomp(&regex, pattern, REG_EXTENDED);
@@ -118,10 +119,10 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
 
     // regmatch_t match;
     
-    char *cursor = text;
+    // char *cursor = text;
 
     while(1){
-        rc = pcre2_match(re, cursor, strlen((char*)cursor),
+        rc = pcre2_match(re, subject, strlen((char*)subject),
         start_offset, 0, match_data, NULL);
 
         if (rc < 0)
@@ -136,6 +137,8 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
                 break;
             }
         }
+        
+        match_count++;
         
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
 
