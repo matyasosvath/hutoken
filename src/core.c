@@ -170,7 +170,7 @@ void encode(char* text,
             char* end = ptr;
             struct Boundary word_token_boundary = {start, end};
             word_token_boundaries[i] = word_token_boundary;
-            i += 1;
+            i++;
         }
 
         int word_token_num = word_len;
