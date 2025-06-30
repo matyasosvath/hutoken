@@ -7,7 +7,7 @@
 #include <assert.h>
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
-#include <regex.h>
+// #include <regex.h>
 #include <time.h>
 #include <stdarg.h>
 
@@ -93,7 +93,7 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
     PCRE2_SIZE errorofset;
     int rc;
 
-    re = pcre2_compile(pattern,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
+    re = pcre2_compile(search_term,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
 
     if (re = NULL)
     {
