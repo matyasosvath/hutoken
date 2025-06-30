@@ -98,7 +98,7 @@ void encode(char* text,
     PCRE2_SIZE errorofset;
     int rc;
 
-    re = pcre2_compile(pattern,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
+    re = pcre2_compile(search_term,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
 
     if (re = NULL)
     {
