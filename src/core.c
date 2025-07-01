@@ -166,7 +166,7 @@ void encode(char* text,
             char *end = ptr;
             Boundary word_token_boundary = {start, end};
             word_token_boundaries[i] = word_token_boundary;
-            i++;
+            i += 1;
         }
 
         int word_token_num = i;
