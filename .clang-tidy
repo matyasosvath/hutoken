@@ -1,0 +1,16 @@
+---
+Checks: "*,
+        -abseil-*,
+        -fuchsia-*,
+        -llvmlibc-*,
+        -zircon-*,
+        -altera-id-dependent-backward-branch,
+        -altera-unroll-loops,
+        -bugprone-easily-swappable-parameters,
+        -readability-else-after-return,
+        -readability-identifier-length,
+        -readability-static-accessed-through-instance,
+"
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+FormatStyle: none
