@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "helper.c"
-#include "core.c"
 #include "bpe.c"
+#include "core.c"
+#include "helper.c"
 
 
 static bool initialized_encode = false;

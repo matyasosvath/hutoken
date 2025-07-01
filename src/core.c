@@ -1,13 +1,13 @@
 #include <Python.h>
 
+#include <assert.h>
+#include <regex.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
-#include <assert.h>
-#include <regex.h>
 #include <time.h>
-#include <stdarg.h>
 
 #include "helper.c"
 #include "hashmap.c"
