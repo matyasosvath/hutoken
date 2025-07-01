@@ -1,7 +1,4 @@
-
-#ifndef HASHMAP
-#define HASHMAP
-
+#include "hashmap.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -10,37 +7,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "hash.c"
-
+#include "hash.h"
 
 #define GROW_AT   0.60 /* 60% */
 #define SHRINK_AT 0.10 /* 10% */
 #define HASHMAP_LOAD_FACTOR 0.60 /* 60% */
 
-
 // Open addressed hash map using robinhood hashing
-struct HashMap {
-    size_t element_size;
-    size_t capacity;
-    size_t bucket_size;
-    size_t bucket_num;
-    size_t count;
-    size_t mask;
-    size_t growat;
-    size_t shrinkat; // hash map shrinks if number of items falls below threshold
-    uint8_t loadfactor; // threshold of filled buckets before resizing
-    uint8_t growpower; // how much the hash map will grow when resized
-    bool oom; // signal that last called failed due to system being out of memory.
-    void *buckets;
-    void *spare;
-    void *edata; // temp data for a bucket
-};
-
-struct Token {
-    char *key;
-    int value;
-};
-
 int compare(const void *a, const void *b) {
     const struct Token *ua = a;
     const struct Token *ub = b;
@@ -415,6 +388,3 @@ void hashmap_free(struct HashMap *map) {
     free(map->buckets);
     free(map);
 }
-
-
-#endif

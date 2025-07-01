@@ -1,3 +1,5 @@
+#include "hash.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -5,9 +7,6 @@
 #include <string.h>
 
 
-#ifndef SEED
-    #define SEED 42
-#endif
 
 
 //-----------------------------------------------------------------------------

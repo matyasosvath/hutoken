@@ -1,12 +1,14 @@
+#include "lib.h"
+
 #include <Python.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "bpe.c"
-#include "core.c"
-#include "helper.c"
+#include "bpe.h"
+#include "core.h"
+#include "helper.h"
 
 
 static bool initialized_encode = false;

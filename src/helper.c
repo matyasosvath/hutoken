@@ -1,5 +1,4 @@
-#ifndef HELPER
-#define HELPER
+#include "helper.h"
 
 #include <Python.h>
 
@@ -13,16 +12,9 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "hashmap.c"
+#include "hashmap.h"
 
 #define VISUALIZE 1
-#define TEXT_SIZE_INCREMENT 50
-
-
-typedef struct {
-    char *start;
-    char *end;
-} Boundary;
 
 void log_debug(const char *format, ...) {
     const char *debug_env = getenv("DEBUG");
@@ -168,5 +160,3 @@ int save_vocab(struct HashMap *vocab, char *file_name) {
 
     return EXIT_SUCCESS;
 }
-
-#endif

@@ -1,3 +1,5 @@
+#include "bpe.h"
+
 #include <Python.h>
 
 #include <assert.h>
@@ -7,8 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "helper.c"
-#include "hashmap.c"
+#include "hashmap.h"
+#include "helper.h"
 
 
 void create_words(

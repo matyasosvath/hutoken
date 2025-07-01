@@ -1,3 +1,5 @@
+#include "core.h"
+
 #include <Python.h>
 
 #include <assert.h>
@@ -9,8 +11,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "helper.c"
-#include "hashmap.c"
+#include "hashmap.h"
+#include "helper.h"
 
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {
