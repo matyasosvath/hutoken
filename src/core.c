@@ -118,9 +118,9 @@ void encode(char* text,
     if (re = NULL)
     {
         PCRE2_UCHAR buffer[256];
-        pcre2_get_error_message(errornumber,buffer,sizeof(buffer));
-        log_debug("PCRE2 compilation failed at offset %d: %s\n",(int)errorofset, buffer);
-        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+        pcre2_get_error_message(error_number,buffer,sizeof(buffer));
+        log_debug("PCRE2 compilation failed at offset %d: %s\n",(int)error_offset, buffer);
+        PyErr_Format(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
     }
     
@@ -141,9 +141,15 @@ void encode(char* text,
         if(rc < 0){
             if(rc == PCRE2_ERROR_NOMATCH){
                 break;
+            }else{
+                log_debug("Error: PCRE2 matching error: %d", rc);
+                PyErr_Format(PyExc_RuntimeError, "PCRE2 matching error: %d", rc);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(regex);
+                return;
             }
         }
-        
+
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
@@ -162,7 +168,7 @@ void encode(char* text,
             char *end = ptr;
             Boundary word_token_boundary = {start, end};
             word_token_boundaries[i] = word_token_boundary;
-            i++;
+            i += 1;
         }
 
         int word_token_num = i;
