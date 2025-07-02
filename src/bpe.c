@@ -1,4 +1,4 @@
-#include "bpe.h"
+#include "hutoken/bpe.h"
 
 #include <Python.h>
 
@@ -9,8 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "hashmap.h"
-#include "helper.h"
+#include "hutoken/hashmap.h"
+#include "hutoken/helper.h"
 
 
 void create_words(

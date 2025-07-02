@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "hashmap.h"
+#include "hutoken/hashmap.h"
 
 #define TEXT_SIZE_INCREMENT 50
 

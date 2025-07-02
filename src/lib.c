@@ -1,4 +1,4 @@
-#include "lib.h"
+#include "hutoken/lib.h"
 
 #include <Python.h>
 
@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bpe.h"
-#include "core.h"
-#include "helper.h"
+#include "hutoken/bpe.h"
+#include "hutoken/core.h"
+#include "hutoken/helper.h"
 
 
 static bool initialized_encode = false;

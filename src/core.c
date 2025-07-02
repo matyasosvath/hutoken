@@ -1,4 +1,4 @@
-#include "core.h"
+#include "hutoken/core.h"
 
 #include <Python.h>
 
@@ -11,8 +11,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "hashmap.h"
-#include "helper.h"
+#include "hutoken/hashmap.h"
+#include "hutoken/helper.h"
 
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {

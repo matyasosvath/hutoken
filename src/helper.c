@@ -1,4 +1,4 @@
-#include "helper.h"
+#include "hutoken/helper.h"
 
 #include <Python.h>
 
@@ -12,7 +12,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "hashmap.h"
+#include "hutoken/hashmap.h"
 
 #define VISUALIZE 1
 

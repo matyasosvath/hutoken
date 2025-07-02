@@ -1,4 +1,4 @@
-#include "hashmap.h"
+#include "hutoken/hashmap.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "hash.h"
+#include "hutoken/hash.h"
 
 #define GROW_AT   0.60 /* 60% */
 #define SHRINK_AT 0.10 /* 10% */
