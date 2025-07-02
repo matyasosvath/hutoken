@@ -89,7 +89,7 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
     pcre2_code *regex = pcre2_compile(
         (PCRE2_SPTR) pattern,
         PCRE2_ZERO_TERMINATED,
-        0,
+        PCRE2_UTF,
         &error_number,
         &error_offset,
         NULL);
