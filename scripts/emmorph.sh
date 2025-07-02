@@ -2,6 +2,16 @@
 
 set -euo pipefail
 
+if ! command -v foma &> /dev/null; then
+    echo "Error: Required dependency foma is not installed." >&2
+    exit 1
+fi
+
+if ! command -v hfst-xfst &> /dev/null; then
+    echo "Error: Required dependency hfst is not installed." >&2
+    exit 1
+fi
+
 echo "1: Building initial lexicon files."
 (
     cd emmorph/mak
