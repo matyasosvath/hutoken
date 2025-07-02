@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "helper.c"
 #include "core.c"
 #include "bpe.c"
