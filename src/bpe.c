@@ -5,7 +5,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <regex.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 
 #include "helper.c"
 #include "hashmap.c"
@@ -18,6 +19,50 @@ void create_words(
     int token_num
 )
 {
+    int error_number;
+    PCRE2_SIZE error_offset;
+    pcre2_code *regex = pcre2_compile(
+        (PCRE2_SPTR) pattern,
+        PCRE2_ZERO_TERMINATED,
+        0,
+        &error_number,
+        &error_offset,
+        NULL0);
+
+    if(regex == NULL){
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(error_number, buffer, sizeof(buffer));
+        fprintf(stderr, "PCRE2 compilation failed at offset %d: %s\n", (int)error_offset, buffer);
+        PyErr_Format(PyExc_RuntimeError, "PCRE2 compilation failed at offset %d: %s", (int)error_offset, buffer);
+        return;
+    }
+
+    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(regex, NULL);
+    if(match_data == NULL){
+        fprintf(stderr, "Failed to create PCRE2 match data.\n");
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create PCRE2 match data.");
+        pcre2_code_free(regex);
+        return;
+    }
+
+    PCRE2_SPTR subject = (PCRE2_SPTR) text;
+    PCRE2_SIZE subject_length = strlen(text);
+    PCRE2_SIZE start_offset = 0;
+    int i = 0;
+
+    while(start_offset < subject_length){
+        int rc = pcre2_match(
+            regex,
+            subject,
+            subject_length,
+            start_offset,
+            0,
+            match_data,
+            NULL);
+
+    }
+
+
     regex_t regex;
 
     int r = regcomp(&regex, pattern, REG_EXTENDED);
