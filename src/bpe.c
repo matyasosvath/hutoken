@@ -31,7 +31,7 @@ void create_words(
         0,
         &error_number,
         &error_offset,
-        NULL0);
+        NULL);
 
     if(regex == NULL){
         PCRE2_UCHAR buffer[256];
@@ -102,6 +102,7 @@ void create_words(
 
     pcre2_match_data_free(match_data);
     pcre2_code_free(regex);
+
 }
 
 void bpe_train_core(struct HashMap* vocab,
