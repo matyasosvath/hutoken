@@ -12,6 +12,8 @@
 #include "helper.c"
 #include "hashmap.c"
 
+#include "../include/fomalib.h"
+
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {
     while (1)
@@ -201,5 +203,44 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     log_debug("Successfully created Python string from decoded text: '%s'", text);
 
     free(text);
+    return result;
+}
+
+PyObject *initilaize_foma(){
+    log_debug("Starting foma inicialization");
+
+    struct fsm *net = fsm_read_binary_file("../hu.fsm");
+
+    if(!net){
+        log_debug("Error: Failed to read in the finite state machine");
+        return NULL;
+    }
+
+    struct apply_handle *handle = apply_init(net);
+
+    if(!handle){
+        log_debug("Error: Couldn't initialize apply_handle");
+        return NULL;
+    }
+
+    return handle;
+}
+
+PyObject *look_up_word(struct apply_handle* handle, char* word){
+    if(word){
+        log_debug("looking up word %s", word);
+    }
+    else{
+        log_debug("looking up other possibilities for previous word");
+    }
+
+    char *result = apply_up(handle, word);
+    if(result){
+        log_debug("result is: %s", result)
+    }
+    else{
+        log_debug("There are no more results for this word");
+    }
+
     return result;
 }
