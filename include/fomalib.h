@@ -15,6 +15,9 @@
 /*     You should have received a copy of the GNU General Public License     */
 /*     along with foma.  If not, see <http://www.gnu.org/licenses/>.         */
 
+#ifndef FOMALIB_H
+#define FOMALIB_H
+
 #ifdef  __cplusplus
 extern "C" {
 #endif
@@ -465,4 +468,6 @@ FEXPORT void fsm_read_done(struct fsm_read_handle *handle);
 
 #ifdef  __cplusplus
 }
+#endif
+
 #endif
