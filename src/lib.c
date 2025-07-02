@@ -3,11 +3,11 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "helper.c"
 #include "core.c"
 #include "bpe.c"
 
+#include "../include/fomalib.h"
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
@@ -298,11 +298,32 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
     return decode(tokens, vocab_decode, vocab_size_decode);
 }
 
+static PyObject *p_initialize_foma(PyObject *self, PyObejct *args){
+    return initilaize_foma(); 
+}
+
+static PyObject *p_look_up_word(PyObject *self, PyObject *args){
+    struct apply_handle *handle;
+    char *word;
+
+    if (!PyArg_ParseTuple(args, handle, word)){
+        return NULL;
+    }
+
+    if(handle == NULL){
+        PyErr_SetString(PyExc_RuntimeError,"handle cannot be NULL");
+    }
+
+    return look_up_word(handle, word);
+}
+
 static PyMethodDef huTokenMethods[] = {
     {"bpe_train", p_bpe_train, METH_VARARGS, "BPE training"},
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS, "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
+    {"initialize_foma", p_initialize_foma, "Initilaizes the foma fst"},
+    {"look_up_word", p_look_up_word, "Morphological analysis of a word"},
     {NULL, NULL, 0, NULL} 
 };
 
