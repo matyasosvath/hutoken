@@ -63,6 +63,18 @@ void create_words(
             0,
             match_data,
             NULL);
+        
+        if(rc < 0){
+            if(rc == PCRE2_ERROR_NOMATCH){
+                break;
+            }else{
+                fprintf(stderr, "PCRE2 matching error: %d\n", rc);
+                PyErr_Format(PyExc_RuntimeError, "PCRE2 matching error: %d", rc);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(regex);
+                return;
+            }
+        }
 
     }
 
