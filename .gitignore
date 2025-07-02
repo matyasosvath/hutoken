@@ -49,3 +49,7 @@ target/
 # Tests
 
 .pytest_cache/
+
+# Foma builds
+
+bin/
