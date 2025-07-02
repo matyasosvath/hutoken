@@ -206,7 +206,7 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     return result;
 }
 
-PyObject *initilaize_foma(){
+PyObject *initialize_foma(){
     log_debug("Starting foma inicialization");
 
     struct fsm *net = fsm_read_binary_file("../hu.fsm");
@@ -223,12 +223,12 @@ PyObject *initilaize_foma(){
         return NULL;
     }
 
-    return handle;
+    return PyCapsule_New(handle, "foma.apply_handle", NULL);
 }
 
 PyObject *look_up_word(struct apply_handle* handle, char* word){
     if(word){
-        log_debug("looking up word %s", word);
+        log_debug("looking up word: %s", word);
     }
     else{
         log_debug("looking up other possibilities for previous word");
@@ -236,7 +236,7 @@ PyObject *look_up_word(struct apply_handle* handle, char* word){
 
     char *result = apply_up(handle, word);
     if(result){
-        log_debug("result is: %s", result)
+        log_debug("result is: %s", result);
     }
     else{
         log_debug("There are no more results for this word");

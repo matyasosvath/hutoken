@@ -298,20 +298,23 @@ static PyObject *p_decode(PyObject *self, PyObject *args) {
     return decode(tokens, vocab_decode, vocab_size_decode);
 }
 
-static PyObject *p_initialize_foma(PyObject *self, PyObejct *args){
-    return initilaize_foma(); 
+static PyObject *p_initialize_foma(PyObject *self){
+    return initialize_foma(); 
 }
 
 static PyObject *p_look_up_word(PyObject *self, PyObject *args){
+    PyObject *py_handle;
     struct apply_handle *handle;
     char *word;
 
-    if (!PyArg_ParseTuple(args, handle, word)){
+    if (!PyArg_ParseTuple(args, "Os", &py_handle, &word)){
         return NULL;
     }
 
+    handle = 
+        (struct apply_handle *)PyCapsule_GetPointer(py_handle, "foma.apply_handle");
     if(handle == NULL){
-        PyErr_SetString(PyExc_RuntimeError,"handle cannot be NULL");
+        return NULL;
     }
 
     return look_up_word(handle, word);
@@ -322,8 +325,8 @@ static PyMethodDef huTokenMethods[] = {
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS, "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
-    {"initialize_foma", p_initialize_foma, "Initilaizes the foma fst"},
-    {"look_up_word", p_look_up_word, "Morphological analysis of a word"},
+    {"initialize_foma", (PyCFunction)p_initialize_foma, NULL, "Initilaizes the foma fst"},
+    {"look_up_word", (PyCFunction)p_look_up_word, METH_VARARGS, "Morphological analysis of a word"},
     {NULL, NULL, 0, NULL} 
 };
 
