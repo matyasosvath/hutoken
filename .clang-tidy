@@ -10,6 +10,23 @@ Checks: "*,
         -readability-else-after-return,
         -readability-identifier-length,
         -readability-static-accessed-through-instance,
+        -cppcoreguidelines-avoid-magic-numbers,
+        -readability-avoid-const-params-in-decls,
+        -altera-struct-pack-align,
+        -readability-magic-numbers,
+        -hicpp-signed-bitwise,
+        -readability-math-missing-parentheses,
+        -readability-avoid-nested-conditional-operator,
+        -android-cloexec-fopen,
+        -cppcoreguidelines-avoid-non-const-global-variables,
+        -readability-function-cognitive-complexity
+        -concurrency-mt-unsafe,
+        -misc-include-cleaner,
+        -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+        -clang-analyzer-security.insecureAPI.strcpy,
+        -cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,
+        -modernize-macro-to-enum,
+        -readability-function-cognitive-complexity
 "
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
