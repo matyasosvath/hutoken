@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
@@ -61,40 +63,45 @@ void create_words(
             0,
             match_data,
             NULL);
+        
+        if(rc < 0){
+            if(rc == PCRE2_ERROR_NOMATCH){
+                break;
+            }else{
+                fprintf(stderr, "PCRE2 matching error: %d\n", rc);
+                PyErr_Format(PyExc_RuntimeError, "PCRE2 matching error: %d", rc);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(regex);
+                return;
+            }
+        }
 
-    }
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+        PCRE2_SIZE match_start = ovector[0];
+        PCRE2_SIZE match_end = ovector[1];
 
-
-    regex_t regex;
-
-    int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r) {
-        (void)fputs("Regex could not be compiled.", stderr);
-        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
-        return;
-    }
-
-    regmatch_t match;
-    char* cursor = text;
-    int i = 0;
-
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
-        int word_start = match.rm_so;
-        int word_end = match.rm_eo;
-
-        for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
-            char* start = ptr;
-            char* end = ptr;
+        for(char *ptr = text + match_start; ptr < text + match_end; ptr++){
+            char *start = ptr;
+            char *end = ptr;
 
             struct Boundary token_boundary = {start, end};
 
             token_boundaries[i] = token_boundary;
             i += 1;
         }
-        cursor += word_end;
+
+        start_offset = match_end;
+
+        if(match_start == match_end){
+            if(start_offset >= subject_length){
+                break;
+            }
+            start_offset++;
+        }
     }
 
-    regfree(&regex);
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(regex);
 }
 
 void bpe_train_core(struct HashMap* vocab,
