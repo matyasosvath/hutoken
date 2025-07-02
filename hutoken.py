@@ -79,3 +79,15 @@ def bpe_train(*args, **kwargs):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or does not provide 'bpe_train'.")
     return _hutoken.bpe_train(*args, **kwargs)
+
+def initialize_foma():
+    if _hutoken is None:
+        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed.")
+    if _hutoken.initialize_foma() is None:
+        raise RuntimeError("hutoken: '_hutoken' does not provide 'initialize_foma'.")
+    return _hutoken.initialize_foma()
+
+def look_up_word(*args):
+    if _hutoken is None:
+        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or does not provide 'look_up_word'.")
+    return _hutoken.look_up_word(*args)
