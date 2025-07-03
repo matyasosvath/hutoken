@@ -7,4 +7,5 @@
 -O3
 -pipe
 -Iinclude
--I/usr/include/python3.13
+-lpython3.13
+-lfoma

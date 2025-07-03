@@ -16,6 +16,7 @@
 #include "hutoken/helper.h"
 
 #include "fomalib.h"
+#include "unicodeobject.h"
 
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
@@ -227,19 +228,19 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
     return result;
 }
 
-PyObject *initialize_foma(){
+PyObject* initialize_foma() {
     log_debug("Starting foma inicialization");
 
-    struct fsm *net = fsm_read_binary_file("../hu.fsm");
+    struct fsm* net = fsm_read_binary_file("../hu.fsm");
 
-    if(!net){
+    if (!net) {
         log_debug("Error: Failed to read in the finite state machine");
         return NULL;
     }
 
-    struct apply_handle *handle = apply_init(net);
+    struct apply_handle* handle = apply_init(net);
 
-    if(!handle){
+    if (!handle) {
         log_debug("Error: Couldn't initialize apply_handle");
         return NULL;
     }
@@ -247,21 +248,19 @@ PyObject *initialize_foma(){
     return PyCapsule_New(handle, "foma.apply_handle", NULL);
 }
 
-PyObject *look_up_word(struct apply_handle* handle, char* word){
-    if(word){
+PyObject* look_up_word(struct apply_handle* handle, char* word) {
+    if (word) {
         log_debug("looking up word: %s", word);
-    }
-    else{
+    } else {
         log_debug("looking up other possibilities for previous word");
     }
 
-    char *result = apply_up(handle, word);
-    if(result){
+    char* result = apply_up(handle, word);
+    if (result) {
         log_debug("result is: %s", result);
-    }
-    else{
+    } else {
         log_debug("There are no more results for this word");
     }
 
-    return result;
+    return PyUnicode_FromString(result);
 }
