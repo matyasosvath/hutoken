@@ -49,3 +49,5 @@ target/
 # Tests
 
 .pytest_cache/
+
+bin/hu.foma.bin
