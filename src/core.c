@@ -1,6 +1,8 @@
 #include "hutoken/core.h"
 
-#include <Python.h>
+#include "Python.h"
+#include "fomalib.h"
+#include "unicodeobject.h"
 
 #include <assert.h>
 #include <regex.h>
@@ -14,9 +16,6 @@
 
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
-
-#include "fomalib.h"
-#include "unicodeobject.h"
 
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],

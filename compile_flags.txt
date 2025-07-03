@@ -9,3 +9,4 @@
 -Iinclude
 -lpython3.13
 -lfoma
+-I/usr/include/python3.13

@@ -1,6 +1,7 @@
 #include "hutoken/lib.h"
 
-#include <Python.h>
+#include "Python.h"
+#include "fomalib.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -9,8 +10,6 @@
 #include "hutoken/bpe.h"
 #include "hutoken/core.h"
 #include "hutoken/helper.h"
-
-#include "fomalib.h"
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
