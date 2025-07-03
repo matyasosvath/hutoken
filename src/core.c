@@ -85,8 +85,6 @@ void bpe_encode(struct HashMap* vocab,
     }
 }
 
-void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size) {
-    
 void encode(char* text,
             struct HashMap* vocab,
             char* pattern,
