@@ -12,7 +12,7 @@
 #include "helper.c"
 #include "hashmap.c"
 
-#include "../include/fomalib.h"
+#include "fomalib.h"
 
 void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
 {

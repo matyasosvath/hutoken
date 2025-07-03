@@ -7,7 +7,7 @@
 #include "core.c"
 #include "bpe.c"
 
-#include "../include/fomalib.h"
+#include "fomalib.h"
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
