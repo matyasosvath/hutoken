@@ -230,7 +230,7 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
 PyObject* initialize_foma(void) {
     log_debug("Starting foma inicialization");
 
-    struct fsm* net = fsm_read_binary_file("../hu.fsm");
+    struct fsm* net = fsm_read_binary_file("./hu.foma.bin");
 
     if (!net) {
         log_debug("Error: Failed to read in the finite state machine");
