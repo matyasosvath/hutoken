@@ -322,17 +322,23 @@ PyObject* p_initialize_foma(PyObject* self) {
 }
 
 PyObject* p_look_up_word(PyObject* self, PyObject* args) {
-    PyObject* py_handle;
-    struct apply_handle* handle;
-    char* word;
+    PyObject *py_handle = NULL;
+    struct apply_handle *handle = NULL;
+    char *word = NULL;
 
     if (!PyArg_ParseTuple(args, "Os", &py_handle, &word)) {
+        PyErr_SetString(PyExc_TypeError, 
+                        "Function takes two arguments: (apply_handle, word).");
         return NULL;
     }
 
     handle = (struct apply_handle*)PyCapsule_GetPointer(py_handle,
                                                         "foma.apply_handle");
+
     if (handle == NULL) {
+        PyErr_SetString(PyExc_TypeError, 
+                        "Argument must be an apply_handle struct, returned by " 
+                        "`hutoken.initialize_foma()`.");
         return NULL;
     }
 

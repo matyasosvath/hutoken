@@ -2,6 +2,7 @@
 
 #include "Python.h"
 #include "fomalib.h"
+#include "listobject.h"
 #include "unicodeobject.h"
 
 #include <assert.h>
@@ -228,15 +229,14 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
 }
 
 PyObject* initialize_foma(void) {
-    log_debug("Starting foma inicialization");
+    log_debug("Starting foma initialization");
 
-    struct fsm* net = fsm_read_binary_file("./hu.foma.bin");
+    struct fsm* net = fsm_read_binary_file("./bin/hu.foma.bin");
 
     if (!net) {
         log_debug("Error: Failed to read the finite state machine");
-        PyErr_SetString(
-            PyExc_FileNotFoundError,
-            "Failed to read the finite state machine");
+        PyErr_SetString(PyExc_FileNotFoundError,
+                        "Failed to read the finite state machine");
         return NULL;
     }
 
@@ -244,9 +244,7 @@ PyObject* initialize_foma(void) {
 
     if (!handle) {
         log_debug("Error: Couldn't initialize apply_handle");
-        PyErr_SetString(
-            PyExc_ValueError,
-            "Couldn't initialize apply_handle.");
+        PyErr_SetString(PyExc_ValueError, "Couldn't initialize apply_handle.");
         return NULL;
     }
 
@@ -254,18 +252,16 @@ PyObject* initialize_foma(void) {
 }
 
 PyObject* look_up_word(struct apply_handle* handle, char* word) {
-    if (word) {
-        log_debug("looking up word: %s", word);
-    } else {
-        log_debug("looking up other possibilities for previous word");
+    log_debug("looking up word: %s", word);
+
+    PyObject* py_list = PyList_New(0);
+    char* split_morphemes = NULL;
+
+    while ((split_morphemes = apply_up(handle, word)) != NULL) {
+        log_debug("found result: %s", split_morphemes);
+        PyList_Append(py_list, PyUnicode_FromString(split_morphemes));
+        word = NULL;
     }
 
-    char* result = apply_up(handle, word);
-    if (result) {
-        log_debug("result is: %s", result);
-    } else {
-        log_debug("There are no more results for this word");
-    }
-
-    return PyUnicode_FromString(result);
+    return py_list;
 }
