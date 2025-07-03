@@ -317,11 +317,11 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     return decode(tokens, vocab_decode, vocab_size_decode);
 }
 
-static PyObject* p_initialize_foma(PyObject* self) {
+PyObject* p_initialize_foma(PyObject* self) {
     return initialize_foma();
 }
 
-static PyObject* p_look_up_word(PyObject* self, PyObject* args) {
+PyObject* p_look_up_word(PyObject* self, PyObject* args) {
     PyObject* py_handle;
     struct apply_handle* handle;
     char* word;
@@ -345,7 +345,7 @@ static PyMethodDef huTokenMethods[] = {
      "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
-    {"initialize_foma", (PyCFunction)p_initialize_foma, NULL,
+    {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,
      "Initilaizes the foma fst"},
     {"look_up_word", (PyCFunction)p_look_up_word, METH_VARARGS,
      "Morphological analysis of a word"},
