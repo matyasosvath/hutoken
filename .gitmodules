@@ -1,0 +1,3 @@
+[submodule "scripts/emmorph"]
+	path = scripts/emmorph
+	url = https://github.com/nytud/emmorph
