@@ -1,6 +1,6 @@
 #include "hutoken/helper.h"
 
-#include <Python.h>
+#include "Python.h"
 
 #ifndef PyExc_BufferError
 #define PyExc_BufferError PyExc_RuntimeError

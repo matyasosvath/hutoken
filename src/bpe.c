@@ -1,6 +1,6 @@
 #include "hutoken/bpe.h"
 
-#include <Python.h>
+#include "Python.h"
 
 #include <assert.h>
 #include <regex.h>
