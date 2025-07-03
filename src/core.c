@@ -1,36 +1,40 @@
+#include "hutoken/core.h"
+
 #include <Python.h>
 
+#include <assert.h>
+#include <regex.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
-#include <assert.h>
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 #include <time.h>
-#include <stdarg.h>
 
-#include "helper.c"
-#include "hashmap.c"
+#include "hutoken/hashmap.h"
+#include "hutoken/helper.h"
 
-void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[], int *token_num)
-{
-    while (1)
-    {
+void bpe_encode(struct HashMap* vocab,
+                struct Boundary token_boundaries[],
+                int tokens[],
+                int* token_num) {
+    while (1) {
         int min_idx = -1;
         int min_rank = -1;
 
-        for (int i = 0; i < *token_num - 1; i++)
-        {
-            char *s1 = token_boundaries[i].start;
-            char *e1 = token_boundaries[i].end;
-            int l1 = (e1 - s1) + 1;
+        for (int i = 0; i < *token_num - 1; i++) {
+            char* s1 = token_boundaries[i].start;
+            char* e1 = token_boundaries[i].end;
+            ptrdiff_t l1 = (e1 - s1) + 1;
 
-            char *s2 = token_boundaries[i + 1].start;
-            char *e2 = token_boundaries[i + 1].end;
-            int l2 = (e2 - s2) + 1;
+            char* s2 = token_boundaries[i + 1].start;
+            char* e2 = token_boundaries[i + 1].end;
+            ptrdiff_t l2 = (e2 - s2) + 1;
 
-            int len = l1 + l2;
+            ptrdiff_t len = l1 + l2;
             char pair[len + 1];
 
             strncpy(pair, s1, l1);
@@ -39,23 +43,23 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
 
             int rank = hashmap_get(vocab, &(struct Token){.key = pair});
 
-            if (rank != -1 && (min_rank == -1 || rank < min_rank))
-            {
+            if (rank != -1 && (min_rank == -1 || rank < min_rank)) {
                 min_idx = i;
                 min_rank = rank;
             }
         }
 
         // no pairs to merge
-        if (min_rank == -1)
+        if (min_rank == -1) {
             break;
+        }
+
         assert(min_idx != -1);
 
         // merge pairs, leave rest unchanged
         token_boundaries[min_idx].end = token_boundaries[min_idx + 1].end;
 
-        for (int i = min_idx + 1; i < *token_num - 1; i++)
-        {
+        for (int i = min_idx + 1; i < *token_num - 1; i++) {
             token_boundaries[i].start = token_boundaries[i + 1].start;
             token_boundaries[i].end = token_boundaries[i + 1].end;
         }
@@ -63,11 +67,10 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     }
 
     // update tokens
-    for (int i = 0; i < *token_num; i++)
-    {
-        char *start = token_boundaries[i].start;
-        char *end = token_boundaries[i].end;
-        int len = (end - start) + 1;
+    for (int i = 0; i < *token_num; i++) {
+        char* start = token_boundaries[i].start;
+        char* end = token_boundaries[i].end;
+        ptrdiff_t len = (end - start) + 1;
 
         char string[len + 1];
         strncpy(string, start, len);
@@ -79,8 +82,11 @@ void bpe_encode(struct HashMap *vocab, Boundary token_boundaries[], int tokens[]
     }
 }
 
-void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int *tokens_size) {
-    
+void encode(char* text,
+            struct HashMap* vocab,
+            char* pattern,
+            int tokens[],
+            int* tokens_size) {
     log_debug("Starting encode function with text: %s", text);
 
     int error_number;
@@ -185,15 +191,14 @@ void encode(char *text, struct HashMap *vocab, char *pattern, int tokens[], int 
 
 }
 
-PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
-{
+PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
     log_debug("Entered decode function");
 
     Py_ssize_t token_num = PyList_Size(tokens);
     log_debug("Number of tokens to decode: %zd", token_num);
 
     size_t text_size = sizeof(char) * ((int)token_num + 1);
-    char *text = (char *)malloc(text_size);
+    char* text = (char*)malloc(text_size);
 
     if (!text) {
         log_debug("Error: Memory allocation failed for text buffer");
@@ -201,37 +206,48 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
     }
 
     text[0] = '\0';
-    log_debug("Initialized text buffer to an empty string (size: %zu bytes)", text_size);
+    log_debug("Initialized text buffer to an empty string (size: %zu bytes)",
+              text_size);
 
     for (Py_ssize_t i = 0; i < token_num; i++) {
         log_debug("Processing token at index %zd", i);
 
-        PyObject *token = PyList_GetItem(tokens, i);
+        PyObject* token = PyList_GetItem(tokens, i);
         if (!PyLong_Check(token)) {
             log_debug("Error: Token at index %zd is not an integer", i);
-            PyErr_SetString(PyExc_TypeError, "All elements of the list must be integers");
+            PyErr_SetString(PyExc_TypeError,
+                            "All elements of the list must be integers");
             free(text);
             return NULL;
         }
 
         int item = (int)PyLong_AsLong(token);
         if (item < 0 || item >= vocab_size) {
-            log_debug("Error: Token value %d is out of bounds (vocab_size = %d)", item, vocab_size);
-            PyErr_SetString(PyExc_ValueError, "Element must be non-negative and less than vocab size.");
+            log_debug(
+                "Error: Token value %d is out of bounds (vocab_size = %d)",
+                item, vocab_size);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Element must be non-negative and less than vocab size.");
             free(text);
             return NULL;
         }
 
-        const char *word = vocab_decode[item];
+        const char* word = vocab_decode[item];
         size_t word_len = strlen(word);
-        log_debug("Decoded token value %d to word '%s' (length: %zu)", item, word, word_len);
+        log_debug("Decoded token value %d to word '%s' (length: %zu)", item,
+                  word, word_len);
 
         size_t current_len = strlen(text);
         if (current_len + word_len + 1 >= text_size) {
-            log_debug("Resizing text buffer: current length = %zu, word length = %zu, current buffer size = %zu", current_len, word_len, text_size);
+            log_debug(
+                "Resizing text buffer: current length = %zu, word length = "
+                "%zu, current buffer size = %zu",
+                current_len, word_len, text_size);
 
-            int buffer_size = current_len + TEXT_SIZE_INCREMENT + word_len + 1;
-            char *new_text = realloc(text, buffer_size);
+            size_t buffer_size =
+                current_len + TEXT_SIZE_INCREMENT + word_len + 1;
+            char* new_text = realloc(text, buffer_size);
 
             if (new_text == NULL) {
                 log_debug("Error: Memory reallocation failed for text buffer");
@@ -245,17 +261,21 @@ PyObject *decode(PyObject *tokens, char **vocab_decode, int vocab_size)
         }
 
         strcat(text, word);
-        log_debug("Appended word '%s' to text buffer. Current text: '%s' (buffer size: %zu bytes)", word, text, text_size);
+        log_debug(
+            "Appended word '%s' to text buffer. Current text: '%s' (buffer "
+            "size: %zu bytes)",
+            word, text, text_size);
     }
 
-    PyObject *result = PyUnicode_FromString(text);
+    PyObject* result = PyUnicode_FromString(text);
     if (!result) {
         log_debug("Error: Failed to create Python string from decoded text");
         free(text);
         return NULL;
     }
 
-    log_debug("Successfully created Python string from decoded text: '%s'", text);
+    log_debug("Successfully created Python string from decoded text: '%s'",
+              text);
 
     free(text);
     return result;
