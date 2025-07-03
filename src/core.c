@@ -227,7 +227,7 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
     return result;
 }
 
-PyObject* initialize_foma() {
+PyObject* initialize_foma(void) {
     log_debug("Starting foma inicialization");
 
     struct fsm* net = fsm_read_binary_file("../hu.fsm");
