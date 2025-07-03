@@ -233,7 +233,10 @@ PyObject* initialize_foma(void) {
     struct fsm* net = fsm_read_binary_file("./hu.foma.bin");
 
     if (!net) {
-        log_debug("Error: Failed to read in the finite state machine");
+        log_debug("Error: Failed to read the finite state machine");
+        PyErr_SetString(
+            PyExc_FileNotFoundError,
+            "Failed to read the finite state machine");
         return NULL;
     }
 
@@ -241,6 +244,9 @@ PyObject* initialize_foma(void) {
 
     if (!handle) {
         log_debug("Error: Couldn't initialize apply_handle");
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Couldn't initialize apply_handle.");
         return NULL;
     }
 
