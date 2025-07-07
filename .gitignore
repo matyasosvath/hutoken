@@ -51,3 +51,5 @@ target/
 .pytest_cache/
 
 bin/hu.foma.bin
+
+vocabs/

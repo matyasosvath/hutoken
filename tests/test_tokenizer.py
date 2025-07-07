@@ -181,3 +181,14 @@ def test_decode_with_hugginface_using_hutoken_encdoe():
     ht_decoded = hutoken.decode(ht_tokens)
 
     assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
+
+def test_morphological_analyzer():
+    handle = hutoken.initialize_foma()
+    word = "fejetlenséget"
+
+    expected = ['fejetlenség[/N]et[Acc]',
+                'fejetlen[/Adj]ség[_Nz_Abstr/N]et[Acc]',
+                'fej[/N]etlen[_Abe/Adj]ség[_Nz_Abstr/N]et[Acc]',
+                'fej[/V]etlen[_NegPtcp/Adj]ség[_Nz_Abstr/N]et[Acc]']
+    result = hutoken.look_up_word(handle, word)
+    assert result == expected, f"Result array differs: {expected} vs {result}" 
