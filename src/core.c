@@ -1,6 +1,9 @@
 #include "hutoken/core.h"
 
-#include <Python.h>
+#include "Python.h"
+#include "fomalib.h"
+#include "listobject.h"
+#include "unicodeobject.h"
 
 #include <assert.h>
 #include <regex.h>
@@ -279,4 +282,42 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
 
     free(text);
     return result;
+}
+
+PyObject* initialize_foma(void) {
+    log_debug("Starting foma initialization");
+
+    struct fsm* net = fsm_read_binary_file("./bin/hu.foma.bin");
+
+    if (!net) {
+        log_debug("Error: Failed to read the finite state machine");
+        PyErr_SetString(PyExc_FileNotFoundError,
+                        "Failed to read the finite state machine");
+        return NULL;
+    }
+
+    struct apply_handle* handle = apply_init(net);
+
+    if (!handle) {
+        log_debug("Error: Couldn't initialize apply_handle");
+        PyErr_SetString(PyExc_ValueError, "Couldn't initialize apply_handle.");
+        return NULL;
+    }
+
+    return PyCapsule_New(handle, "foma.apply_handle", NULL);
+}
+
+PyObject* look_up_word(struct apply_handle* handle, char* word) {
+    log_debug("looking up word: %s", word);
+
+    PyObject* py_list = PyList_New(0);
+    char* split_morphemes = NULL;
+
+    while ((split_morphemes = apply_up(handle, word)) != NULL) {
+        log_debug("found result: %s", split_morphemes);
+        PyList_Append(py_list, PyUnicode_FromString(split_morphemes));
+        word = NULL;
+    }
+
+    return py_list;
 }
