@@ -61,6 +61,13 @@ void bpe_train_core(struct HashMap* vocab,
     while (vocab->count < vocab_size) {
         struct HashMap* stats = hashmap_new(token_n);
 
+        // This check prevents undefined behavior. If the number of tokens is
+        // reduced to < 2, the next loop iteration would attempt to declare
+        // a zero-sized VLA, which is illegal in C.
+        if (token_n < 2) {
+            break;
+        }
+
         // find most common pair -> next token
 
         for (size_t i = 0; i < token_num - 1; i++) {
