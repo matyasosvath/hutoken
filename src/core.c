@@ -22,7 +22,7 @@ void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
                 int tokens[],
                 int* token_num) {
-    while (1) {
+    while (true) {
         int min_idx = -1;
         int min_rank = -1;
 
@@ -38,8 +38,8 @@ void bpe_encode(struct HashMap* vocab,
             ptrdiff_t len = l1 + l2;
             char pair[len + 1];
 
-            strncpy(pair, s1, l1);
-            strncpy(pair + l1, s2, l2);
+            (void)strncpy(pair, s1, l1);
+            (void)strncpy(pair + l1, s2, l2);
             pair[len] = '\0';
 
             int rank = hashmap_get(vocab, &(struct Token){.key = pair});
@@ -74,7 +74,7 @@ void bpe_encode(struct HashMap* vocab,
         ptrdiff_t len = (end - start) + 1;
 
         char string[len + 1];
-        strncpy(string, start, len);
+        (void)strncpy(string, start, len);
         string[len] = '\0';
 
         int rank = hashmap_get(vocab, &(struct Token){.key = string});
@@ -91,8 +91,7 @@ void encode(char* text,
     log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
-    int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r) {
+    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
         log_debug("Error: Regex could not be compiled.");
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
@@ -126,7 +125,7 @@ void encode(char* text,
         for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
             char* start = ptr;
             char* end = ptr;
-            struct Boundary word_token_boundary = {start, end};
+            struct Boundary word_token_boundary = {.start = start, .end = end};
             word_token_boundaries[i] = word_token_boundary;
             i += 1;
         }
@@ -218,7 +217,7 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
             log_debug("Resized text buffer to new size: %d bytes", buffer_size);
         }
 
-        strcat(text, word);
+        (void)strcat(text, word);
         log_debug(
             "Appended word '%s' to text buffer. Current text: '%s' (buffer "
             "size: %zu bytes)",

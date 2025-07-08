@@ -19,8 +19,7 @@ void create_words(char* text,
                   size_t token_num) {
     regex_t regex;
 
-    int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r) {
+    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
         (void)fputs("Regex could not be compiled.", stderr);
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
@@ -38,7 +37,7 @@ void create_words(char* text,
             char* start = ptr;
             char* end = ptr;
 
-            struct Boundary token_boundary = {start, end};
+            struct Boundary token_boundary = {.start = start, .end = end};
 
             token_boundaries[i] = token_boundary;
             i += 1;
@@ -87,7 +86,7 @@ void bpe_train_core(struct HashMap* vocab,
             pair[len] = '\0';
 
             int freq = hashmap_get(stats, &(struct Token){.key = pair});
-            if (freq) {
+            if (freq != 0) {
                 hashmap_set(stats, &(struct Token){.key = strdup(pair),
                                                    .value = ++freq});
             } else {
@@ -142,7 +141,7 @@ void bpe_train_core(struct HashMap* vocab,
 
             if (most_common_pair.key != NULL &&
                 strcmp(pair, most_common_pair.key) == 0) {
-                struct Boundary new_token_boundary = {s1, e2};
+                struct Boundary new_token_boundary = {.start = s1, .end = e2};
                 new_token_boundaries[j] = new_token_boundary;
                 j++;
                 i++;
