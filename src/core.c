@@ -259,7 +259,19 @@ PyObject* look_up_word(struct apply_handle* handle, char* word) {
 
     while ((split_morphemes = apply_up(handle, word)) != NULL) {
         log_debug("found result: %s", split_morphemes);
-        PyList_Append(py_list, PyUnicode_FromString(split_morphemes));
+
+        PyObject* morpheme_list = PyList_New(0);
+
+        char* token = strtok(split_morphemes, "[]");
+        int should_add = 1;
+        while(token != NULL){
+            if(should_add % 2 && strlen(token) > 0){
+                PyList_Append(morpheme_list, PyUnicode_FromString(token));
+            }
+            should_add++;
+        }
+
+        PyList_Append(py_list, morpheme_list);
         word = NULL;
     }
 
