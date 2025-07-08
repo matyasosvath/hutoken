@@ -106,6 +106,17 @@ void encode(char* text,
         int word_end = match.rm_eo;
         int word_len = word_end - word_start;
 
+        // If the regex finds a zero-length match, word_len will be 0.
+        // This would lead to calling `bpe_encode` with unitialized arrays, or
+        // the `cursor` not advancing to the next step.
+        if (cursor + word_start >= cursor + word_end) {
+            if (cursor[word_start] == '\0') {
+                break;
+            }
+            cursor += word_start + 1;
+            continue;
+        }
+
         log_debug("Matched word: start=%d, end=%d, length=%d", word_start,
                   word_end, word_len);
 
@@ -120,7 +131,7 @@ void encode(char* text,
             i += 1;
         }
 
-        int word_token_num = word_len;
+        int word_token_num = i;
         int word_tokens[word_len];
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
