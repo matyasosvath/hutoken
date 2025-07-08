@@ -33,7 +33,7 @@ void log_debug(const char* format, ...) {
         (void)vfprintf(stderr, format, args);
         va_end(args);
 
-        (void)fputs("", stderr);
+        (void)fputs("\n", stderr);
     }
 }
 
