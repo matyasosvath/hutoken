@@ -325,10 +325,11 @@ PyObject* p_look_up_word(PyObject* self, PyObject* args) {
     PyObject *py_handle = NULL;
     struct apply_handle *handle = NULL;
     char *word = NULL;
+    bool only_longest = false;
 
-    if (!PyArg_ParseTuple(args, "Os", &py_handle, &word)) {
+    if (!PyArg_ParseTuple(args, "Os|b", &py_handle, &word, &only_longest)) {
         PyErr_SetString(PyExc_TypeError, 
-                        "Function takes two arguments: (apply_handle, word).");
+                        "Function takes three arguments: (apply_handle, word, only_longest).");
         return NULL;
     }
 
@@ -342,7 +343,7 @@ PyObject* p_look_up_word(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    return look_up_word(handle, word);
+    return look_up_word(handle, word, only_longest);
 }
 
 static PyMethodDef huTokenMethods[] = {

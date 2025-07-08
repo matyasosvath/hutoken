@@ -251,14 +251,29 @@ PyObject* initialize_foma(void) {
     return PyCapsule_New(handle, "foma.apply_handle", NULL);
 }
 
-PyObject* look_up_word(struct apply_handle* handle, char* word) {
+PyObject* look_up_word(struct apply_handle* handle, char* word, bool only_longest)
+  {
     log_debug("looking up word: %s", word);
+    log_debug("Only longest morpheme splitting required");
 
     PyObject* py_list = PyList_New(0);
     char* split_morphemes = NULL;
+    int max_morpheme_count = 0;
+
 
     while ((split_morphemes = apply_up(handle, word)) != NULL) {
         log_debug("found result: %s", split_morphemes);
+
+        if(only_longest){
+            int morpheme_count = count_char(split_morphemes, '[');
+            if (morpheme_count > max_morpheme_count) {
+                max_morpheme_count = morpheme_count;
+            }
+            else{
+                word = NULL;
+                continue;
+            }
+        }
 
         PyObject* morpheme_list = PyList_New(0);
         size_t tmp_len = strlen(split_morphemes) + 1;
@@ -289,11 +304,33 @@ PyObject* look_up_word(struct apply_handle* handle, char* word) {
         }
         free(tmp);
         
-        if (PyList_Append(py_list, morpheme_list) < 0) {
-            log_debug("Error: Failed to append morpheme_list to py_list");
-            PyErr_SetString(PyExc_RuntimeError, "Failed to append morpheme_list to py_list.");
-            return NULL;
+        if(only_longest){
+            if(PyList_Size(py_list) == 0){
+                if (PyList_Append(py_list, morpheme_list) < 0) {
+                    log_debug("Error: Failed to append morpheme_list to py_list");
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to append morpheme_list to py_list.");
+                    Py_DECREF(morpheme_list);
+                    return NULL;
+                }
+            }
+            else{
+                if (PyList_SetItem(py_list, 0, morpheme_list) < 0) {
+                    log_debug("Error: Failed to set py_list item");
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to set py_list item.");
+                    Py_DECREF(morpheme_list);
+                    return NULL;
+                }
+            }
         }
+        else{
+            if (PyList_Append(py_list, morpheme_list) < 0) {
+                log_debug("Error: Failed to append morpheme_list to py_list");
+                PyErr_SetString(PyExc_RuntimeError, "Failed to append morpheme_list to py_list.");
+                Py_DECREF(morpheme_list);
+                return NULL;
+            }
+        }
+        
         word = NULL;
     }
 
