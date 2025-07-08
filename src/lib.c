@@ -110,7 +110,7 @@ static PyObject* p_initialize(PyObject* self,
         size_t char_index = 0;
 
         while (*pos != '\0') {
-            if (pos[0] != '0' && pos[1] != 'x') {
+            if (pos[0] != '0' || pos[1] != 'x') {
                 log_debug(
                     "Error: Malformed hex token, expected '0x' prefix: %s.",
                     pos);
