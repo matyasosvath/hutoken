@@ -10,6 +10,7 @@
 #include "hutoken/bpe.h"
 #include "hutoken/core.h"
 #include "hutoken/helper.h"
+#include "pyerrors.h"
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
@@ -229,7 +230,13 @@ static PyObject* p_initialize(PyObject* self,
         vocab_decode[i] = NULL;
     }
 
-    rewind(file);
+    if (fseek(file, 0L, SEEK_SET) == true) {
+        log_debug("Error: Failed to seek to the beginning of vocab file.");
+        (void)fclose(file);
+        free((void*)vocab_decode);
+        PyErr_SetString(PyExc_IOError, "Failed to rewind vocab file.");
+        return NULL;
+    }
 
     char* hex_str = malloc(1024);
     if (!hex_str) {
