@@ -147,9 +147,34 @@ static PyObject* p_initialize(PyObject* self,
             (void)fclose(file);
             return PyErr_NoMemory();
         }
-        int value = atoi(value_str);
 
-        hashmap_set(vocab_encode, &(struct Token){.key = key, .value = value});
+        char* endptr = NULL;
+        errno = 0;
+
+        long value = strtol(value_str, &endptr, 10);
+
+        if (endptr == value_str) {
+            log_debug("Error: No digits were found for value in line: '%s'.",
+                      line);
+            free(decoded_string);
+            (void)fclose(file);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Invalid vocab format: could not parse integer value.");
+            return NULL;
+        }
+
+        if (errno == ERANGE || value < INT_MIN || value > INT_MAX) {
+            log_debug("Error: Integer value '%s' is out of range.", value_str);
+            free(decoded_string);
+            (void)fclose(file);
+            PyErr_SetString(PyExc_ValueError,
+                            "Integer value in vocab file is out of range.");
+            return NULL;
+        }
+
+        hashmap_set(vocab_encode,
+                    &(struct Token){.key = key, .value = (int)value});
         log_debug("Added vocab entry for encoding: key=%s, value=%d", key,
                   value);
 
