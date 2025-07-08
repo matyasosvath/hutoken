@@ -24,5 +24,6 @@ void hex_str_to_ascii(const char* hex_str,
                       char* ascii_str,
                       size_t ascii_str_size);
 int save_vocab(struct HashMap* vocab, char* file_name);
+int count_char(const char* source, char target);
 
 #endif
