@@ -261,20 +261,39 @@ PyObject* look_up_word(struct apply_handle* handle, char* word) {
         log_debug("found result: %s", split_morphemes);
 
         PyObject* morpheme_list = PyList_New(0);
-        char tmp[200]; 
-        strcpy(tmp, split_morphemes);
+        size_t tmp_len = strlen(split_morphemes) + 1;
+        char* tmp = (char*)malloc(tmp_len);
+
+        if (!tmp) {
+            log_debug("Error: Memory allocation failed for morpheme splitting");
+            PyErr_SetString(PyExc_MemoryError, "Couldn't allocate memory for morpheme splitting.");
+            return NULL;
+        }
+        
+        strncpy(tmp, split_morphemes, tmp_len - 1);
+        tmp[tmp_len - 1] = '\0';
 
         char* token = strtok(tmp, "[]");
         int should_add = 1;
         while(token != NULL){
             if(should_add % 2 && strlen(token) > 0){
-                PyList_Append(morpheme_list, PyUnicode_FromString(token));
+                if(PyList_Append(morpheme_list, PyUnicode_FromString(token)) < 0) {
+                    log_debug("Error: Failed to append token to morpheme_list");
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to append token to morpheme_list.");
+                    free(tmp);
+                    return NULL;
+                }
             }
             should_add++;
             token = strtok(NULL, "[]");
         }
-
-        PyList_Append(py_list, morpheme_list);
+        free(tmp);
+        
+        if (PyList_Append(py_list, morpheme_list) < 0) {
+            log_debug("Error: Failed to append morpheme_list to py_list");
+            PyErr_SetString(PyExc_RuntimeError, "Failed to append morpheme_list to py_list.");
+            return NULL;
+        }
         word = NULL;
     }
 
