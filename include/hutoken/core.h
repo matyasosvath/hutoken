@@ -13,6 +13,6 @@ void encode(char* text,
             int* tokens_size);
 PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size);
 PyObject* initialize_foma(void);
-PyObject* look_up_word(struct apply_handle* handle, char* word);
+PyObject* look_up_word(struct apply_handle* handle, char* word, bool only_longest);
 
 #endif
