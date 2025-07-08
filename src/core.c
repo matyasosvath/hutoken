@@ -261,14 +261,17 @@ PyObject* look_up_word(struct apply_handle* handle, char* word) {
         log_debug("found result: %s", split_morphemes);
 
         PyObject* morpheme_list = PyList_New(0);
+        char tmp[200]; 
+        strcpy(tmp, split_morphemes);
 
-        char* token = strtok(split_morphemes, "[]");
+        char* token = strtok(tmp, "[]");
         int should_add = 1;
         while(token != NULL){
             if(should_add % 2 && strlen(token) > 0){
                 PyList_Append(morpheme_list, PyUnicode_FromString(token));
             }
             should_add++;
+            token = strtok(NULL, "[]");
         }
 
         PyList_Append(py_list, morpheme_list);

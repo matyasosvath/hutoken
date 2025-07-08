@@ -186,9 +186,9 @@ def test_morphological_analyzer():
     handle = hutoken.initialize_foma()
     word = "fejetlenséget"
 
-    expected = ['fejetlenség[/N]et[Acc]',
-                'fejetlen[/Adj]ség[_Nz_Abstr/N]et[Acc]',
-                'fej[/N]etlen[_Abe/Adj]ség[_Nz_Abstr/N]et[Acc]',
-                'fej[/V]etlen[_NegPtcp/Adj]ség[_Nz_Abstr/N]et[Acc]']
+    expected = [['fejetlenség', 'et'],
+                ['fejetlen', 'ség', 'et'],
+                ['fej', 'etlen', 'ség', 'et'],
+                ['fej', 'etlen', 'ség', 'et']]
     result = hutoken.look_up_word(handle, word)
     assert result == expected, f"Result array differs: {expected} vs {result}" 
