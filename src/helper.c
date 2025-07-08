@@ -162,3 +162,14 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
 
     return EXIT_SUCCESS;
 }
+
+int count_char(const char* source, char target) {
+    int count = 0;
+    while (*source) {
+        if (*source == target) {
+            count++;
+        }
+        source++;
+    }
+    return count;
+}

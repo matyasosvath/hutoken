@@ -191,4 +191,20 @@ def test_morphological_analyzer():
                 ['fej', 'etlen', 'ség', 'et'],
                 ['fej', 'etlen', 'ség', 'et']]
     result = hutoken.look_up_word(handle, word)
-    assert result == expected, f"Result array differs: {expected} vs {result}" 
+    assert result == expected, f"Result array differs: {expected} vs {result}"
+    
+def test_morphological_analyzer_empty_word():
+    handle = hutoken.initialize_foma()
+    word = ""
+
+    expected = []
+    result = hutoken.look_up_word(handle, word)
+    assert result == expected, f"Result array differs: {expected} vs {result}"
+    
+def test_morphological_analyzer_only_longest():
+    handle = hutoken.initialize_foma()
+    word = "fejetlenséget"
+
+    expected = [['fej', 'etlen', 'ség', 'et']]
+    result = hutoken.look_up_word(handle, word, True)
+    assert result == expected, f"Result array differs: {expected} vs {result}"
