@@ -108,7 +108,7 @@ static PyObject* p_initialize(PyObject* self,
         const char* pos = hex_token;
         size_t char_index = 0;
         while (pos[0] == '0' && pos[1] == 'x') {
-            unsigned int byte_value;
+            unsigned int byte_value = 0;
             if (sscanf(pos, "0x%2X", &byte_value) != 1) {
                 log_debug("Error: Failed to parse hex byte: %s", pos);
                 free(decoded_string);
