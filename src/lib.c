@@ -107,16 +107,37 @@ static PyObject* p_initialize(PyObject* self,
 
         const char* pos = hex_token;
         size_t char_index = 0;
-        while (pos[0] == '0' && pos[1] == 'x') {
-            unsigned int byte_value = 0;
-            if (sscanf(pos, "0x%2X", &byte_value) != 1) {
-                log_debug("Error: Failed to parse hex byte: %s", pos);
-                free(decoded_string);
-                continue;
+
+        while (*pos != '\0') {
+            if (pos[0] != '0' && pos[1] != 'x') {
+                log_debug(
+                    "Error: Malformed hex token, expected '0x' prefix: %s.",
+                    pos);
+                break;
             }
+
+            char* endptr = NULL;
+            errno = 0;
+
+            unsigned long byte_value = strtoul(pos + 2, &endptr, 16);
+
+            if (errno == ERANGE || byte_value > 0xFF) {
+                log_debug("Error: Hex value out of range for a byte: %s", pos);
+                break;
+            }
+
+            if (endptr != pos + 4) {
+                log_debug(
+                    "Error: Invalid hex format, expected two hex digits: %s",
+                    pos);
+                break;
+            }
+
             decoded_string[char_index++] = (char)byte_value;
-            pos += 4;
+
+            pos = endptr;
         }
+
         decoded_string[char_index] = '\0';
 
         char* key = strdup(decoded_string);
