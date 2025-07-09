@@ -104,10 +104,9 @@ struct HashMap* hashmap_new(size_t capacity) {
     memset(map->buckets, 0, map->bucket_size * map->bucket_num);
 
     map->growpower = 1;
-    map->loadfactor =
-        (uint8_t)clamp_load_factor(HASHMAP_LOAD_FACTOR, SEED) * 100;
-    map->growat = map->bucket_num * (size_t)(map->loadfactor / 100.0);
-    map->shrinkat = map->bucket_num * (size_t)SHRINK_AT;
+    map->loadfactor = clamp_load_factor(HASHMAP_LOAD_FACTOR, SEED) * 100;
+    map->growat = map->bucket_num * (map->loadfactor / 100.0);
+    map->shrinkat = map->bucket_num * SHRINK_AT;
 
     map->spare = ((char*)map) + sizeof(struct HashMap);
     map->edata = (char*)map->spare + bucket_size;
@@ -343,8 +342,8 @@ void hashmap_clear(struct HashMap* map, bool update_cap) {
     (void)memset(map->buckets, 0, map->bucket_size * map->bucket_num);
 
     map->mask = map->bucket_num - 1;
-    map->growat = map->bucket_num * (size_t)(map->loadfactor / 100.0);
-    map->shrinkat = map->bucket_num * (size_t)SHRINK_AT;
+    map->growat = map->bucket_num * (map->loadfactor / 100.0);
+    map->shrinkat = map->bucket_num * SHRINK_AT;
 }
 
 // iterate over hashmap

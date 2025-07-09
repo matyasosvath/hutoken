@@ -109,45 +109,30 @@ static PyObject* p_initialize(PyObject* self,
         const char* pos = hex_token;
         size_t char_index = 0;
 
-        while (*pos != '\0') {
-            if (pos[0] != '0' || pos[1] != 'x') {
-                log_debug(
-                    "Error: Malformed hex token, expected '0x' prefix: %s.",
-                    pos);
-                break;
-            }
-
+        while (pos[0] == '0' && pos[1] == 'x') {
             char* endptr = NULL;
             errno = 0;
 
-            unsigned long byte_value = strtoul(pos + 2, &endptr, 16);
+            char hex_pair[3] = {pos[2], pos[3], '\0'};
+            unsigned long byte_value = strtoul(hex_pair, &endptr, 16);
+
+            if (endptr != hex_pair + 2) {
+                log_debug("Error: Malformed hex sequence in token: %s",
+                          hex_token);
+                break;
+            }
 
             if (errno == ERANGE || byte_value > 0xFF) {
                 log_debug("Error: Hex value out of range for a byte: %s", pos);
                 break;
             }
 
-            if (endptr != pos + 4) {
-                log_debug(
-                    "Error: Invalid hex format, expected two hex digits: %s",
-                    pos);
-                break;
-            }
-
             decoded_string[char_index++] = (char)byte_value;
 
-            pos = endptr;
+            pos += 4;
         }
 
         decoded_string[char_index] = '\0';
-
-        char* key = strdup(decoded_string);
-        if (!key) {
-            log_debug("Error: Memory allocation failed for key string.");
-            free(decoded_string);
-            (void)fclose(file);
-            return PyErr_NoMemory();
-        }
 
         char* endptr = NULL;
         errno = 0;
@@ -172,6 +157,14 @@ static PyObject* p_initialize(PyObject* self,
             PyErr_SetString(PyExc_ValueError,
                             "Integer value in vocab file is out of range.");
             return NULL;
+        }
+
+        char* key = strdup(decoded_string);
+        if (!key) {
+            log_debug("Error: Memory allocation failed for key string.");
+            free(decoded_string);
+            (void)fclose(file);
+            return PyErr_NoMemory();
         }
 
         hashmap_set(vocab_encode,
