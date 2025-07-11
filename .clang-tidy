@@ -29,6 +29,9 @@ Checks: "*,
         -readability-function-cognitive-complexity,
         -misc-unused-parameters,
         -clang-diagnostic-unused-parameter,
+        -bugprone-narrowing-conversions,
+        -cppcoreguidelines-narrowing-conversions,
+        -clang-diagnostic-missing-field-initializers
 "
 WarningsAsErrors: ''
 HeaderFilterRegex: ''

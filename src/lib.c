@@ -3,6 +3,7 @@
 #include "Python.h"
 #include "fomalib.h"
 
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -243,11 +244,69 @@ static PyObject* p_initialize(PyObject* self,
 
     int index = 0;
     while (fgets(line, sizeof(line), file)) {
-        int value;
+        char* separator = strstr(line, " == ");
+        if (separator == NULL) {
+            if (strchr(line, '=') != NULL) {
+                log_debug("Error: Invalid format in vocab file: %s", line);
+                PyErr_SetString(PyExc_ValueError,
+                                "Invalid format in vocab file.");
+                (void)fclose(file);
+                free(hex_str);
+                free((void*)vocab_decode);
+                return NULL;
+            }
+            continue;
+        }
 
-        if (sscanf(line, "%9999s == %d", hex_str, &value) != 2) {
-            log_debug("Error: Invalid format in vocab file: %s", line);
-            PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
+        ptrdiff_t hex_len = separator - line;
+        if (hex_len >= 1024) {
+            log_debug("Error: Hex token is too long in line: %s", line);
+            PyErr_SetString(PyExc_ValueError, "Hex token is too long.");
+            (void)fclose(file);
+            free(hex_str);
+            free((void*)vocab_decode);
+            return NULL;
+        }
+        strncpy(hex_str, line, hex_len);
+        hex_str[hex_len] = '\0';
+
+        char* value_str = separator + 4;  // strlen(" == ") == 4
+        char* endptr = NULL;
+        errno = 0;
+        long value = strtol(value_str, &endptr, 10);
+
+        if (endptr == value_str) {
+            log_debug("Error: No digits were found for value in line: '%s'.",
+                      line);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Invalid vocab format: could not parse integer value.");
+            (void)fclose(file);
+            free(hex_str);
+            free((void*)vocab_decode);
+            return NULL;
+        }
+
+        if (errno == ERANGE || value > INT_MAX || value < INT_MIN) {
+            log_debug("Error: Integer value '%s' is out of range.", value_str);
+            PyErr_SetString(PyExc_ValueError,
+                            "Integer value in vocab file is out of range.");
+            (void)fclose(file);
+            free(hex_str);
+            free((void*)vocab_decode);
+            return NULL;
+        }
+
+        while (*endptr != '\0' && isspace((unsigned char)*endptr)) {
+            endptr++;
+        }
+
+        if (*endptr != '\0') {
+            log_debug("Error: Trailing characters after integer in line: %s",
+                      line);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Invalid format in vocab file (trailing characters).");
             (void)fclose(file);
             free(hex_str);
             free((void*)vocab_decode);
