@@ -24,7 +24,7 @@ void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
                 int tokens[],
                 int* token_num) {
-    while (1) {
+    while (true) {
         int min_idx = -1;
         int min_rank = -1;
 
@@ -40,8 +40,8 @@ void bpe_encode(struct HashMap* vocab,
             ptrdiff_t len = l1 + l2;
             char pair[len + 1];
 
-            strncpy(pair, s1, l1);
-            strncpy(pair + l1, s2, l2);
+            (void)strncpy(pair, s1, l1);
+            (void)strncpy(pair + l1, s2, l2);
             pair[len] = '\0';
 
             int rank = hashmap_get(vocab, &(struct Token){.key = pair});
@@ -76,7 +76,7 @@ void bpe_encode(struct HashMap* vocab,
         ptrdiff_t len = (end - start) + 1;
 
         char string[len + 1];
-        strncpy(string, start, len);
+        (void)strncpy(string, start, len);
         string[len] = '\0';
 
         int rank = hashmap_get(vocab, &(struct Token){.key = string});
@@ -165,7 +165,7 @@ void encode(char* text,
             i += 1;
         }
 
-        int word_token_num = word_len;
+        int word_token_num = i;
         int word_tokens[word_len];
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
@@ -263,7 +263,7 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
             log_debug("Resized text buffer to new size: %d bytes", buffer_size);
         }
 
-        strcat(text, word);
+        (void)strcat(text, word);
         log_debug(
             "Appended word '%s' to text buffer. Current text: '%s' (buffer "
             "size: %zu bytes)",

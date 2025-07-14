@@ -84,7 +84,7 @@ void create_words(
             char *start = ptr;
             char *end = ptr;
 
-            struct Boundary token_boundary = {start, end};
+            struct Boundary token_boundary = {.start = start, .end = end};
 
             token_boundaries[i] = token_boundary;
             i += 1;
@@ -111,11 +111,18 @@ void bpe_train_core(struct HashMap* vocab,
                     size_t token_num,
                     size_t vocab_size) {
     size_t token_n = token_num;
-    struct Token prev_common_pair = {"", -1};
-    struct Token most_common_pair = {"", -1};
+    struct Token prev_common_pair = {.key = NULL, .value = -1};
+    struct Token most_common_pair = {.key = NULL, .value = -1};
 
     while (vocab->count < vocab_size) {
         struct HashMap* stats = hashmap_new(token_n);
+
+        // This check prevents undefined behavior. If the number of tokens is
+        // reduced to < 2, the next loop iteration would attempt to declare
+        // a zero-sized VLA, which is illegal in C.
+        if (token_n < 2) {
+            break;
+        }
 
         // find most common pair -> next token
 
@@ -136,7 +143,7 @@ void bpe_train_core(struct HashMap* vocab,
             pair[len] = '\0';
 
             int freq = hashmap_get(stats, &(struct Token){.key = pair});
-            if (freq) {
+            if (freq != 0) {
                 hashmap_set(stats, &(struct Token){.key = strdup(pair),
                                                    .value = ++freq});
             } else {
@@ -148,6 +155,9 @@ void bpe_train_core(struct HashMap* vocab,
             int rank = hashmap_get(stats, &(struct Token){.key = pair});
 
             if (most_common_pair.value < rank) {
+                if (most_common_pair.key != NULL) {
+                    free(most_common_pair.key);
+                }
                 most_common_pair.value = rank;
                 most_common_pair.key = strdup(pair);
             }
@@ -186,8 +196,9 @@ void bpe_train_core(struct HashMap* vocab,
             strncpy(pair + l1, s2, l2);
             pair[len] = '\0';
 
-            if (strcmp(pair, most_common_pair.key) == 0) {
-                struct Boundary new_token_boundary = {s1, e2};
+            if (most_common_pair.key != NULL &&
+                strcmp(pair, most_common_pair.key) == 0) {
+                struct Boundary new_token_boundary = {.start = s1, .end = e2};
                 new_token_boundaries[j] = new_token_boundary;
                 j++;
                 i++;
@@ -207,7 +218,8 @@ void bpe_train_core(struct HashMap* vocab,
 
         hashmap_free(stats);
 
-        if (strcmp(prev_common_pair.key, most_common_pair.key) == 0) {
+        if (prev_common_pair.key != NULL &&
+            strcmp(prev_common_pair.key, most_common_pair.key) == 0) {
             break;
         }
 
@@ -215,7 +227,7 @@ void bpe_train_core(struct HashMap* vocab,
         prev_common_pair.value = most_common_pair.value;
 
         most_common_pair.value = -1;
-        most_common_pair.key = "\0";
+        most_common_pair.key = NULL;
     }
 }
 
