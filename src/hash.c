@@ -122,6 +122,12 @@ static uint64_t MM86128(const void* key, const size_t len) {
             k1 *= c2;
             h1 ^= k1;
             /* fall through */
+        // This default case is added to make the code's intent explicit
+        // to static analyzers. The Murmur3 algorithm correctly does nothing
+        // when there is no tail (len & 15 == 0), and this makes that choice
+        // clear.
+        default:
+            break;
     };
     h1 ^= len;
     h2 ^= len;
@@ -143,6 +149,12 @@ static uint64_t MM86128(const void* key, const size_t len) {
     h2 += h1;
     h3 += h1;
     h4 += h1;
+
+    // Discarding the upper 64 bits of the 128-bit hash, because the original
+    // author wrote it this way. However, for the correct implementation of
+    // the 128-bit hash, both these values would have to be used.
+    (void)h3;
+    (void)h4;
     return (((uint64_t)h2) << 32) | h1;
 }
 

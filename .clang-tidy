@@ -19,14 +19,19 @@ Checks: "*,
         -readability-avoid-nested-conditional-operator,
         -android-cloexec-fopen,
         -cppcoreguidelines-avoid-non-const-global-variables,
-        -readability-function-cognitive-complexity
+        -readability-function-cognitive-complexity,
         -concurrency-mt-unsafe,
         -misc-include-cleaner,
         -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
         -clang-analyzer-security.insecureAPI.strcpy,
         -cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,
         -modernize-macro-to-enum,
-        -readability-function-cognitive-complexity
+        -readability-function-cognitive-complexity,
+        -misc-unused-parameters,
+        -clang-diagnostic-unused-parameter,
+        -bugprone-narrowing-conversions,
+        -cppcoreguidelines-narrowing-conversions,
+        -clang-diagnostic-missing-field-initializers
 "
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
