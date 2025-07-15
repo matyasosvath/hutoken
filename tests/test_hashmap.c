@@ -5,15 +5,13 @@
 #include "../include/hutoken/bpe.h"
 #include "../include/hutoken/hashmap.h"
 
-
 int main(void) {
-
-    struct HashMap *map = hashmap_new(16);
+    struct HashMap* map = hashmap_new(16);
     assert(map && map->capacity == 16 && map->count == 0);
 
-    struct Token token1 = { .key = "key1", .value = 1 };
-    struct Token token2 = { .key = "key2", .value = 2 };
-    struct Token token3 = { .key = "key3", .value = 3 };
+    struct Token token1 = {.key = "key1", .value = 1};
+    struct Token token2 = {.key = "key2", .value = 2};
+    struct Token token3 = {.key = "key3", .value = 3};
 
     assert(hashmap_set(map, &token1) == NULL);
     assert(hashmap_set(map, &token2) == NULL);
