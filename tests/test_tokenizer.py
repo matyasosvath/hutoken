@@ -127,7 +127,7 @@ def test_initialize_success():
 def test_initialize_invalid_format():
     with open('./vocabs/invalid-vocab.txt', 'w') as f:
         f.write("invalid_line_format\n")
-    with pytest.raises(ValueError, match="Vocab file is empty or contains no valid entries."):
+    with pytest.raises(ValueError, match="Invalid format in vocab file."):
         hutoken.initialize('./vocabs/invalid-vocab.txt')
 
 

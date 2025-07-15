@@ -10,7 +10,11 @@
 
 #include "hutoken/bpe.h"
 #include "hutoken/core.h"
+#include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
+#include "hutoken/string.h"
+#include "modsupport.h"
+#include "object.h"
 #include "pyerrors.h"
 
 static bool initialized_encode = false;
@@ -57,7 +61,6 @@ static PyObject* p_initialize(PyObject* self,
     char* vocab_file_path = NULL;
     int special_token_id = -1;  // Optional parameter for special token ID
 
-    // Parse arguments
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i", kwlist,
                                      &vocab_file_path, &special_token_id)) {
         log_debug("Error: Invalid arguments passed to initialize.");
@@ -70,7 +73,6 @@ static PyObject* p_initialize(PyObject* self,
 
     log_debug("Initializing with vocab file: %s", vocab_file_path);
 
-    // Initialize encoding
     vocab_encode = hashmap_new(256);
     if (!vocab_encode) {
         log_debug("Error: Failed to create hashmap for vocab_encode.");
@@ -79,274 +81,164 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
+    char* hex_str_buffer = malloc(1024);
+    if (hex_str_buffer == NULL) {
+        hashmap_free(vocab_encode);
+        PyErr_NoMemory();
+        return NULL;
+    }
+
     FILE* file = fopen(vocab_file_path, "r");
     if (!file) {
+        hashmap_free(vocab_encode);
+        free(hex_str_buffer);
         log_debug("Error: Could not open vocab file: %s", vocab_file_path);
         PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
         return NULL;
     }
 
-    log_debug("Successfully opened vocab file for encoding: %s",
-              vocab_file_path);
+    log_debug("Sucessfully opened vocab file.", vocab_file_path);
 
-    char line[1024];
-    while (fgets(line, sizeof(line), file)) {
-        char* hex_token = strtok(line, " == ");
-        char* value_str = strtok(NULL, " == ");
-        if (!hex_token || !value_str) {
-            log_debug("Error: Invalid line format in vocab file: %s", line);
-            continue;
-        }
-
-        size_t hex_len = strlen(hex_token);
-        size_t decoded_string_len = hex_len / 4 + 1;
-        char* decoded_string = malloc(decoded_string_len);
-        if (!decoded_string) {
-            log_debug("Error: Memory allocation failed for decoded string.");
-            (void)fclose(file);
-            return PyErr_NoMemory();
-        }
-
-        const char* pos = hex_token;
-        size_t char_index = 0;
-
-        while (pos[0] == '0' && pos[1] == 'x') {
-            char* endptr = NULL;
-            errno = 0;
-
-            char hex_pair[3] = {pos[2], pos[3], '\0'};
-            unsigned long byte_value = strtoul(hex_pair, &endptr, 16);
-
-            if (endptr != hex_pair + 2) {
-                log_debug("Error: Malformed hex sequence in token: %s",
-                          hex_token);
-                break;
-            }
-
-            if (errno == ERANGE || byte_value > 0xFF) {
-                log_debug("Error: Hex value out of range for a byte: %s", pos);
-                break;
-            }
-
-            decoded_string[char_index++] = (char)byte_value;
-
-            pos += 4;
-        }
-
-        decoded_string[char_index] = '\0';
-
-        char* endptr = NULL;
-        errno = 0;
-
-        long value = strtol(value_str, &endptr, 10);
-
-        if (endptr == value_str) {
-            log_debug("Error: No digits were found for value in line: '%s'.",
-                      line);
-            free(decoded_string);
-            (void)fclose(file);
-            PyErr_SetString(
-                PyExc_ValueError,
-                "Invalid vocab format: could not parse integer value.");
-            return NULL;
-        }
-
-        if (errno == ERANGE || value < INT_MIN || value > INT_MAX) {
-            log_debug("Error: Integer value '%s' is out of range.", value_str);
-            free(decoded_string);
-            (void)fclose(file);
-            PyErr_SetString(PyExc_ValueError,
-                            "Integer value in vocab file is out of range.");
-            return NULL;
-        }
-
-        char* key = strdup(decoded_string);
-        if (!key) {
-            log_debug("Error: Memory allocation failed for key string.");
-            free(decoded_string);
-            (void)fclose(file);
-            return PyErr_NoMemory();
-        }
-
-        hashmap_set(vocab_encode,
-                    &(struct Token){.key = key, .value = (int)value});
-        log_debug("Added vocab entry for encoding: key=%s, value=%d", key,
-                  value);
-
-        free(decoded_string);
-    }
-
-    (void)fclose(file);
-    initialized_encode = true;
-    log_debug("Successfully initialized encoding.");
-
-    // Initialize decoding
-    file = fopen(vocab_file_path, "r");
-    if (!file) {
-        log_debug("Error: Could not open vocab file for decoding: %s",
-                  vocab_file_path);
-        PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
-        return NULL;
-    }
-
-    log_debug("Successfully opened vocab file for decoding: %s",
-              vocab_file_path);
-
-    // Count the number of lines in the file to determine vocab size
     vocab_size_decode = 0;
-    while (fgets(line, sizeof(line), file)) {
-        if (strchr(line, '=') !=
-            NULL) {  // Ensure the line contains a valid entry
-            vocab_size_decode++;
-        }
-    }
-
-    log_debug("Calculated vocab size for decoding: %d", vocab_size_decode);
-
-    if (vocab_size_decode == 0) {
-        log_debug("Error: Vocab file is empty or contains no valid entries.");
-        PyErr_SetString(PyExc_ValueError,
-                        "Vocab file is empty or contains no valid entries.");
-        (void)fclose(file);
-        return NULL;
-    }
-
-    vocab_decode = (char**)malloc(vocab_size_decode * sizeof(char*));
-    if (!vocab_decode) {
-        log_debug("Error: Memory allocation failed for vocab_decode array.");
-        PyErr_SetString(PyExc_MemoryError,
-                        "Memory allocation failed for vocab_decode array.");
-        (void)fclose(file);
-        return NULL;
-    }
-
-    for (int i = 0; i < vocab_size_decode; i++) {
-        vocab_decode[i] = NULL;
-    }
-
-    if (fseek(file, 0L, SEEK_SET) == true) {
-        log_debug("Error: Failed to seek to the beginning of vocab file.");
-        (void)fclose(file);
-        free((void*)vocab_decode);
-        PyErr_SetString(PyExc_IOError, "Failed to rewind vocab file.");
-        return NULL;
-    }
-
-    char* hex_str = malloc(1024);
-    if (!hex_str) {
-        log_debug("Error: Memory allocation failed for hex_str.");
-        PyErr_SetString(PyExc_MemoryError,
-                        "Memory allocation failed for hex_str.");
-        (void)fclose(file);
-        free((void*)vocab_decode);
-        return NULL;
-    }
-
-    int index = 0;
+    char line[1024];
     while (fgets(line, sizeof(line), file)) {
         char* separator = strstr(line, " == ");
         if (separator == NULL) {
+            (void)fclose(file);
+            hashmap_free(vocab_encode);
+            free(hex_str_buffer);
             log_debug("Error: Invalid format in vocab file: %s", line);
             PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
-            (void)fclose(file);
-            free(hex_str);
-            free((void*)vocab_decode);
             return NULL;
         }
 
         ptrdiff_t hex_len = separator - line;
-        if (hex_len >= 1024) {
-            log_debug("Error: Hex token is too long in line: %s", line);
-            PyErr_SetString(PyExc_ValueError, "Hex token is too long.");
+        if (hex_len > 1024) {
             (void)fclose(file);
-            free(hex_str);
-            free((void*)vocab_decode);
+            hashmap_free(vocab_encode);
+            free(hex_str_buffer);
+            log_debug("Error: Hex token is too long.");
+            PyErr_SetString(PyExc_ValueError, "Hex token is too long.");
             return NULL;
         }
-        strncpy(hex_str, line, hex_len);
-        hex_str[hex_len] = '\0';
 
-        char* value_str = separator + 4;  // strlen(" == ") == 4
+        strncpy(hex_str_buffer, line, hex_len);
+        hex_str_buffer[hex_len] = '\0';
+
+        char* value_str = separator + 4;  // strlen(" == ")
         char* endptr = NULL;
         errno = 0;
+
         long value = strtol(value_str, &endptr, 10);
 
         if (endptr == value_str) {
+            (void)fclose(file);
+            hashmap_free(vocab_encode);
+            free(hex_str_buffer);
             log_debug("Error: No digits were found for value in line: '%s'.",
                       line);
             PyErr_SetString(
                 PyExc_ValueError,
                 "Invalid vocab format: could not parse integer value.");
-            (void)fclose(file);
-            free(hex_str);
-            free((void*)vocab_decode);
             return NULL;
         }
 
         if (errno == ERANGE || value > INT_MAX || value < INT_MIN) {
+            (void)fclose(file);
+            hashmap_free(vocab_encode);
+            free(hex_str_buffer);
             log_debug("Error: Integer value '%s' is out of range.", value_str);
             PyErr_SetString(PyExc_ValueError,
                             "Integer value in vocab file is out of range.");
-            (void)fclose(file);
-            free(hex_str);
-            free((void*)vocab_decode);
             return NULL;
         }
 
-        while (*endptr != '\0' && isspace((unsigned char)*endptr)) {
-            endptr++;
-        }
-
-        if (*endptr != '\0') {
-            log_debug("Error: Trailing characters after integer in line: %s",
-                      line);
-            PyErr_SetString(
-                PyExc_ValueError,
-                "Invalid format in vocab file (trailing characters).");
-            (void)fclose(file);
-            free(hex_str);
-            free((void*)vocab_decode);
-            return NULL;
-        }
-
-        char ascii_str[500] = {0};
-        hex_str_to_ascii(hex_str, ascii_str, sizeof(ascii_str));
+        char ascii_str[2048];
+        hex_str_to_ascii(hex_str_buffer, ascii_str, sizeof(ascii_str));
 
         if (ascii_str[0] == '\0') {
             log_debug("Error: Failed to convert hex string to ASCII: %s",
-                      hex_str);
-            PyErr_SetString(PyExc_RuntimeError,
+                      hex_str_buffer);
+            (void)fclose(file);
+            hashmap_free(vocab_encode);
+            free(hex_str_buffer);
+            PyErr_SetString(PyExc_ValueError,
                             "Failed to convert hex string to ASCII.");
-            (void)fclose(file);
-            free(hex_str);
-            free((void*)vocab_decode);
             return NULL;
         }
 
-        vocab_decode[value] = strdup(ascii_str);
-        if (!vocab_decode[value]) {
-            log_debug(
-                "Error: Memory allocation failed for vocab entry at index %d.",
-                value);
-            PyErr_SetString(PyExc_MemoryError,
-                            "Memory allocation failed for vocab entry.");
+        char* durable_ascii_str = strdup(ascii_str);
+        if (!durable_ascii_str) {
+            log_debug("Error: Failed to convert hex string to ASCII: %s",
+                      hex_str_buffer);
             (void)fclose(file);
-            free(hex_str);
-            free((void*)vocab_decode);
+            hashmap_free(vocab_encode);
+            free(hex_str_buffer);
+            PyErr_SetString(PyExc_ValueError,
+                            "Failed to convert hex string to ASCII.");
             return NULL;
         }
 
-        log_debug("Loaded vocab entry for decoding: index=%d, value=%s", value,
-                  ascii_str);
+        hashmap_set(vocab_encode, &(struct Token){.key = durable_ascii_str,
+                                                  .value = (int)value});
 
-        index++;
+        log_debug("Added vocab entry for encoding: key=%s, value=%d",
+                  durable_ascii_str, value);
+
+        vocab_size_decode++;
     }
 
-    free(hex_str);
-    (void)fclose(file);
+    if (vocab_size_decode == 0) {
+        (void)fclose(file);
+        hashmap_free(vocab_encode);
+        free(hex_str_buffer);
+        log_debug("Error: Vocab file is empty.");
+        PyErr_SetString(PyExc_ValueError, "Vocab file is empty.");
+        return NULL;
+    }
+
+    initialized_encode = true;
+
+    vocab_decode = (char**)malloc(vocab_size_decode * sizeof(char*));
+    if (!vocab_decode) {
+        (void)fclose(file);
+        hashmap_free(vocab_encode);
+        free(hex_str_buffer);
+        log_debug("Error: Memory allocation failed for vocab_decode array.");
+        PyErr_SetString(PyExc_MemoryError,
+                        "Memory allocation failed for vocab_decode array.");
+        return NULL;
+    }
+
+    size_t iter = 0;
+    void* item = NULL;
+    while (hashmap_iter(vocab_encode, &iter, &item)) {
+        const struct Token* token = item;
+
+        vocab_decode[token->value] = token->key;
+        if (!vocab_decode[token->value]) {
+            (void)fclose(file);
+            hashmap_free(vocab_encode);
+            free(hex_str_buffer);
+            free((void*)vocab_decode);
+            log_debug(
+                "Error: Memory allocation failed for vocab entry at index %d.",
+                token->value);
+            PyErr_SetString(PyExc_MemoryError,
+                            "Memory allocation failed for vocab entry.");
+            return NULL;
+        }
+
+        log_debug("Loaded vocab entry for decoding: index=%d, value=%s",
+                  token->value, token->key);
+    }
+
+    log_debug("Successfully processed vocab file.");
 
     initialized_decode = true;
-    log_debug("Successfully initialized decoding.");
+
+    (void)fclose(file);
+    free(hex_str_buffer);
 
     Py_RETURN_NONE;
 }
