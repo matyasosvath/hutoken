@@ -81,8 +81,8 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
-    char* hex_str_buffer = malloc(1024);
-    if (hex_str_buffer == NULL) {
+    struct String hex_buffer;
+    if (string_with_capacity(&hex_buffer, 1024) == STRING_ALLOC_ERROR) {
         hashmap_free(vocab_encode);
         PyErr_NoMemory();
         return NULL;
@@ -91,7 +91,7 @@ static PyObject* p_initialize(PyObject* self,
     FILE* file = fopen(vocab_file_path, "r");
     if (!file) {
         hashmap_free(vocab_encode);
-        free(hex_str_buffer);
+        string_release(&hex_buffer);
         log_debug("Error: Could not open vocab file: %s", vocab_file_path);
         PyErr_SetString(PyExc_FileNotFoundError, "Could not open vocab file.");
         return NULL;
@@ -106,7 +106,7 @@ static PyObject* p_initialize(PyObject* self,
         if (separator == NULL) {
             (void)fclose(file);
             hashmap_free(vocab_encode);
-            free(hex_str_buffer);
+            string_release(&hex_buffer);
             log_debug("Error: Invalid format in vocab file: %s", line);
             PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
             return NULL;
@@ -116,14 +116,14 @@ static PyObject* p_initialize(PyObject* self,
         if (hex_len > 1024) {
             (void)fclose(file);
             hashmap_free(vocab_encode);
-            free(hex_str_buffer);
+            string_release(&hex_buffer);
             log_debug("Error: Hex token is too long.");
             PyErr_SetString(PyExc_ValueError, "Hex token is too long.");
             return NULL;
         }
 
-        strncpy(hex_str_buffer, line, hex_len);
-        hex_str_buffer[hex_len] = '\0';
+        string_clear(&hex_buffer);
+        string_append_n(&hex_buffer, line, hex_len);
 
         char* value_str = separator + 4;  // strlen(" == ")
         char* endptr = NULL;
@@ -134,7 +134,7 @@ static PyObject* p_initialize(PyObject* self,
         if (endptr == value_str) {
             (void)fclose(file);
             hashmap_free(vocab_encode);
-            free(hex_str_buffer);
+            string_release(&hex_buffer);
             log_debug("Error: No digits were found for value in line: '%s'.",
                       line);
             PyErr_SetString(
@@ -146,7 +146,7 @@ static PyObject* p_initialize(PyObject* self,
         if (errno == ERANGE || value > INT_MAX || value < INT_MIN) {
             (void)fclose(file);
             hashmap_free(vocab_encode);
-            free(hex_str_buffer);
+            string_release(&hex_buffer);
             log_debug("Error: Integer value '%s' is out of range.", value_str);
             PyErr_SetString(PyExc_ValueError,
                             "Integer value in vocab file is out of range.");
@@ -154,14 +154,15 @@ static PyObject* p_initialize(PyObject* self,
         }
 
         char ascii_str[2048];
-        hex_str_to_ascii(hex_str_buffer, ascii_str, sizeof(ascii_str));
+        hex_str_to_ascii(string_c_str(&hex_buffer), ascii_str,
+                         sizeof(ascii_str));
 
         if (ascii_str[0] == '\0') {
             log_debug("Error: Failed to convert hex string to ASCII: %s",
-                      hex_str_buffer);
+                      string_c_str(&hex_buffer));
             (void)fclose(file);
             hashmap_free(vocab_encode);
-            free(hex_str_buffer);
+            string_release(&hex_buffer);
             PyErr_SetString(PyExc_ValueError,
                             "Failed to convert hex string to ASCII.");
             return NULL;
@@ -170,10 +171,10 @@ static PyObject* p_initialize(PyObject* self,
         char* durable_ascii_str = strdup(ascii_str);
         if (!durable_ascii_str) {
             log_debug("Error: Failed to convert hex string to ASCII: %s",
-                      hex_str_buffer);
+                      string_c_str(&hex_buffer));
             (void)fclose(file);
             hashmap_free(vocab_encode);
-            free(hex_str_buffer);
+            string_release(&hex_buffer);
             PyErr_SetString(PyExc_ValueError,
                             "Failed to convert hex string to ASCII.");
             return NULL;
@@ -191,7 +192,7 @@ static PyObject* p_initialize(PyObject* self,
     if (vocab_size_decode == 0) {
         (void)fclose(file);
         hashmap_free(vocab_encode);
-        free(hex_str_buffer);
+        string_release(&hex_buffer);
         log_debug("Error: Vocab file is empty.");
         PyErr_SetString(PyExc_ValueError, "Vocab file is empty.");
         return NULL;
@@ -203,7 +204,7 @@ static PyObject* p_initialize(PyObject* self,
     if (!vocab_decode) {
         (void)fclose(file);
         hashmap_free(vocab_encode);
-        free(hex_str_buffer);
+        string_release(&hex_buffer);
         log_debug("Error: Memory allocation failed for vocab_decode array.");
         PyErr_SetString(PyExc_MemoryError,
                         "Memory allocation failed for vocab_decode array.");
@@ -219,7 +220,7 @@ static PyObject* p_initialize(PyObject* self,
         if (!vocab_decode[token->value]) {
             (void)fclose(file);
             hashmap_free(vocab_encode);
-            free(hex_str_buffer);
+            string_release(&hex_buffer);
             free((void*)vocab_decode);
             log_debug(
                 "Error: Memory allocation failed for vocab entry at index %d.",
@@ -238,7 +239,7 @@ static PyObject* p_initialize(PyObject* self,
     initialized_decode = true;
 
     (void)fclose(file);
-    free(hex_str_buffer);
+    string_release(&hex_buffer);
 
     Py_RETURN_NONE;
 }
