@@ -273,6 +273,82 @@ void test_clear_handles_null_struct_ptr(void) {
     assert(string_clear(NULL) == STRING_INVALID_ARGUMENT);
 }
 
+void test_append_n_to_small_remains_small(void) {
+    struct String str;
+    string_init(&str, "hu");
+    const char* source = "tokenizer";
+
+    assert(string_append_n(&str, source, 5) == STRING_SUCCESS);
+    assert(str.is_large == false);
+    assert(string_len(&str) == 7);
+    assert(strcmp(string_c_str(&str), "hutoken") == 0);
+
+    string_release(&str);
+}
+
+void test_append_n_to_small_becomes_large(void) {
+    struct String str;
+    char twenty_chars[21];
+    memset(twenty_chars, 'a', 20);
+    twenty_chars[20] = '\0';
+
+    string_init(&str, twenty_chars);
+    assert(str.is_large == false);
+
+    assert(string_append_n(&str, "12345", 5) == STRING_SUCCESS);
+    assert(str.is_large == true);
+    assert(string_len(&str) == 25);
+    assert(strcmp(string_c_str(&str), "aaaaaaaaaaaaaaaaaaaa12345") == 0);
+
+    string_release(&str);
+}
+
+void test_append_n_to_large(void) {
+    struct String str;
+    string_with_capacity(&str, 50);
+    string_append(&str, "prefix-");
+
+    assert(string_append_n(&str, "only the first part", 4) == STRING_SUCCESS);
+    assert(str.is_large == true);
+    assert(string_len(&str) == 11);
+    assert(strcmp(string_c_str(&str), "prefix-only") == 0);
+
+    string_release(&str);
+}
+
+void test_append_n_zero_is_noop(void) {
+    struct String str;
+    string_init(&str, "start");
+
+    assert(string_append_n(&str, "don't append me", 0) == STRING_SUCCESS);
+    assert(string_len(&str) == 5);
+    assert(strcmp(string_c_str(&str), "start") == 0);
+
+    string_release(&str);
+}
+
+void test_append_n_from_middle_of_buffer(void) {
+    struct String str;
+    string_init(&str, "");
+    const char* buffer = "garbage-TOKEN-more-garbage";
+
+    assert(string_append_n(&str, buffer + 8, 5) == STRING_SUCCESS);
+    assert(string_len(&str) == 5);
+    assert(strcmp(string_c_str(&str), "TOKEN") == 0);
+
+    string_release(&str);
+}
+
+void test_append_n_handles_null_args(void) {
+    struct String str;
+    string_init(&str, "test");
+
+    assert(string_append_n(NULL, "abc", 1) == STRING_INVALID_ARGUMENT);
+    assert(string_append_n(&str, NULL, 1) == STRING_INVALID_ARGUMENT);
+
+    string_release(&str);
+}
+
 int main(void) {
     puts("Starting string tests.\n");
 
@@ -301,6 +377,12 @@ int main(void) {
     RUN_TEST(test_clear_on_large_string_retains_capacity);
     RUN_TEST(test_clear_on_empty_string);
     RUN_TEST(test_clear_handles_null_struct_ptr);
+    RUN_TEST(test_append_n_to_small_remains_small);
+    RUN_TEST(test_append_n_to_small_becomes_large);
+    RUN_TEST(test_append_n_to_large);
+    RUN_TEST(test_append_n_zero_is_noop);
+    RUN_TEST(test_append_n_from_middle_of_buffer);
+    RUN_TEST(test_append_n_handles_null_args);
 
     puts("\nAll tests passed successfully!");
 

@@ -113,6 +113,38 @@ enum StringError string_append(struct String* str, const char* to_append) {
     return STRING_SUCCESS;
 }
 
+enum StringError string_append_n(struct String* str,
+                                 const char* to_append,
+                                 size_t n) {
+    if (!str || !to_append) {
+        return STRING_INVALID_ARGUMENT;
+    }
+
+    if (n == 0) {
+        return STRING_SUCCESS;
+    }
+
+    size_t current_len = string_len(str);
+    size_t needed_len = current_len + n;
+
+    if (grow(str, needed_len) != STRING_SUCCESS) {
+        return STRING_ALLOC_ERROR;
+    }
+
+    char* buffer = str->is_large ? str->data.large.buf : str->data.small;
+
+    memcpy(buffer + current_len, to_append, n);
+    buffer[needed_len] = '\0';
+
+    if (str->is_large) {
+        str->data.large.len = needed_len;
+    } else {
+        str->data.small[STRING_SSO_MAX_LEN] = STRING_SSO_MAX_LEN - needed_len;
+    }
+
+    return STRING_SUCCESS;
+}
+
 enum StringError string_clear(struct String* str) {
     if (!str) {
         return STRING_INVALID_ARGUMENT;
