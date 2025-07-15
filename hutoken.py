@@ -20,39 +20,47 @@ def initialize(model_or_path, *args, **kwargs):
     else:
         try:
             hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path)
+        except OSError as e:
+            raise ValueError("Could not download Hugging Face tokenizer "
+                             f"'{model_or_path}': {e}")
 
-            if hasattr(hf_tokenizer, "vocab"):
-                default = os.path.join(os.path.expanduser("~"), ".cache")
-                cache_dir = os.getenv("XDG_CACHE_HOME", default)
-                org_name, model_name = model_or_path.split("/")
-                vocab_dir = os.path.join(cache_dir, f"hutoken/{org_name}")
-                os.makedirs(vocab_dir, exist_ok=True)
-                vocab_file = os.path.join(vocab_dir, f"{model_name}.txt")
+        if not hasattr(hf_tokenizer, "vocab"):
+            raise ValueError("Could not extract vocab from Hugging Face "
+                             "tokenizer.")
 
-                with open(vocab_file, "w", encoding="utf-8") as f:
-                    for i, (token, idx) in enumerate(sorted(hf_tokenizer.vocab.items(), key=lambda x: x[1])):
-                        try:
-                            hex_parts = []
-                            for b in token.encode('utf-8'):
-                                hex_parts.append(f'0x{b:02X}')
-                            hex_token = ''.join(hex_parts)
+        cache_dir = os.getenv("XDG_CACHE_HOME",
+                              os.path.join(os.path.expanduser("~"), ".cache"))
+        org_name, model_name = model_or_path.split("/")
+        vocab_dir = os.path.join(cache_dir, f"hutoken/{org_name}")
+        os.makedirs(vocab_dir, exist_ok=True)
+        vocab_file = os.path.join(vocab_dir, f"{model_name}.txt")
 
-                            line = f"{hex_token} == {idx}\n"
-                            f.write(line)
-                        except Exception as e:
-                            traceback.print_exc(file=sys.stderr)
-            else:
-                raise RuntimeError("hutoken: Could not extract vocab from Hugging Face tokenizer (no .vocab attribute).")
+        try:
+            with open(vocab_file, "w", encoding="utf-8") as f:
+                sorted_vocab = sorted(hf_tokenizer.vocab.items(),
+                                      key=lambda item: item[1])
+                for token, idx in sorted_vocab:
+                    try:
+                        hex_token = "".join(
+                            f"0x{b:02X}" for b in token.encode("utf-8")
+                        )
+                        f.write(f"{hex_token} == {idx}\n")
+                    except Exception as e:
+                        sys.stderr.write(
+                            f"Failed to process token '{token}': {e}"
+                        )
+        except IOError as e:
+            traceback.print_exc(file=sys.stderr)
+            raise IOError(f"Could not write vocab file to '{vocab_file}': {e}")
 
-            try:
-                result = _hutoken.initialize(vocab_file, *args, **kwargs)
-                return result
-            except Exception as e:
-                traceback.print_exc(file=sys.stderr)
-                raise RuntimeError(f"hutoken: Could not load Hugging Face tokenizer '{model_or_path}': {e}")
+        try:
+            result = _hutoken.initialize(vocab_file, *args, **kwargs)
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
-            raise RuntimeError(f"hutoken: Could not load Hugging Face tokenizer '{model_or_path}': {e}")
+            raise RuntimeError("An unexpected error occured during "
+                               f"initialization: {e}") from e
+
+        return result
 
 def encode(text):
     if _hutoken is None:
