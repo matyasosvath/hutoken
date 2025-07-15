@@ -1,13 +1,15 @@
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
-#include "hashmap.h"
+#include "../include/hutoken/bpe.h"
+#include "../include/hutoken/hashmap.h"
 
 
-int main() {
+int main(void) {
 
     struct HashMap *map = hashmap_new(16);
+    assert(map && map->capacity == 16 && map->count == 0);
 
     struct Token token1 = { .key = "key1", .value = 1 };
     struct Token token2 = { .key = "key2", .value = 2 };
@@ -17,23 +19,28 @@ int main() {
     assert(hashmap_set(map, &token2) == NULL);
     assert(hashmap_set(map, &token3) == NULL);
 
-    struct Token *result = (struct Token *)hashmap_get(map, &token1);
-    assert(result && result->value == 1);
+    int result = hashmap_get(map, &token1);
+    assert(result == 1);
 
-    result = (struct Token *)hashmap_get(map, &token2);
-    assert(result && result->value == 2);
+    result = hashmap_get(map, &token2);
+    assert(result == 2);
 
-    result = (struct Token *)hashmap_get(map, &token3);
-    assert(result && result->value == 3);
+    result = hashmap_get(map, &token3);
+    assert(result == 3);
 
-    assert(hashmap_count(map) == 3);
+    assert(map->count == 3);
 
     assert(hashmap_delete(map, &token2) != NULL);
-    assert(hashmap_get(map, &token2) == NULL);
-    assert(hashmap_count(map) == 2);
+    assert(hashmap_get(map, &token2) == -1);
+    assert(map->count == 2);
+
+    char* key_result = hashmap_get_key(map, 1);
+    assert(key_result && strcmp(key_result, "key1") == 0);
+    key_result = hashmap_get_key(map, 2);
+    assert(key_result == NULL);
 
     hashmap_clear(map, false);
-    assert(hashmap_count(map) == 0);
+    assert(map->count == 0);
 
     hashmap_free(map);
 
