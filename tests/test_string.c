@@ -218,6 +218,61 @@ void test_release_handles_null_struct_ptr(void) {
     string_release(NULL);  // would cause segfault if doesn't work
 }
 
+void test_clear_on_small_string(void) {
+    struct String str;
+
+    string_init(&str, "hello");
+    assert(string_len(&str) > 0);
+    assert(string_clear(&str) == STRING_SUCCESS);
+    assert(str.is_large == false);
+    assert(string_len(&str) == 0);
+    assert(strcmp(string_c_str(&str), "") == 0);
+
+    string_release(&str);
+}
+
+void test_clear_on_large_string_retains_capacity(void) {
+    struct String str;
+
+    string_with_capacity(&str, 100);
+    string_append(&str, "some very long initial content");
+    assert(str.is_large == true);
+
+    size_t original_capacity = str.data.large.capacity;
+    assert(original_capacity >= 100);
+    assert(string_len(&str) > 0);
+
+    assert(string_clear(&str) == STRING_SUCCESS);
+
+    assert(str.is_large == true);
+    assert(string_len(&str) == 0);
+    assert(strcmp(string_c_str(&str), "") == 0);
+    assert(str.data.large.capacity == original_capacity);
+
+    string_append(&str, "new data");
+    assert(string_len(&str) == 8);
+    assert(str.data.large.capacity == original_capacity);
+
+    string_release(&str);
+}
+
+void test_clear_on_empty_string(void) {
+    struct String str;
+    string_init(&str, "");
+    assert(string_len(&str) == 0);
+
+    assert(string_clear(&str) == STRING_SUCCESS);
+
+    assert(string_len(&str) == 0);
+    assert(strcmp(string_c_str(&str), "") == 0);
+
+    string_release(&str);
+}
+
+void test_clear_handles_null_struct_ptr(void) {
+    assert(string_clear(NULL) == STRING_INVALID_ARGUMENT);
+}
+
 int main(void) {
     puts("Starting string tests.\n");
 
@@ -242,6 +297,10 @@ int main(void) {
     RUN_TEST(test_len_handles_null_struct_ptr);
     RUN_TEST(test_c_str_handles_null_struct_ptr);
     RUN_TEST(test_release_handles_null_struct_ptr);
+    RUN_TEST(test_clear_on_small_string);
+    RUN_TEST(test_clear_on_large_string_retains_capacity);
+    RUN_TEST(test_clear_on_empty_string);
+    RUN_TEST(test_clear_handles_null_struct_ptr);
 
     puts("\nAll tests passed successfully!");
 

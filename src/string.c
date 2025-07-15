@@ -113,6 +113,22 @@ enum StringError string_append(struct String* str, const char* to_append) {
     return STRING_SUCCESS;
 }
 
+enum StringError string_clear(struct String* str) {
+    if (!str) {
+        return STRING_INVALID_ARGUMENT;
+    }
+
+    if (str->is_large) {
+        str->data.large.len = 0;
+        str->data.large.buf[0] = '\0';
+    } else {
+        str->data.small[0] = '\0';
+        str->data.small[STRING_SSO_MAX_LEN] = STRING_SSO_MAX_LEN;
+    }
+
+    return STRING_SUCCESS;
+}
+
 static enum StringError grow(struct String* str, size_t needed_len) {
     size_t capacity =
         str->is_large ? str->data.large.capacity : STRING_SSO_MAX_LEN;

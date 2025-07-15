@@ -31,5 +31,6 @@ void string_release(struct String* str);
 const char* string_c_str(const struct String* str);
 size_t string_len(const struct String* str);
 enum StringError string_append(struct String* str, const char* to_append);
+enum StringError string_clear(struct String* str);
 
 #endif
