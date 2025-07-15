@@ -133,7 +133,7 @@ static bool resize(struct HashMap* map, size_t new_cap) {
 
         size_t j = entry->hash & map2->mask;
 
-        while (1) {
+        while (true) {
             struct Bucket* bucket = bucket_at(map2, j);
 
             if (bucket->dib == 0) {
@@ -245,7 +245,7 @@ int hashmap_get(struct HashMap* map, const void* key) {
     // creating an index in the range [0, bucket_num - 1]
     size_t i = hash & map->mask;
 
-    while (1) {
+    while (true) {
         struct Bucket* bucket = bucket_at(map, i);
 
         if (!bucket->dib) {
@@ -255,7 +255,7 @@ int hashmap_get(struct HashMap* map, const void* key) {
         if (bucket->hash == hash) {
             void* bitem = bucket_item(bucket);
 
-            if (compare(key, bitem) == 0) {
+            if (compare(key, bitem) == false) {
                 struct Token* entry = bitem;
                 return entry->value;
             }
@@ -301,12 +301,12 @@ const void* hashmap_delete(struct HashMap* map, const void* key) {
 
         void* bitem = bucket_item(bucket);  // token
 
-        if (bucket->hash == hash && (compare(key, bitem) == 0)) {
+        if (bucket->hash == hash && (compare(key, bitem) == false)) {
             memcpy(map->spare, bitem, map->element_size);
 
             bucket->dib = 0;
 
-            while (1) {
+            while (true) {
                 struct Bucket* prev = bucket;
 
                 i = (i + 1) & map->mask;
@@ -357,7 +357,7 @@ void hashmap_clear(struct HashMap* map, bool update_cap) {
     }
 
     // clears memory, removing all buckets
-    memset(map->buckets, 0, map->bucket_size * map->bucket_num);
+    (void)memset(map->buckets, 0, map->bucket_size * map->bucket_num);
 
     map->mask = map->bucket_num - 1;
     map->growat = map->bucket_num * (map->loadfactor / 100.0);

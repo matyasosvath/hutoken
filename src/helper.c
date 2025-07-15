@@ -33,21 +33,21 @@ void log_debug(const char* format, ...) {
         (void)vfprintf(stderr, format, args);
         va_end(args);
 
-        (void)fputs("", stderr);
+        (void)fputs("\n", stderr);
     }
 }
 
 void visualize(int arr[], char* text, int n) {
     if (VISUALIZE) {
-        printf("Processing:\n");
+        (void)puts("Processing:");
         for (int i = 0; i < n; i++) {
-            printf("%c ", text[i]);
+            (void)printf("%c ", text[i]);
         }
-        printf("\n");
+        (void)puts("");
         for (int i = 0; i < n; i++) {
-            printf("%d ", arr[i]);
+            (void)printf("%d ", arr[i]);
         }
-        printf("\n");
+        (void)puts("");
     }
 }
 
@@ -57,9 +57,10 @@ void visualize_bpe_train(char* text,
                          size_t value,
                          size_t token_num) {
     if (VISUALIZE) {
-        printf("Most common pair: '%s', rank: %d\n", current_token.key,
-               current_token.value);
-        printf("New token '%s', value: %ld\n\n", current_token.key, value);
+        (void)printf("Most common pair: '%s', rank: %d\n", current_token.key,
+                     current_token.value);
+        (void)printf("New token '%s', value: %ld\n\n", current_token.key,
+                     value);
     }
 }
 
@@ -124,14 +125,14 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
     struct stat st = {0};
     if (stat(dir_path, &st) == -1) {
         if (mkdir(dir_path, 0700) == 0) {
-            printf("Directory created: %s\n", dir_path);
+            (void)printf("Directory created: %s\n", dir_path);
         } else {
             (void)fputs("Error creating directory.", stderr);
             (void)fputs("Failed to save vocab.", stderr);
             return -1;
         }
     } else {
-        printf("Directory already exists: %s\n", dir_path);
+        (void)printf("Directory already exists: %s\n", dir_path);
     }
 
     char file_path[1024];
@@ -158,7 +159,18 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
 
     (void)fclose(file);
 
-    printf("Vocab saved to: %s\n", file_path);
+    (void)printf("Vocab saved to: %s\n", file_path);
 
     return EXIT_SUCCESS;
+}
+
+int count_char(const char* source, char target) {
+    int count = 0;
+    while (*source) {
+        if (*source == target) {
+            count++;
+        }
+        source++;
+    }
+    return count;
 }

@@ -3,6 +3,7 @@
 #include "Python.h"
 #include "fomalib.h"
 
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,7 @@
 #include "hutoken/bpe.h"
 #include "hutoken/core.h"
 #include "hutoken/helper.h"
+#include "pyerrors.h"
 
 static bool initialized_encode = false;
 static bool initialized_decode = false;
@@ -134,17 +136,56 @@ static PyObject* p_initialize(PyObject* self,
 
         const char* pos = hex_token;
         size_t char_index = 0;
+
         while (pos[0] == '0' && pos[1] == 'x') {
-            unsigned int byte_value;
-            if (sscanf(pos, "0x%2X", &byte_value) != 1) {
-                log_debug("Error: Failed to parse hex byte: %s", pos);
-                free(decoded_string);
-                continue;
+            char* endptr = NULL;
+            errno = 0;
+
+            char hex_pair[3] = {pos[2], pos[3], '\0'};
+            unsigned long byte_value = strtoul(hex_pair, &endptr, 16);
+
+            if (endptr != hex_pair + 2) {
+                log_debug("Error: Malformed hex sequence in token: %s",
+                          hex_token);
+                break;
             }
+
+            if (errno == ERANGE || byte_value > 0xFF) {
+                log_debug("Error: Hex value out of range for a byte: %s", pos);
+                break;
+            }
+
             decoded_string[char_index++] = (char)byte_value;
+
             pos += 4;
         }
+
         decoded_string[char_index] = '\0';
+
+        char* endptr = NULL;
+        errno = 0;
+
+        long value = strtol(value_str, &endptr, 10);
+
+        if (endptr == value_str) {
+            log_debug("Error: No digits were found for value in line: '%s'.",
+                      line);
+            free(decoded_string);
+            (void)fclose(file);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Invalid vocab format: could not parse integer value.");
+            return NULL;
+        }
+
+        if (errno == ERANGE || value < INT_MIN || value > INT_MAX) {
+            log_debug("Error: Integer value '%s' is out of range.", value_str);
+            free(decoded_string);
+            (void)fclose(file);
+            PyErr_SetString(PyExc_ValueError,
+                            "Integer value in vocab file is out of range.");
+            return NULL;
+        }
 
         char* key = strdup(decoded_string);
         if (!key) {
@@ -153,9 +194,9 @@ static PyObject* p_initialize(PyObject* self,
             (void)fclose(file);
             return PyErr_NoMemory();
         }
-        int value = atoi(value_str);
 
-        hashmap_set(vocab_encode, &(struct Token){.key = key, .value = value});
+        hashmap_set(vocab_encode,
+                    &(struct Token){.key = key, .value = (int)value});
         log_debug("Added vocab entry for encoding: key=%s, value=%d", key,
                   value);
 
@@ -210,7 +251,13 @@ static PyObject* p_initialize(PyObject* self,
         vocab_decode[i] = NULL;
     }
 
-    rewind(file);
+    if (fseek(file, 0L, SEEK_SET) == true) {
+        log_debug("Error: Failed to seek to the beginning of vocab file.");
+        (void)fclose(file);
+        free((void*)vocab_decode);
+        PyErr_SetString(PyExc_IOError, "Failed to rewind vocab file.");
+        return NULL;
+    }
 
     char* hex_str = malloc(1024);
     if (!hex_str) {
@@ -224,11 +271,69 @@ static PyObject* p_initialize(PyObject* self,
 
     int index = 0;
     while (fgets(line, sizeof(line), file)) {
-        int value;
+        char* separator = strstr(line, " == ");
+        if (separator == NULL) {
+            if (strchr(line, '=') != NULL) {
+                log_debug("Error: Invalid format in vocab file: %s", line);
+                PyErr_SetString(PyExc_ValueError,
+                                "Invalid format in vocab file.");
+                (void)fclose(file);
+                free(hex_str);
+                free((void*)vocab_decode);
+                return NULL;
+            }
+            continue;
+        }
 
-        if (sscanf(line, "%9999s == %d", hex_str, &value) != 2) {
-            log_debug("Error: Invalid format in vocab file: %s", line);
-            PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
+        ptrdiff_t hex_len = separator - line;
+        if (hex_len >= 1024) {
+            log_debug("Error: Hex token is too long in line: %s", line);
+            PyErr_SetString(PyExc_ValueError, "Hex token is too long.");
+            (void)fclose(file);
+            free(hex_str);
+            free((void*)vocab_decode);
+            return NULL;
+        }
+        strncpy(hex_str, line, hex_len);
+        hex_str[hex_len] = '\0';
+
+        char* value_str = separator + 4;  // strlen(" == ") == 4
+        char* endptr = NULL;
+        errno = 0;
+        long value = strtol(value_str, &endptr, 10);
+
+        if (endptr == value_str) {
+            log_debug("Error: No digits were found for value in line: '%s'.",
+                      line);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Invalid vocab format: could not parse integer value.");
+            (void)fclose(file);
+            free(hex_str);
+            free((void*)vocab_decode);
+            return NULL;
+        }
+
+        if (errno == ERANGE || value > INT_MAX || value < INT_MIN) {
+            log_debug("Error: Integer value '%s' is out of range.", value_str);
+            PyErr_SetString(PyExc_ValueError,
+                            "Integer value in vocab file is out of range.");
+            (void)fclose(file);
+            free(hex_str);
+            free((void*)vocab_decode);
+            return NULL;
+        }
+
+        while (*endptr != '\0' && isspace((unsigned char)*endptr)) {
+            endptr++;
+        }
+
+        if (*endptr != '\0') {
+            log_debug("Error: Trailing characters after integer in line: %s",
+                      line);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Invalid format in vocab file (trailing characters).");
             (void)fclose(file);
             free(hex_str);
             free((void*)vocab_decode);
@@ -352,10 +457,12 @@ PyObject* p_look_up_word(PyObject* self, PyObject* args) {
     PyObject* py_handle = NULL;
     struct apply_handle* handle = NULL;
     char* word = NULL;
+    bool only_longest = false;
 
-    if (!PyArg_ParseTuple(args, "Os", &py_handle, &word)) {
+    if (!PyArg_ParseTuple(args, "Os|b", &py_handle, &word, &only_longest)) {
         PyErr_SetString(PyExc_TypeError,
-                        "Function takes two arguments: (apply_handle, word).");
+                        "Function takes three arguments: (apply_handle, word, "
+                        "only_longest).");
         return NULL;
     }
 
@@ -369,7 +476,7 @@ PyObject* p_look_up_word(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    return look_up_word(handle, word);
+    return look_up_word(handle, word, only_longest);
 }
 
 static PyMethodDef huTokenMethods[] = {

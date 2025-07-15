@@ -22,7 +22,7 @@ void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
                 int tokens[],
                 int* token_num) {
-    while (1) {
+    while (true) {
         int min_idx = -1;
         int min_rank = -1;
 
@@ -38,8 +38,8 @@ void bpe_encode(struct HashMap* vocab,
             ptrdiff_t len = l1 + l2;
             char pair[len + 1];
 
-            strncpy(pair, s1, l1);
-            strncpy(pair + l1, s2, l2);
+            (void)strncpy(pair, s1, l1);
+            (void)strncpy(pair + l1, s2, l2);
             pair[len] = '\0';
 
             int rank = hashmap_get(vocab, &(struct Token){.key = pair});
@@ -74,7 +74,7 @@ void bpe_encode(struct HashMap* vocab,
         ptrdiff_t len = (end - start) + 1;
 
         char string[len + 1];
-        strncpy(string, start, len);
+        (void)strncpy(string, start, len);
         string[len] = '\0';
 
         int rank = hashmap_get(vocab, &(struct Token){.key = string});
@@ -91,8 +91,7 @@ void encode(char* text,
     log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
-    int r = regcomp(&regex, pattern, REG_EXTENDED);
-    if (r) {
+    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
         log_debug("Error: Regex could not be compiled.");
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
@@ -106,6 +105,17 @@ void encode(char* text,
         int word_end = match.rm_eo;
         int word_len = word_end - word_start;
 
+        // If the regex finds a zero-length match, word_len will be 0.
+        // This would lead to calling `bpe_encode` with unitialized arrays, or
+        // the `cursor` not advancing to the next step.
+        if (cursor + word_start >= cursor + word_end) {
+            if (cursor[word_start] == '\0') {
+                break;
+            }
+            cursor += word_start + 1;
+            continue;
+        }
+
         log_debug("Matched word: start=%d, end=%d, length=%d", word_start,
                   word_end, word_len);
 
@@ -115,12 +125,12 @@ void encode(char* text,
         for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
             char* start = ptr;
             char* end = ptr;
-            struct Boundary word_token_boundary = {start, end};
+            struct Boundary word_token_boundary = {.start = start, .end = end};
             word_token_boundaries[i] = word_token_boundary;
             i += 1;
         }
 
-        int word_token_num = word_len;
+        int word_token_num = i;
         int word_tokens[word_len];
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
@@ -207,7 +217,7 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
             log_debug("Resized text buffer to new size: %d bytes", buffer_size);
         }
 
-        strcat(text, word);
+        (void)strcat(text, word);
         log_debug(
             "Appended word '%s' to text buffer. Current text: '%s' (buffer "
             "size: %zu bytes)",
@@ -251,15 +261,91 @@ PyObject* initialize_foma(void) {
     return PyCapsule_New(handle, "foma.apply_handle", NULL);
 }
 
-PyObject* look_up_word(struct apply_handle* handle, char* word) {
+PyObject* look_up_word(struct apply_handle* handle,
+                       char* word,
+                       bool only_longest) {
     log_debug("looking up word: %s", word);
+    log_debug("Only longest morpheme splitting required");
 
     PyObject* py_list = PyList_New(0);
     char* split_morphemes = NULL;
+    int max_morpheme_count = 0;
 
     while ((split_morphemes = apply_up(handle, word)) != NULL) {
         log_debug("found result: %s", split_morphemes);
-        PyList_Append(py_list, PyUnicode_FromString(split_morphemes));
+
+        if (only_longest) {
+            int morpheme_count = count_char(split_morphemes, '[');
+            if (morpheme_count > max_morpheme_count) {
+                max_morpheme_count = morpheme_count;
+            } else {
+                word = NULL;
+                continue;
+            }
+        }
+
+        PyObject* morpheme_list = PyList_New(0);
+        size_t tmp_len = strlen(split_morphemes) + 1;
+        char* tmp = (char*)malloc(tmp_len);
+
+        if (!tmp) {
+            log_debug("Error: Memory allocation failed for morpheme splitting");
+            PyErr_SetString(PyExc_MemoryError,
+                            "Couldn't allocate memory for morpheme splitting.");
+            return NULL;
+        }
+
+        strncpy(tmp, split_morphemes, tmp_len - 1);
+        tmp[tmp_len - 1] = '\0';
+
+        char* token = strtok(tmp, "[]");
+        int should_add = 1;
+        while (token != NULL) {
+            if (should_add % 2 && strlen(token) > 0) {
+                if (PyList_Append(morpheme_list, PyUnicode_FromString(token)) <
+                    0) {
+                    log_debug("Error: Failed to append token to morpheme_list");
+                    PyErr_SetString(PyExc_RuntimeError,
+                                    "Failed to append token to morpheme_list.");
+                    free(tmp);
+                    return NULL;
+                }
+            }
+            should_add++;
+            token = strtok(NULL, "[]");
+        }
+        free(tmp);
+
+        if (only_longest) {
+            if (PyList_Size(py_list) == 0) {
+                if (PyList_Append(py_list, morpheme_list) < 0) {
+                    log_debug(
+                        "Error: Failed to append morpheme_list to py_list");
+                    PyErr_SetString(
+                        PyExc_RuntimeError,
+                        "Failed to append morpheme_list to py_list.");
+                    Py_DECREF(morpheme_list);
+                    return NULL;
+                }
+            } else {
+                if (PyList_SetItem(py_list, 0, morpheme_list) < 0) {
+                    log_debug("Error: Failed to set py_list item");
+                    PyErr_SetString(PyExc_RuntimeError,
+                                    "Failed to set py_list item.");
+                    Py_DECREF(morpheme_list);
+                    return NULL;
+                }
+            }
+        } else {
+            if (PyList_Append(py_list, morpheme_list) < 0) {
+                log_debug("Error: Failed to append morpheme_list to py_list");
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Failed to append morpheme_list to py_list.");
+                Py_DECREF(morpheme_list);
+                return NULL;
+            }
+        }
+
         word = NULL;
     }
 
