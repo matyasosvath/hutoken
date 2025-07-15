@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "hutoken/bbpe.h"
 #include "hutoken/bpe.h"
 #include "hutoken/core.h"
 #include "hutoken/helper.h"
@@ -44,6 +45,32 @@ PyObject* p_bpe_train(PyObject* self, PyObject* args) {
     }
 
     bpe_train(data, vocab_size, pattern, vocab_file_name);
+
+    return Py_None;
+}
+
+PyObject* p_bbpe_train(PyObject* self, PyObject* args) {
+    char* data = NULL;
+    char* vocab_file_name = NULL;
+    int vocab_size = 256;
+
+    if (!PyArg_ParseTuple(args, "sis", &data, &vocab_size, &vocab_file_name)) {
+        return NULL;
+    }
+
+    if (vocab_size < 256) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "vocab_size must be at least 256 to encode all bytes.");
+        return NULL;
+    }
+    size_t len = strlen(vocab_file_name);
+    if (len < 4 || strcmp(vocab_file_name + (len - 4), ".txt") != 0) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "vocab_file_name file extension must be .txt.");
+        return NULL;
+    }
+
+    bbpe_train(data, vocab_size, vocab_file_name);
 
     return Py_None;
 }
@@ -347,6 +374,7 @@ PyObject* p_look_up_word(PyObject* self, PyObject* args) {
 
 static PyMethodDef huTokenMethods[] = {
     {"bpe_train", p_bpe_train, METH_VARARGS, "BPE training"},
+    {"bbpe_train", p_bbpe_train, METH_VARARGS, "BBPE training"},
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS,
      "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
