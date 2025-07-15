@@ -246,16 +246,12 @@ static PyObject* p_initialize(PyObject* self,
     while (fgets(line, sizeof(line), file)) {
         char* separator = strstr(line, " == ");
         if (separator == NULL) {
-            if (strchr(line, '=') != NULL) {
-                log_debug("Error: Invalid format in vocab file: %s", line);
-                PyErr_SetString(PyExc_ValueError,
-                                "Invalid format in vocab file.");
-                (void)fclose(file);
-                free(hex_str);
-                free((void*)vocab_decode);
-                return NULL;
-            }
-            continue;
+            log_debug("Error: Invalid format in vocab file: %s", line);
+            PyErr_SetString(PyExc_ValueError, "Invalid format in vocab file.");
+            (void)fclose(file);
+            free(hex_str);
+            free((void*)vocab_decode);
+            return NULL;
         }
 
         ptrdiff_t hex_len = separator - line;
