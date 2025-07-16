@@ -12,8 +12,8 @@ setup(
         Extension(
             "_hutoken",
             ["src/lib.c"],
-            extra_compile_args=["-O3", "-march=native", "-funroll-loops", "-lpcre2-8"],
-            extra_link_args=["-flto"]
+            extra_compile_args=["-O3", "-march=native", "-funroll-loops"],
+            extra_link_args=["-flto","-lpcre2-8"]
         )
     ]
 )
