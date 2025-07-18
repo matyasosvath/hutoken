@@ -27,7 +27,8 @@ def initialize(model_or_path, *args, **kwargs):
         return result
     else:
         try:
-            hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path)
+            hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path,
+                                                         add_prefix_space=False)
         except OSError as e:
             raise ValueError("Could not download Hugging Face tokenizer "
                              f"'{model_or_path}': {e}")
