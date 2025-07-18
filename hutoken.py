@@ -74,7 +74,7 @@ def initialize(model_or_path, *args, **kwargs):
                           f"'{special_chars_file}': {e}")
 
         try:
-            result = _hutoken.initialize(vocab_file, *args, **kwargs)
+            result = _hutoken.initialize(vocab_file, special_chars_file, *args, **kwargs)
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError("An unexpected error occured during "

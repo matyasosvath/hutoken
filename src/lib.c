@@ -57,12 +57,15 @@ PyObject* p_bpe_train(PyObject* self, PyObject* args) {
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {"vocab_file_path", "special_token_id", NULL};
+    static char* kwlist[] = {"vocab_file_path", "special_file_path",
+                             "special_token_id", NULL};
     char* vocab_file_path = NULL;
+    char* special_file_path = NULL;
     int special_token_id = -1;  // Optional parameter for special token ID
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i", kwlist,
-                                     &vocab_file_path, &special_token_id)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|i", kwlist,
+                                     &vocab_file_path, &special_file_path,
+                                     &special_token_id)) {
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(
             PyExc_TypeError,
