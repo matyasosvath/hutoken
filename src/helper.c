@@ -64,6 +64,14 @@ void visualize_bpe_train(char* text,
     }
 }
 
+void visualize_bbpe_train(struct TokenPair current_token, size_t value) {
+    if (VISUALIZE) {
+        (void)printf("Most common pair: (%d, %d), freq: %d\n",
+                     current_token.id1, current_token.id2, current_token.freq);
+        (void)printf("New token id: %zu\n\n", value);
+    }
+}
+
 void hex_str_to_ascii(const char* hex_str,
                       char* ascii_str,
                       size_t ascii_str_size) {

@@ -9,7 +9,7 @@
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
 
-int find_pair(struct tokenPair* pairs, size_t pair_count, int id1, int id2) {
+int find_pair(struct TokenPair* pairs, size_t pair_count, int id1, int id2) {
     for (size_t i = 0; i < pair_count; i++) {
         if (pairs[i].id1 == id1 && pairs[i].id2 == id2) {
             return (int)i;
@@ -20,8 +20,8 @@ int find_pair(struct tokenPair* pairs, size_t pair_count, int id1, int id2) {
 
 void find_most_common_pair(size_t token_n,
                            const int* token_ids,
-                           struct tokenPair* most_common_pair) {
-    struct tokenPair* pairs = malloc((token_n - 1) * sizeof(struct tokenPair));
+                           struct TokenPair* most_common_pair) {
+    struct TokenPair* pairs = malloc((token_n - 1) * sizeof(struct TokenPair));
     size_t pair_count = 0;
 
     for (size_t i = 0; i < token_n - 1; i++) {
@@ -33,7 +33,7 @@ void find_most_common_pair(size_t token_n,
             pairs[index].freq++;
         } else {
             pairs[pair_count++] =
-                (struct tokenPair){.id1 = id1, .id2 = id2, .freq = 1};
+                (struct TokenPair){.id1 = id1, .id2 = id2, .freq = 1};
         }
 
         if (pairs[index].freq > most_common_pair->freq) {
@@ -71,15 +71,12 @@ void bbpe_train_core(struct HashMap* vocab,
                      size_t tokens_length,
                      size_t vocab_size) {
     size_t token_n = tokens_length;
-    struct tokenPair most_common_pair = {-1, -1, -1};
-    struct tokenPair prev_common_pair = {-1, -1, -1};
+    struct TokenPair most_common_pair = {-1, -1, -1};
+    struct TokenPair prev_common_pair = {-1, -1, -1};
 
     while (vocab->count < vocab_size) {
         find_most_common_pair(token_n, token_ids, &most_common_pair);
-        printf("Most common pair: (%d, %d) - %d times\n", most_common_pair.id1,
-               most_common_pair.id2, most_common_pair.freq);
         if (most_common_pair.freq <= 1) {
-            printf("No more pairs found, stopping training.\n");
             break;
         }
 
@@ -89,8 +86,6 @@ void bbpe_train_core(struct HashMap* vocab,
         char* pair = (char*)malloc(strlen(s1) + strlen(s2) + 1);
         if (!pair) {
             char error_msg[256];
-            printf(error_msg, sizeof(error_msg),
-                   "Couldn't malloc memory for pair");
             PyErr_SetString(PyExc_MemoryError, error_msg);
             return;
         }
@@ -101,17 +96,16 @@ void bbpe_train_core(struct HashMap* vocab,
         memcpy(pair + l1, s2, l2);
         pair[l1 + l2] = '\0';
 
-        printf("New token: %s with value %d\n", pair, token);
         hashmap_set(vocab, &(struct Token){.key = pair, .value = token});
 
         token_n =
             merge_pair_in_token_ids(token_ids, token_n, most_common_pair.id1,
                                     most_common_pair.id2, token);
-        printf("Merged pairs, new token count: %zu\n", token_n);
+
+        visualize_bbpe_train(most_common_pair, token);
 
         if (prev_common_pair.id1 == most_common_pair.id1 &&
             prev_common_pair.id2 == most_common_pair.id2) {
-            printf("No change in most common pair, stopping training.\n");
             free(pair);
             break;
         }
@@ -141,7 +135,6 @@ void bbpe_train(char* text, const int vocab_size, char* vocab_file_name) {
     size_t token_byte_num = strlen(text);
     int* initial_token_ids = malloc(sizeof(int) * token_byte_num);
     if (!initial_token_ids) {
-        (void)fputs("Couldn't malloc memory for token_ids", stderr);
         PyErr_SetString(PyExc_MemoryError,
                         "Couldn't malloc memory for token_ids");
         hashmap_free(vocab);
@@ -154,8 +147,6 @@ void bbpe_train(char* text, const int vocab_size, char* vocab_file_name) {
     }
 
     bbpe_train_core(vocab, initial_token_ids, token_byte_num, vocab_size);
-
-    printf("Saving vocabulary");
     save_vocab(vocab, vocab_file_name);
 
     hashmap_free(vocab);

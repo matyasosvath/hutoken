@@ -1,7 +1,7 @@
 #ifndef HUTOKEN_BBPE_H
 #define HUTOKEN_BBPE_H
 
-struct tokenPair{
+struct TokenPair{
     int id1;
     int id2;
     int freq;
