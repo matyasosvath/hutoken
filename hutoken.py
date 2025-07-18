@@ -68,6 +68,8 @@ def initialize(model_or_path, *args, **kwargs):
             with open(special_chars_file, "w", encoding="utf-8") as f:
                 for char in _SPECIAL_CHARS:
                     value = ''.join(hf_tokenizer.tokenize(chr(char)))
+                    if (value == char):
+                        continue
                     f.write(f"{char} == {value}\n")
         except IOError as e:
             traceback.print_exc(file=sys.stderr)
