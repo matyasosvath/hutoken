@@ -27,8 +27,7 @@ def initialize(model_or_path, *args, **kwargs):
         return result
     else:
         try:
-            hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path,
-                                                         add_prefix_space=False)
+            hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path)
         except OSError as e:
             raise ValueError("Could not download Hugging Face tokenizer "
                              f"'{model_or_path}': {e}")
@@ -62,6 +61,11 @@ def initialize(model_or_path, *args, **kwargs):
             traceback.print_exc(file=sys.stderr)
             raise IOError(f"Could not write vocab file to '{vocab_file}': {e}")
 
+        hu_tokenized = hf_tokenizer.tokenize("hu")[0]
+        prefix = hu_tokenized[0] if hu_tokenized != "hu" else None
+        print(prefix)
+
+        hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, add_prefix_space=False)
         special_chars_file = os.path.join(vocab_dir, f"{model_name}_special_chars.txt")
 
         try:
@@ -77,7 +81,7 @@ def initialize(model_or_path, *args, **kwargs):
                           f"'{special_chars_file}': {e}")
 
         try:
-            result = _hutoken.initialize(vocab_file, special_chars_file, *args, **kwargs)
+            result = _hutoken.initialize(vocab_file, special_chars_file, prefix, *args, **kwargs)
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError("An unexpected error occured during "
