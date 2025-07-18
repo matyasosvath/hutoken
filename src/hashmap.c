@@ -264,6 +264,24 @@ int hashmap_get(struct HashMap* map, const void* key) {
     }
 }
 
+// Get key based on value. If item is not found, NULL is returned.
+char* hashmap_get_key(struct HashMap* map, const int value) {
+    size_t i = 0;
+    void* item = NULL;
+
+    while (hashmap_iter(map, &i, &item)) {
+        struct Token* token = item;
+        if (!token) {
+            continue;
+        }
+        if (token->value == value) {
+            return token->key;
+        }
+    }
+
+    return NULL;
+}
+
 // Remove item from the hash map and return it.
 // If item not found, NULL is returned.
 const void* hashmap_delete(struct HashMap* map, const void* key) {

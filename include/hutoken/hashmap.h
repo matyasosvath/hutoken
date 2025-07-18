@@ -27,6 +27,7 @@ struct HashMap {
 struct HashMap* hashmap_new(size_t capacity);
 const void* hashmap_set(struct HashMap* map, const void* item);
 int hashmap_get(struct HashMap* map, const void* key);
+char* hashmap_get_key(struct HashMap* map, int value);
 const void* hashmap_delete(struct HashMap* map, const void* key);
 void hashmap_clear(struct HashMap* map, bool update_cap);
 bool hashmap_iter(struct HashMap* map, size_t* i, void** item);
