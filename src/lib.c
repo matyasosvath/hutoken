@@ -5,6 +5,7 @@
 
 #include <limits.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -26,6 +27,7 @@ static char* pattern =
 struct HashMap* vocab_encode;
 char** vocab_decode;
 int vocab_size_decode;
+char* special_chars[256];
 #define MAX_LINE_LENGTH 10000
 
 PyObject* p_bpe_train(PyObject* self, PyObject* args) {
@@ -100,7 +102,7 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
-    log_debug("Sucessfully opened vocab file.", vocab_file_path);
+    log_debug("Sucessfully opened vocab file.");
 
     vocab_size_decode = 0;
     char chunk[1024];
@@ -282,6 +284,92 @@ static PyObject* p_initialize(PyObject* self,
     (void)fclose(file);
     string_release(&hex_buffer);
     string_release(&line);
+
+    FILE* special_chars_file = fopen(special_file_path, "r");
+    if (!special_chars_file) {
+        hashmap_free(vocab_encode);
+        free((void*)vocab_decode);
+        log_debug("Error: Could not open special characters file: %s",
+                  vocab_file_path);
+        PyErr_SetString(PyExc_FileNotFoundError,
+                        "Could not open special characters file.");
+        return NULL;
+    }
+
+    log_debug("Successfully opened special character file.");
+
+    char special_file_line[32];
+
+    while (fgets(special_file_line, sizeof(special_file_line),
+                 special_chars_file)) {
+        char* separator = strstr(special_file_line, " == ");
+        if (separator == NULL) {
+            log_debug("Error: Invalid format in special character file: %s",
+                      &special_file_line);
+            (void)fclose(special_chars_file);
+            hashmap_free(vocab_encode);
+            free((void*)vocab_decode);
+            PyErr_SetString(PyExc_ValueError,
+                            "Invalid format in special character file.");
+            return NULL;
+        }
+
+        char* endptr = NULL;
+        errno = 0;
+
+        long index = strtol(special_file_line, &endptr, 10);
+
+        if (endptr == special_file_line) {
+            log_debug("Error: No digits were found for value in line: '%s'.",
+                      &special_file_line);
+            (void)fclose(special_chars_file);
+            hashmap_free(vocab_encode);
+            free((void*)vocab_decode);
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Invalid vocab format: could not parse integer value.");
+            return NULL;
+        }
+
+        if (errno == ERANGE || index > 256 || index < 0) {
+            log_debug("Error: Integer value in line '%s' is out of range.",
+                      special_file_line);
+            (void)fclose(special_chars_file);
+            hashmap_free(vocab_encode);
+            free((void*)vocab_decode);
+            PyErr_SetString(PyExc_ValueError,
+                            "Integer value in vocab file is out of range.");
+            return NULL;
+        }
+
+        char* value_str = separator + 4;  // strlen(" == "), again
+        log_debug("value_str=%s", value_str);
+        size_t value_len = strlen(value_str);
+        log_debug("value_len=%d", value_len);
+        char* value = malloc(value_len);
+        memcpy(value, value_str, value_len - 1);
+        value[value_len - 1] = '\0';
+
+        if (value[0] == '\0') {
+            log_debug("Error: Invalid replacement value in line '%s'.",
+                      &special_file_line);
+            free(value);
+            (void)fclose(special_chars_file);
+            hashmap_free(vocab_encode);
+            free((void*)vocab_decode);
+            PyErr_SetString(PyExc_ValueError,
+                            "Failed to convert hex string to ASCII.");
+            return NULL;
+        }
+
+        log_debug(
+            "Loaded special character for pretokenization: key=%d, value='%s'",
+            index, value);
+
+        special_chars[index] = value;
+    }
+
+    (void)fclose(special_chars_file);
 
     Py_RETURN_NONE;
 }
