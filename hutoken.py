@@ -8,6 +8,14 @@ try:
 except ImportError:
     _hutoken = None
 
+# the characters which GPT2Tokenizer encodes differently.
+_SPECIAL_CHARS = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 127, 128, 129, 130, 131,
+    132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146,
+    147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 173
+]
+
 def initialize(model_or_path, *args, **kwargs):
     """
     Initialize hutoken with either a vocab file path or a Hugging Face model name.
@@ -52,6 +60,18 @@ def initialize(model_or_path, *args, **kwargs):
         except IOError as e:
             traceback.print_exc(file=sys.stderr)
             raise IOError(f"Could not write vocab file to '{vocab_file}': {e}")
+
+        special_chars_file = os.path.join(vocab_dir, f"{model_name}_special_chars.txt")
+
+        try:
+            with open(special_chars_file, "w", encoding="utf-8") as f:
+                for char in _SPECIAL_CHARS:
+                    value = ''.join(hf_tokenizer.tokenize(chr(char)))
+                    f.write(f"{char} == {value}\n")
+        except IOError as e:
+            traceback.print_exc(file=sys.stderr)
+            raise IOError("Could not write special characters file to "
+                          f"'{special_chars_file}': {e}")
 
         try:
             result = _hutoken.initialize(vocab_file, *args, **kwargs)
