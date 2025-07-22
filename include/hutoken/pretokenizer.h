@@ -4,6 +4,7 @@
 char* pretokenizer_encode(const char* text,
                           const char** special_chars,
                           const char* prefix);
-char* pretokenizer_decode(const char* text, const char** special_chars);
+char* pretokenizer_decode(const char* text, const char** special_chars, 
+                          const char* prefix);
 
 #endif
