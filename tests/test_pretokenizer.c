@@ -25,7 +25,8 @@ void test_no_replacements_needed(void) {
     const char* replacements[256] = {NULL};
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "hello world") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -40,7 +41,8 @@ void test_single_replacement_at_start(void) {
     replacements['a'] = "Alpha";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "Alphapple") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -55,7 +57,8 @@ void test_single_replacement_at_end(void) {
     replacements['e'] = "End";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "applEnd") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -70,7 +73,8 @@ void test_single_replacement_in_middle(void) {
     replacements['p'] = "P";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "aPPle") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -86,7 +90,8 @@ void test_multiple_different_replacements(void) {
     replacements['e'] = "ef";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "abpplef") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -101,7 +106,8 @@ void test_multiple_occurrences_of_same_char(void) {
     replacements['a'] = "o";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "bonono") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -130,7 +136,8 @@ void test_empty_input_string(void) {
     replacements['a'] = "b";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -147,7 +154,8 @@ void test_all_chars_are_replaced(void) {
     replacements['c'] = "333";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "122333") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -162,7 +170,8 @@ void test_replacement_with_single_char(void) {
     replacements['t'] = "T";
 
     char* result_encoded = pretokenizer_encode(text, replacements, NULL);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, NULL);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, NULL);
 
     assert(strcmp(result_encoded, "TesT") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -179,7 +188,8 @@ void test_with_prefix_and_replacements(void) {
     const char* prefix = "Juicy ";
 
     char* result_encoded = pretokenizer_encode(text, replacements, prefix);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, prefix);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, prefix);
 
     assert(strcmp(result_encoded, "Juicy ApplE") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -209,7 +219,8 @@ void test_with_prefix_and_empty_input_string(void) {
     const char* prefix = "Start:";
 
     char* result_encoded = pretokenizer_encode(text, replacements, prefix);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, prefix);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, prefix);
 
     assert(strcmp(result_encoded, "Start:") == 0);
     assert(strcmp(result_decoded, text) == 0);
@@ -224,7 +235,8 @@ void test_with_empty_string_as_prefix(void) {
     const char* prefix = "";
 
     char* result_encoded = pretokenizer_encode(text, replacements, prefix);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, prefix);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, prefix);
 
     assert(strcmp(result_encoded, "test") == 0);
     assert(strcmp(result_decoded, text) == 0);
