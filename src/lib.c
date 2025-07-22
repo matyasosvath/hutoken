@@ -396,7 +396,8 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     int tokens[strlen(text)];
 
     log_debug("p_encode prefix='%s'", prefix);
-    encode(text, vocab_encode, pattern, tokens, &tokens_size, (const char**)special_chars, prefix);
+    encode(text, vocab_encode, pattern, tokens, &tokens_size,
+           (const char**)special_chars, prefix);
 
     PyObject* list = PyList_New(tokens_size);
     if (!list) {
@@ -443,7 +444,8 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    return decode(tokens, vocab_decode, vocab_size_decode, (const char **)special_chars, prefix);
+    return decode(tokens, vocab_decode, vocab_size_decode,
+                  (const char**)special_chars, prefix);
 }
 
 PyObject* p_initialize_foma(PyObject* self) {

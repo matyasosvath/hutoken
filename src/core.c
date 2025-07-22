@@ -84,15 +84,13 @@ void bpe_encode(struct HashMap* vocab,
     }
 }
 
-
-
 void encode(char* text,
             struct HashMap* vocab,
             char* pattern,
             int tokens[],
             int* tokens_size,
-            const char **special_chars,
-            const char *prefix) {
+            const char** special_chars,
+            const char* prefix) {
     log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
@@ -122,36 +120,35 @@ void encode(char* text,
             continue;
         }
 
-        char *word = malloc(word_len + 1);
-        char *is_special = NULL;
+        char* word = malloc(word_len + 1);
+        char* is_special = NULL;
         memcpy(word, cursor, word_len);
         word[word_len] = '\0';
-        log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'", word_start,
-                  word_end, word_len, word);
-        char *encoded_word = pretokenizer_encode(word, special_chars, add_prefix ? prefix : NULL, &is_special);
+        log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
+                  word_start, word_end, word_len, word);
+        char* encoded_word = pretokenizer_encode(
+            word, special_chars, add_prefix ? prefix : NULL, &is_special);
         log_debug("encoded_word='%s'", encoded_word);
         add_prefix = false;
 
         int i = 0;
         struct Boundary word_token_boundaries[word_len];
 
-        for (char* ptr = encoded_word; *ptr != '\0'; ptr+= utf8_char_length(*ptr)) {
+        for (char* ptr = encoded_word; *ptr != '\0';
+             ptr += utf8_char_length(*ptr)) {
             int char_len = utf8_char_length(*ptr);
             char* start = ptr;
             char* end = ptr + char_len - 1;
 
             struct Boundary word_token_boundary = {.start = start, .end = end};
 
-            if (!is_special[i] && char_len > 1){
+            if (!is_special[i] && char_len > 1) {
                 for (int j = 0; j < char_len - 1; j++) {
-                    struct Boundary sub_boundary = {
-                        .start = ptr + j,
-                        .end = ptr + j
-                    };
+                    struct Boundary sub_boundary = {.start = ptr + j,
+                                                    .end = ptr + j};
                     word_token_boundaries[i++] = sub_boundary;
                 }
-            }
-            else{
+            } else {
                 word_token_boundaries[i++] = word_token_boundary;
             }
 
@@ -174,7 +171,11 @@ void encode(char* text,
     log_debug("Completed encode function. Total tokens: %d", *tokens_size);
 }
 
-PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size, const char **special_chars, const char *prefix) {
+PyObject* decode(PyObject* tokens,
+                 char** vocab_decode,
+                 int vocab_size,
+                 const char** special_chars,
+                 const char* prefix) {
     log_debug("Entered decode function");
 
     Py_ssize_t token_num = PyList_Size(tokens);
@@ -250,7 +251,7 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size, const ch
             word, text, text_size);
     }
 
-    char *decoded_text = pretokenizer_decode(text, special_chars, prefix);
+    char* decoded_text = pretokenizer_decode(text, special_chars, prefix);
 
     PyObject* result = PyUnicode_FromString(decoded_text);
     if (!result) {

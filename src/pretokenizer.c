@@ -78,7 +78,7 @@ char* pretokenizer_encode(const char* text,
     }
     *dest = '\0';
     *is_special_dest = '\0';
-    
+
     if (is_special_out) {
         *is_special_out = is_special;
     } else {
