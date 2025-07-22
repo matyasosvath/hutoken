@@ -17,6 +17,7 @@
 
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
+#include "hutoken/pretokenizer.h"
 
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
@@ -87,7 +88,9 @@ void encode(char* text,
             struct HashMap* vocab,
             char* pattern,
             int tokens[],
-            int* tokens_size) {
+            int* tokens_size,
+            const char **special_chars,
+            const char *prefix) {
     log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
@@ -98,8 +101,9 @@ void encode(char* text,
     }
 
     regmatch_t match;
-    char* cursor = text;
 
+    char* cursor = text;
+    bool add_prefix = true;
     while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
@@ -116,13 +120,19 @@ void encode(char* text,
             continue;
         }
 
-        log_debug("Matched word: start=%d, end=%d, length=%d", word_start,
-                  word_end, word_len);
+        char *word = malloc(word_len + 1);
+        memcpy(word, cursor, word_len);
+        word[word_len] = '\0';
+        log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'", word_start,
+                  word_end, word_len, word);
+        char *encoded_word = pretokenizer_encode(word, special_chars, add_prefix ? prefix : NULL);
+        log_debug("encoded_word='%s'", encoded_word);
+        add_prefix = false;
 
         int i = 0;
         struct Boundary word_token_boundaries[word_len];
 
-        for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
+        for (char* ptr = encoded_word; *ptr != '\0'; ptr++) {
             char* start = ptr;
             char* end = ptr;
             struct Boundary word_token_boundary = {.start = start, .end = end};
@@ -148,7 +158,7 @@ void encode(char* text,
     log_debug("Completed encode function. Total tokens: %d", *tokens_size);
 }
 
-PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
+PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size, const char **special_chars, const char *prefix) {
     log_debug("Entered decode function");
 
     Py_ssize_t token_num = PyList_Size(tokens);
@@ -224,7 +234,9 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
             word, text, text_size);
     }
 
-    PyObject* result = PyUnicode_FromString(text);
+    char *decoded_text = pretokenizer_decode(text, special_chars, prefix);
+
+    PyObject* result = PyUnicode_FromString(decoded_text);
     if (!result) {
         log_debug("Error: Failed to create Python string from decoded text");
         free(text);
@@ -232,9 +244,10 @@ PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {
     }
 
     log_debug("Successfully created Python string from decoded text: '%s'",
-              text);
+              decoded_text);
 
     free(text);
+    free(decoded_text);
     return result;
 }
 

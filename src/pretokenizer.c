@@ -14,6 +14,7 @@ char* pretokenizer_encode(const char* text,
         return NULL;
     }
 
+    log_debug("prefix=%s", prefix);
     size_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0;
     size_t new_len = prefix_len;
     for (const char* p = text; *p != '\0'; p++) {

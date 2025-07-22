@@ -64,11 +64,12 @@ static PyObject* p_initialize(PyObject* self,
                              "special_token_id", NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
+    char* local_prefix = NULL;
     int special_token_id = -1;  // Optional parameter for special token ID
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|si", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssz|i", kwlist,
                                      &vocab_file_path, &special_file_path,
-                                     &prefix, &special_token_id)) {
+                                     &local_prefix, &special_token_id)) {
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(
             PyExc_TypeError,
@@ -76,6 +77,8 @@ static PyObject* p_initialize(PyObject* self,
             "optional integer (special_token_id).");
         return NULL;
     }
+
+    prefix = strdup(local_prefix);
 
     log_debug("Initializing with vocab file: %s", vocab_file_path);
 
@@ -392,7 +395,8 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     int tokens_size = 0;
     int tokens[strlen(text)];
 
-    encode(text, vocab_encode, pattern, tokens, &tokens_size);
+    log_debug("p_encode prefix='%s'", prefix);
+    encode(text, vocab_encode, pattern, tokens, &tokens_size, (const char**)special_chars, prefix);
 
     PyObject* list = PyList_New(tokens_size);
     if (!list) {
@@ -439,7 +443,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    return decode(tokens, vocab_decode, vocab_size_decode);
+    return decode(tokens, vocab_decode, vocab_size_decode, (const char **)special_chars, prefix);
 }
 
 PyObject* p_initialize_foma(PyObject* self) {

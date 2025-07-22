@@ -10,8 +10,10 @@ void encode(char* text,
             struct HashMap* vocab,
             char* pattern,
             int tokens[],
-            int* tokens_size);
-PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size);
+            int* tokens_size,
+            const char **special_chars,
+            const char *prefix);
+PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size, const char **special_chars, const char *prefix);
 PyObject* initialize_foma(void);
 PyObject* look_up_word(struct apply_handle* handle,
                        char* word,
