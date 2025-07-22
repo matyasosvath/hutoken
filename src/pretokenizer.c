@@ -7,9 +7,26 @@
 
 #include "hutoken/helper.h"
 
+int utf8_char_length(char c) {
+    if ((c & 0x80) == 0x00) {
+        return 1;
+    }
+    if ((c & 0xE0) == 0xC0) {
+        return 2;
+    }
+    if ((c & 0xF0) == 0xE0) {
+        return 3;
+    }
+    if ((c & 0xF8) == 0xF0) {
+        return 4;
+    }
+    return 1;
+}
+
 char* pretokenizer_encode(const char* text,
                           const char** special_chars,
-                          const char* prefix) {
+                          const char* prefix,
+                          char** is_special_out) {
     if (!text) {
         return NULL;
     }
@@ -28,15 +45,20 @@ char* pretokenizer_encode(const char* text,
     }
 
     char* result = (char*)malloc(new_len + 1);
-    if (!result) {
+    char* is_special = (char*)malloc(new_len + 1);
+
+    if (!result || !is_special) {
         return NULL;
     }
 
     char* dest = result;
+    char* is_special_dest = is_special;
 
     if (prefix_len > 0) {
         memcpy(dest, prefix, prefix_len);
+        memset(is_special_dest, 0, prefix_len);
         dest += prefix_len;
+        is_special_dest += prefix_len;
     }
 
     for (const char* p = text; *p != '\0'; ++p) {
@@ -46,14 +68,22 @@ char* pretokenizer_encode(const char* text,
         if (replacement != NULL) {
             size_t repl_len = strlen(replacement);
             memcpy(dest, replacement, repl_len);
+            memset(is_special_dest, 1, repl_len);
             dest += repl_len;
+            is_special_dest += repl_len;
         } else {
-            *dest = *p;
-            ++dest;
+            *dest++ = *p;
+            *is_special_dest++ = 0;
         }
     }
     *dest = '\0';
-
+    *is_special_dest = '\0';
+    
+    if (is_special_out) {
+        *is_special_out = is_special;
+    } else {
+        free(is_special);
+    }
     return result;
 }
 

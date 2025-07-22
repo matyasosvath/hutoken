@@ -84,6 +84,8 @@ void bpe_encode(struct HashMap* vocab,
     }
 }
 
+
+
 void encode(char* text,
             struct HashMap* vocab,
             char* pattern,
@@ -121,29 +123,43 @@ void encode(char* text,
         }
 
         char *word = malloc(word_len + 1);
+        char *is_special = NULL;
         memcpy(word, cursor, word_len);
         word[word_len] = '\0';
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'", word_start,
                   word_end, word_len, word);
-        char *encoded_word = pretokenizer_encode(word, special_chars, add_prefix ? prefix : NULL);
+        char *encoded_word = pretokenizer_encode(word, special_chars, add_prefix ? prefix : NULL, &is_special);
         log_debug("encoded_word='%s'", encoded_word);
         add_prefix = false;
 
         int i = 0;
         struct Boundary word_token_boundaries[word_len];
 
-        for (char* ptr = encoded_word; *ptr != '\0'; ptr++) {
+        for (char* ptr = encoded_word; *ptr != '\0'; ptr+= utf8_char_length(*ptr)) {
+            int char_len = utf8_char_length(*ptr);
             char* start = ptr;
-            char* end = ptr;
+            char* end = ptr + char_len - 1;
+
             struct Boundary word_token_boundary = {.start = start, .end = end};
-            word_token_boundaries[i] = word_token_boundary;
-            i += 1;
+
+            if (!is_special[i] && char_len > 1){
+                for (int j = 0; j < char_len - 1; j++) {
+                    struct Boundary sub_boundary = {
+                        .start = ptr + j,
+                        .end = ptr + j
+                    };
+                    word_token_boundaries[i++] = sub_boundary;
+                }
+            }
+            else{
+                word_token_boundaries[i++] = word_token_boundary;
+            }
+
+            ptr += char_len - 1;
         }
 
         int word_token_num = i;
         int word_tokens[word_len];
-
-        bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
         for (int i = 0; i < word_token_num; i++) {
             tokens[i + *tokens_size] = word_tokens[i];
