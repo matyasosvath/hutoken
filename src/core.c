@@ -148,27 +148,16 @@ void encode(char* text,
         PCRE2_SIZE match_end = ovector[1];
         PCRE2_SIZE word_len = match_end - match_start;
 
-        //while (regexec(&regex, cursor, 1, &match, 0) == 0) {
-
-        //int word_start = match.rm_so;
-        //int word_start = (int) ovector[0];
-        PCRE2_SIZE word_start = ovector[0];
-        //int word_end = match.rm_eo;
-        PCRE2_SIZE word_end = ovector[1];
-        //int word_end = (int) ovector[1];
-
-        int word_len = word_end - word_start;
-
-        log_debug("Matched word: start=%d, end=%d, length=%d", word_start,
-                  word_end, word_len);
+        log_debug("Matched word: start=%d, end=%d, length=%d", (int)match_start, (int)match_end, (int)word_len);
 
         int i = 0;
-        struct Boundary word_token_boundaries[word_len];
 
-        for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
-            char* start = ptr;
-            char* end = ptr;
-            struct Boundary word_token_boundary = {start, end};
+        Boundary word_token_boundaries[word_len];
+
+        for(char *ptr = text + match_start; ptr < text + match_end; ptr++){
+            char *start = ptr;
+            char *end = ptr;
+            Boundary word_token_boundary = {start, end};
             word_token_boundaries[i] = word_token_boundary;
             i += 1;
         }
