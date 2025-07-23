@@ -158,6 +158,8 @@ void encode(char* text,
         int word_token_num = i;
         int word_tokens[word_len];
 
+        bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
+
         for (int i = 0; i < word_token_num; i++) {
             tokens[i + *tokens_size] = word_tokens[i];
             log_debug("Encoded token: %d", word_tokens[i]);

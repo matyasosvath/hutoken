@@ -78,7 +78,9 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
-    prefix = strdup(local_prefix);
+    if (local_prefix) {
+        prefix = strdup(local_prefix);
+    }
 
     log_debug("Initializing with vocab file: %s", vocab_file_path);
 
