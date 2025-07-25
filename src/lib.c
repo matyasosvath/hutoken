@@ -73,7 +73,8 @@ static PyObject* p_initialize(PyObject* self,
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(
             PyExc_TypeError,
-            "Invalid arguments. Expected a string (vocab_file_path) and an "
+            "Invalid arguments. Expected a string (vocab_file_path), a string (special_file_path), "
+            "a string or None (prefix) and an "
             "optional integer (special_token_id).");
         return NULL;
     }
