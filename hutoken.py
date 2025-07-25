@@ -111,6 +111,9 @@ def decode(tokens):
     try:
         text = _hutoken.decode(tokens)
         return text
+    except ValueError as e:
+        traceback.print_exc(file=sys.stderr)
+        raise ValueError(f"hutoken: Error decoding tokens {tokens}: {e}")
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error decoding tokens: {e}")
