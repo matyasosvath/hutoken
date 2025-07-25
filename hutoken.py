@@ -23,7 +23,14 @@ def initialize(model_or_path, *args, **kwargs):
     if os.path.isfile(model_or_path):
         if _hutoken is None:
             raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
-        result = _hutoken.initialize(model_or_path, *args, **kwargs)
+        special_chars_file = args[0] if args else None
+        if special_chars_file and not os.path.isfile(special_chars_file):
+            raise ValueError(f"Special characters file '{special_chars_file}' does not exist.")
+        
+        prefix = kwargs.get('prefix', None)
+        token_id = kwargs.get('token_id', -1)
+
+        result = _hutoken.initialize(model_or_path, special_chars_file, prefix, token_id)
         return result
     else:
         try:
