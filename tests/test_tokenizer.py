@@ -94,12 +94,11 @@ def test_decode_basic_with_tiktoken():
 
 @pytest.mark.benchmark(disable_gc=True)
 def test_encode_speed():
-
     number = 10_000
     execution_time = timeit.timeit(
-        f'hutoken.encode("{sentence1}")',
-        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
-        number=number
+        lambda: hutoken.encode(sentence1),
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt')",
+        number=number,
     )
     print(f"Average execution time for {number} calls: {execution_time / number} seconds")
 
@@ -107,11 +106,10 @@ def test_encode_speed():
 
 
 def test_decode_speed():
-
     number = 10_000
     execution_time = timeit.timeit(
-        f"hutoken.decode(hutoken.encode('{sentence1}'))",
-        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt')",
+        lambda: hutoken.decode(hutoken.encode(sentence1)),
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt')",
         number=number
     )
 
@@ -128,7 +126,7 @@ def test_initialize_invalid_format():
     with open('./vocabs/invalid-vocab.txt', 'w') as f:
         f.write("invalid_line_format\n")
     with pytest.raises(ValueError, match="Invalid format in vocab file."):
-        hutoken.initialize('./vocabs/invalid-vocab.txt')
+        hutoken.initialize('./vocabs/invalid-vocab.txt', './vocabs/invalid-vocab_special_chars.txt')
 
 
 def test_decode_invalid_tokens():
