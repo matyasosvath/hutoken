@@ -39,8 +39,8 @@ void bpe_encode(struct HashMap* vocab,
             ptrdiff_t len = l1 + l2;
             char pair[len + 1];
 
-            (void)strncpy(pair, s1, l1);
-            (void)strncpy(pair + l1, s2, l2);
+            (void)memcpy(pair, s1, l1);
+            (void)memcpy(pair + l1, s2, l2);
             pair[len] = '\0';
 
             int rank = hashmap_get(vocab, &(struct Token){.key = pair});
@@ -62,10 +62,9 @@ void bpe_encode(struct HashMap* vocab,
         token_boundaries[min_idx].end = token_boundaries[min_idx + 1].end;
 
         for (int i = min_idx + 1; i < *token_num - 1; i++) {
-            token_boundaries[i].start = token_boundaries[i + 1].start;
-            token_boundaries[i].end = token_boundaries[i + 1].end;
+            token_boundaries[i] = token_boundaries[i + 1];
         }
-        *token_num -= 1;
+        (*token_num)--;
     }
 
     // update tokens
@@ -75,7 +74,7 @@ void bpe_encode(struct HashMap* vocab,
         ptrdiff_t len = (end - start) + 1;
 
         char string[len + 1];
-        (void)strncpy(string, start, len);
+        (void)memcpy(string, start, len);
         string[len] = '\0';
 
         int rank = hashmap_get(vocab, &(struct Token){.key = string});
@@ -90,7 +89,8 @@ void encode(char* text,
             int tokens[],
             int* tokens_size,
             const char** special_chars,
-            const char* prefix) {
+            const char* prefix,
+            bool is_byte_encoder) {
     log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
@@ -121,36 +121,27 @@ void encode(char* text,
         }
 
         char* word = malloc(word_len + 1);
-        char* is_special = NULL;
         memcpy(word, cursor, word_len);
         word[word_len] = '\0';
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
         char* encoded_word = pretokenizer_encode(
-            word, special_chars, add_prefix ? prefix : NULL, &is_special);
-        log_debug("encoded_word='%s'", encoded_word);
+            word, special_chars, add_prefix ? prefix : NULL, is_byte_encoder);
+        log_debug("encoded_word='%s'\n", encoded_word);
         add_prefix = false;
 
         int i = 0;
         struct Boundary word_token_boundaries[word_len];
 
         for (char* ptr = encoded_word; *ptr != '\0';
-             ptr += utf8_char_length(*ptr)) {
-            int char_len = utf8_char_length(*ptr);
+            ptr += utf8_char_length((unsigned char*)ptr)) {
+            int char_len = utf8_char_length((unsigned char*)ptr);
             char* start = ptr;
             char* end = ptr + char_len - 1;
 
             struct Boundary word_token_boundary = {.start = start, .end = end};
 
-            if (!is_special[i] && char_len > 1) {
-                for (int j = 0; j < char_len - 1; j++) {
-                    struct Boundary sub_boundary = {.start = ptr + j,
-                                                    .end = ptr + j};
-                    word_token_boundaries[i++] = sub_boundary;
-                }
-            } else {
-                word_token_boundaries[i++] = word_token_boundary;
-            }
+            word_token_boundaries[i++] = word_token_boundary;
 
             ptr += char_len - 1;
         }

@@ -28,9 +28,10 @@ def initialize(model_or_path, *args, **kwargs):
             raise ValueError(f"Special characters file '{special_chars_file}' does not exist.")
         
         prefix = kwargs.get('prefix', None)
+        is_byte_encoder = kwargs.get('is_byte_encoder', False)
         token_id = kwargs.get('token_id', -1)
 
-        result = _hutoken.initialize(model_or_path, special_chars_file, prefix, token_id)
+        result = _hutoken.initialize(model_or_path, special_chars_file, prefix, is_byte_encoder, token_id)
         return result
     else:
         try:
@@ -71,7 +72,7 @@ def initialize(model_or_path, *args, **kwargs):
         hu_tokenized = hf_tokenizer.tokenize("hu")[0]
         prefix = hu_tokenized[0] if hu_tokenized != "hu" else None
 
-        hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, add_prefix_space=False)
+        hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, add_prefix_space=False, use_fast=False)
         special_chars_file = os.path.join(vocab_dir, f"{model_name}_special_chars.txt")
 
         try:
@@ -85,9 +86,13 @@ def initialize(model_or_path, *args, **kwargs):
             traceback.print_exc(file=sys.stderr)
             raise IOError("Could not write special characters file to "
                           f"'{special_chars_file}': {e}")
+            
+        is_byte_encoder = 0
+        if hasattr(hf_tokenizer, 'byte_encoder') and hf_tokenizer.byte_encoder is not None:
+            is_byte_encoder = 1
 
         try:
-            result = _hutoken.initialize(vocab_file, special_chars_file, prefix, *args, **kwargs)
+            result = _hutoken.initialize(vocab_file, special_chars_file, prefix, is_byte_encoder, *args, **kwargs)
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError("An unexpected error occured during "

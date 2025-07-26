@@ -29,6 +29,7 @@ char** vocab_decode;
 int vocab_size_decode;
 char* special_chars[256];
 char* prefix;
+bool is_byte_encoder;
 #define MAX_LINE_LENGTH 10000
 
 PyObject* p_bpe_train(PyObject* self, PyObject* args) {
@@ -60,21 +61,22 @@ PyObject* p_bpe_train(PyObject* self, PyObject* args) {
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix",
+    static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix", "is_byte_encoder",
                              "special_token_id", NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* local_prefix = NULL;
+    int local_is_byte_encoder = 0;
     int special_token_id = -1;  // Optional parameter for special token ID
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssz|i", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|i", kwlist,
                                      &vocab_file_path, &special_file_path,
-                                     &local_prefix, &special_token_id)) {
+                                     &local_prefix, &local_is_byte_encoder, &special_token_id)) {
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(
             PyExc_TypeError,
             "Invalid arguments. Expected a string (vocab_file_path), a string (special_file_path), "
-            "a string or None (prefix) and an "
+            "a string or None (prefix) a bool and an"
             "optional integer (special_token_id).");
         return NULL;
     }
@@ -82,6 +84,7 @@ static PyObject* p_initialize(PyObject* self,
     if (local_prefix) {
         prefix = strdup(local_prefix);
     }
+    is_byte_encoder = local_is_byte_encoder;
 
     log_debug("Initializing with vocab file: %s", vocab_file_path);
 
@@ -400,7 +403,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
 
     log_debug("p_encode prefix='%s'", prefix);
     encode(text, vocab_encode, pattern, tokens, &tokens_size,
-           (const char**)special_chars, prefix);
+           (const char**)special_chars, prefix, is_byte_encoder);
 
     PyObject* list = PyList_New(tokens_size);
     if (!list) {

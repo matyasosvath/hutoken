@@ -7,17 +7,17 @@
 
 #include "hutoken/helper.h"
 
-int utf8_char_length(char c) {
-    if ((c & 0x80) == 0x00) {
+int utf8_char_length(const unsigned char* c) {
+    if ((c[0] & 0x80) == 0x00) {
         return 1;
     }
-    if ((c & 0xE0) == 0xC0) {
+    if ((c[0] & 0xE0) == 0xC0) {
         return 2;
     }
-    if ((c & 0xF0) == 0xE0) {
+    if ((c[0] & 0xF0) == 0xE0) {
         return 3;
     }
-    if ((c & 0xF8) == 0xF0) {
+    if ((c[0] & 0xF8) == 0xF0) {
         return 4;
     }
     return 1;
@@ -26,7 +26,7 @@ int utf8_char_length(char c) {
 char* pretokenizer_encode(const char* text,
                           const char** special_chars,
                           const char* prefix,
-                          char** is_special_out) {
+                          bool is_byte_encoder) {
     if (!text) {
         return NULL;
     }
@@ -48,6 +48,8 @@ char* pretokenizer_encode(const char* text,
     char* is_special = (char*)malloc(new_len + 1);
 
     if (!result || !is_special) {
+        free(result);
+        free(is_special);
         return NULL;
     }
 
@@ -61,30 +63,86 @@ char* pretokenizer_encode(const char* text,
         is_special_dest += prefix_len;
     }
 
-    for (const char* p = text; *p != '\0'; ++p) {
-        unsigned char current_char = (unsigned char)*p;
-        const char* replacement = special_chars[current_char];
+    if(!is_byte_encoder){
+        for (const char* p = text; *p != '\0';) {
+            unsigned char current_char = (unsigned char)*p;
+            int char_len = utf8_char_length((unsigned char*)p);
+            const char* replacement = special_chars[current_char];
 
-        if (replacement != NULL) {
-            size_t repl_len = strlen(replacement);
-            memcpy(dest, replacement, repl_len);
-            memset(is_special_dest, 1, repl_len);
-            dest += repl_len;
-            is_special_dest += repl_len;
-        } else {
-            *dest++ = *p;
-            *is_special_dest++ = 0;
+            if (replacement != NULL) {
+                size_t repl_len = strlen(replacement);
+                memcpy(dest, replacement, repl_len);
+
+                dest += repl_len;
+                is_special_dest += repl_len;
+            } else {
+                memcpy(dest, p, char_len);
+
+                dest += char_len;
+            }
+
+            p += char_len;
+
+        }
+
+        *dest = '\0';
+        *is_special_dest = '\0';
+        return result;
+    }
+    else{
+        const char* p = text;
+        while(*p != '\0') {
+            unsigned char current_char = (unsigned char)*p;
+            int char_len = utf8_char_length(&current_char);
+            const char* replacement = special_chars[current_char];
+
+            if (replacement != NULL) {
+                size_t repl_len = strlen(replacement);
+
+                memcpy(dest, replacement, repl_len);
+                memset(is_special_dest, 's', repl_len);
+
+                dest += repl_len;
+                is_special_dest += repl_len;
+            } else {
+                *dest++ = *p;
+                *is_special_dest++ = 'n';
+            }
+            p++;
+        }
+
+        *dest = '\0';
+        *is_special_dest = '\0';
+    }
+    size_t result_len = strlen(result);
+
+    char* byte_text = malloc(result_len * 2 + 1);
+    if (!byte_text) {
+        free(result);
+        return NULL;
+    }
+
+    char* bdest = byte_text;
+
+    for (size_t i = 0; i < result_len; ++i) {
+        unsigned char current_char = (unsigned char)result[i];
+
+        if (is_special[i] == 'n' && current_char >= 0x80){
+            unsigned char first_byte = 0xC0 | (current_char >> 6);
+            unsigned char second_byte = 0x80 | (current_char & 0x3F);
+            *bdest++ = first_byte;
+            *bdest++ = second_byte;
+        }
+        else{
+            *bdest++ = current_char;
         }
     }
-    *dest = '\0';
-    *is_special_dest = '\0';
+    *bdest = '\0';
 
-    if (is_special_out) {
-        *is_special_out = is_special;
-    } else {
-        free(is_special);
-    }
-    return result;
+    free(result);
+    free(is_special);
+
+    return byte_text;
 }
 
 char* pretokenizer_decode(const char* text,
