@@ -76,7 +76,8 @@ void hex_str_to_ascii(const char* hex_str,
 
             if (hex_str[0] != '\0' && hex_str[1] != '\0') {
                 char hex_value[3] = {hex_str[0], hex_str[1], '\0'};
-                unsigned int byte_value = (unsigned int)strtol(hex_value, NULL, 16);
+                unsigned int byte_value =
+                    (unsigned int)strtol(hex_value, NULL, 16);
 
                 log_debug(
                     "Parsed hex value: %s -> ASCII char: %c (decimal: %d)",

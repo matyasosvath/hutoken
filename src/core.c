@@ -134,7 +134,7 @@ void encode(char* text,
         struct Boundary word_token_boundaries[word_len];
 
         for (char* ptr = encoded_word; *ptr != '\0';
-            ptr += utf8_char_length((unsigned char*)ptr)) {
+             ptr += utf8_char_length((unsigned char*)ptr)) {
             int char_len = utf8_char_length((unsigned char*)ptr);
             char* start = ptr;
             char* end = ptr + char_len - 1;

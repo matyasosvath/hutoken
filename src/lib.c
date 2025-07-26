@@ -61,8 +61,8 @@ PyObject* p_bpe_train(PyObject* self, PyObject* args) {
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix", "is_byte_encoder",
-                             "special_token_id", NULL};
+    static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix",
+                             "is_byte_encoder", "special_token_id",  NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* local_prefix = NULL;
@@ -71,13 +71,14 @@ static PyObject* p_initialize(PyObject* self,
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|i", kwlist,
                                      &vocab_file_path, &special_file_path,
-                                     &local_prefix, &local_is_byte_encoder, &special_token_id)) {
+                                     &local_prefix, &local_is_byte_encoder,
+                                     &special_token_id)) {
         log_debug("Error: Invalid arguments passed to initialize.");
-        PyErr_SetString(
-            PyExc_TypeError,
-            "Invalid arguments. Expected a string (vocab_file_path), a string (special_file_path), "
-            "a string or None (prefix) a bool and an"
-            "optional integer (special_token_id).");
+        PyErr_SetString(PyExc_TypeError,
+                        "Invalid arguments. Expected a string "
+                        "(vocab_file_path), a string (special_file_path), "
+                        "a string or None (prefix) a bool and an"
+                        "optional integer (special_token_id).");
         return NULL;
     }
 

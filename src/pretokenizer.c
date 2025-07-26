@@ -63,7 +63,7 @@ char* pretokenizer_encode(const char* text,
         is_special_dest += prefix_len;
     }
 
-    if(!is_byte_encoder){
+    if (!is_byte_encoder) {
         for (const char* p = text; *p != '\0';) {
             unsigned char current_char = (unsigned char)*p;
             int char_len = utf8_char_length((unsigned char*)p);
@@ -82,16 +82,14 @@ char* pretokenizer_encode(const char* text,
             }
 
             p += char_len;
-
         }
 
         *dest = '\0';
         *is_special_dest = '\0';
         return result;
-    }
-    else{
+    } else {
         const char* p = text;
-        while(*p != '\0') {
+        while (*p != '\0') {
             unsigned char current_char = (unsigned char)*p;
             int char_len = utf8_char_length(&current_char);
             const char* replacement = special_chars[current_char];
@@ -127,13 +125,12 @@ char* pretokenizer_encode(const char* text,
     for (size_t i = 0; i < result_len; ++i) {
         unsigned char current_char = (unsigned char)result[i];
 
-        if (is_special[i] == 'n' && current_char >= 0x80){
+        if (is_special[i] == 'n' && current_char >= 0x80) {
             unsigned char first_byte = 0xC0 | (current_char >> 6);
             unsigned char second_byte = 0x80 | (current_char & 0x3F);
             *bdest++ = first_byte;
             *bdest++ = second_byte;
-        }
-        else{
+        } else {
             *bdest++ = current_char;
         }
     }
