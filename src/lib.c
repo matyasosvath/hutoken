@@ -68,6 +68,7 @@ static PyObject* p_initialize(PyObject* self,
     char* local_prefix = NULL;
     int local_is_byte_encoder = 0;
     int special_token_id = -1;  // Optional parameter for special token ID
+    prefix = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|i", kwlist,
                                      &vocab_file_path, &special_file_path,
