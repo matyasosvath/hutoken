@@ -78,7 +78,10 @@ def initialize(model_or_path, *args, **kwargs):
         try:
             with open(special_chars_file, "w", encoding="utf-8") as f:
                 for char in _SPECIAL_CHARS:
-                    value = ''.join(hf_tokenizer.tokenize(chr(char)))
+                    if hasattr(hf_tokenizer, "byte_encoder"):
+                        value = hf_tokenizer.byte_encoder[char]
+                    else:
+                        value = ''.join(hf_tokenizer.tokenize(chr(char)))
                     if (value == char):
                         continue
                     f.write(f"{char} == {value}\n")
