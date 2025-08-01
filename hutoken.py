@@ -72,7 +72,7 @@ def initialize(model_or_path, *args, **kwargs):
         hu_tokenized = hf_tokenizer.tokenize("hu")[0]
         prefix = hu_tokenized[0] if hu_tokenized != "hu" else None
 
-        hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, add_prefix_space=False, use_fast=True if prefix is not None else None)
+        hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, use_fast=False, add_prefix_space=False if prefix is not None else None)
         special_chars_file = os.path.join(vocab_dir, f"{model_name}_special_chars.txt")
 
         try:
