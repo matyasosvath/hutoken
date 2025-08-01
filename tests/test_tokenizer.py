@@ -91,6 +91,16 @@ def test_decode_basic_with_tiktoken():
     assert hutoken.decode(hutoken.encode(paragraph1)) == paragraph1
     assert hutoken.decode(hutoken.encode(paragraph2)) == paragraph2
 
+def test_with_qwen():
+
+    hutoken.initialize("Qwen/Qwen2.5-Coder-0.5B-Instruct")
+
+    assert hutoken.decode(hutoken.encode(sentence1)) == sentence1
+    assert hutoken.decode(hutoken.encode(sentence2)) == sentence2
+    assert hutoken.decode(hutoken.encode(paragraph1)) == paragraph1
+    assert hutoken.decode(hutoken.encode(paragraph2)) == paragraph2
+
+
 
 @pytest.mark.benchmark(disable_gc=True)
 def test_encode_speed():
@@ -179,6 +189,7 @@ def test_decode_with_hugginface_using_hutoken_encdoe():
     ht_decoded = hutoken.decode(ht_tokens)
 
     assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
+
 
 def test_morphological_analyzer():
     handle = hutoken.initialize_foma()
