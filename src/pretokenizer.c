@@ -121,16 +121,18 @@ char* pretokenizer_encode(const char* text,
 
     char* bdest = byte_text;
 
-    for (size_t i = 0; i < result_len; ++i) {
-        unsigned char current_char = (unsigned char)result[i];
+    if (dest != result) {
+        for (size_t i = 0; i < result_len; ++i) {
+            unsigned char current_char = (unsigned char)result[i];
 
-        if (is_special[i] == 'n' && current_char >= 0x80) {
-            unsigned char first_byte = 0xC0 | (current_char >> 6);
-            unsigned char second_byte = 0x80 | (current_char & 0x3F);
-            *bdest++ = first_byte;
-            *bdest++ = second_byte;
-        } else {
-            *bdest++ = current_char;
+            if (is_special[i] == 'n' && current_char >= 0x80) {
+                unsigned char first_byte = 0xC0 | (current_char >> 6);
+                unsigned char second_byte = 0x80 | (current_char & 0x3F);
+                *bdest++ = first_byte;
+                *bdest++ = second_byte;
+            } else {
+                *bdest++ = current_char;
+            }
         }
     }
     *bdest = '\0';
