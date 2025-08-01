@@ -14,7 +14,7 @@ void encode(char* text,
             const char **special_chars,
             const char *prefix,
             bool is_byte_encoder);
-PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size, const char **special_chars, const char *prefix);
+PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size, const char **special_chars, const char *prefix, bool is_byte_encoder);
 PyObject* initialize_foma(void);
 PyObject* look_up_word(struct apply_handle* handle,
                        char* word,

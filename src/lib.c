@@ -453,7 +453,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     }
 
     return decode(tokens, vocab_decode, vocab_size_decode,
-                  (const char**)special_chars, prefix);
+                  (const char**)special_chars, prefix, is_byte_encoder);
 }
 
 PyObject* p_initialize_foma(PyObject* self) {

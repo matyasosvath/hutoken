@@ -26,7 +26,7 @@ def initialize(model_or_path, *args, **kwargs):
         special_chars_file = args[0] if args else None
         if special_chars_file and not os.path.isfile(special_chars_file):
             raise ValueError(f"Special characters file '{special_chars_file}' does not exist.")
-        
+
         prefix = kwargs.get('prefix', None)
         is_byte_encoder = kwargs.get('is_byte_encoder', False)
         token_id = kwargs.get('token_id', -1)
@@ -89,8 +89,8 @@ def initialize(model_or_path, *args, **kwargs):
             traceback.print_exc(file=sys.stderr)
             raise IOError("Could not write special characters file to "
                           f"'{special_chars_file}': {e}")
-            
-        is_byte_encoder = 0
+
+        is_byte_encoder = kwargs.get("is_byte_encoder", 0)
         if hasattr(hf_tokenizer, 'byte_encoder') and hf_tokenizer.byte_encoder is not None:
             is_byte_encoder = 1
 

@@ -11,6 +11,7 @@ char* pretokenizer_encode(const char* text,
                           bool is_byte_encoder);
 char* pretokenizer_decode(const char* text,
                           const char** special_chars,
-                          const char* prefix);
+                          const char* prefix,
+                          bool byte_level);
 
 #endif

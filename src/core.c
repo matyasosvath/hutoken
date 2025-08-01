@@ -168,7 +168,8 @@ PyObject* decode(PyObject* tokens,
                  char** vocab_decode,
                  int vocab_size,
                  const char** special_chars,
-                 const char* prefix) {
+                 const char* prefix,
+                 bool is_byte_encoder) {
     log_debug("Entered decode function");
 
     Py_ssize_t token_num = PyList_Size(tokens);
@@ -244,7 +245,7 @@ PyObject* decode(PyObject* tokens,
             word, text, text_size);
     }
 
-    char* decoded_text = pretokenizer_decode(text, special_chars, prefix);
+    char* decoded_text = pretokenizer_decode(text, special_chars, prefix, is_byte_encoder);
 
     PyObject* result = PyUnicode_FromString(decoded_text);
     if (!result) {

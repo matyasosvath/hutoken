@@ -97,7 +97,7 @@ def test_encode_speed():
     number = 10_000
     execution_time = timeit.timeit(
         lambda: hutoken.encode(sentence1),
-        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt')",
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt', is_byte_encoder=True)",
         number=number,
     )
     print(f"Average execution time for {number} calls: {execution_time / number} seconds")
@@ -109,7 +109,7 @@ def test_decode_speed():
     number = 10_000
     execution_time = timeit.timeit(
         lambda: hutoken.decode(hutoken.encode(sentence1)),
-        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt')",
+        setup="import hutoken; hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt', is_byte_encoder=True)",
         number=number
     )
 
