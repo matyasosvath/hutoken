@@ -127,7 +127,6 @@ void encode(char* text,
                   word_start, word_end, word_len, word);
         char* encoded_word = pretokenizer_encode(
             word, special_chars, add_prefix ? prefix : NULL, is_byte_encoder);
-        log_debug("encoded_word='%s'\n", encoded_word);
         add_prefix = false;
 
         int i = 0;
@@ -255,8 +254,10 @@ PyObject* decode(PyObject* tokens,
         return NULL;
     }
 
-    log_debug("Successfully created Python string from decoded text: '%s'",
-              decoded_text);
+    log_debug(
+        "Successfully created Python string from decoded text (UTF-8 encoded, "
+        "might be wrong here): '%s'",
+        decoded_text);
 
     free(text);
     free(decoded_text);

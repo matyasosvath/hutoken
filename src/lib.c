@@ -355,9 +355,7 @@ static PyObject* p_initialize(PyObject* self,
         }
 
         char* value_str = separator + 4;  // strlen(" == "), again
-        log_debug("value_str=%s", value_str);
         size_t value_len = strlen(value_str);
-        log_debug("value_len=%d", value_len);
         char* value = malloc(value_len);
         memcpy(value, value_str, value_len - 1);
         value[value_len - 1] = '\0';
@@ -403,7 +401,6 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     int tokens_size = 0;
     int tokens[strlen(text)];
 
-    log_debug("p_encode prefix='%s'", prefix);
     encode(text, vocab_encode, pattern, tokens, &tokens_size,
            (const char**)special_chars, prefix, is_byte_encoder);
 
