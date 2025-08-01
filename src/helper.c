@@ -51,16 +51,21 @@ void visualize(int arr[], char* text, int n) {
     }
 }
 
-void visualize_bpe_train(char* text,
-                         struct Boundary token_boundaries[],
-                         struct Token current_token,
-                         size_t value,
-                         size_t token_num) {
+void visualize_bpe_train(struct Token current_token,
+                         size_t value) {
     if (VISUALIZE) {
         (void)printf("Most common pair: '%s', rank: %d\n", current_token.key,
                      current_token.value);
         (void)printf("New token '%s', value: %ld\n\n", current_token.key,
                      value);
+    }
+}
+
+void visualize_bbpe_train(struct TokenPair current_token, size_t value) {
+    if (VISUALIZE) {
+        (void)printf("Most common pair: (%d, %d), freq: %d\n",
+                     current_token.id1, current_token.id2, current_token.freq);
+        (void)printf("New token id: %zu\n\n", value);
     }
 }
 

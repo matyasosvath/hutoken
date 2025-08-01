@@ -126,11 +126,15 @@ def decode(tokens):
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error decoding tokens: {e}")
 
-
 def bpe_train(*args, **kwargs):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or does not provide 'bpe_train'.")
     return _hutoken.bpe_train(*args, **kwargs)
+
+def bbpe_train(*args, **kwargs):
+    if _hutoken is None:
+        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or does not provide 'bbpe_train'.")
+    return _hutoken.bbpe_train(*args, **kwargs)
 
 def initialize_foma():
     if _hutoken is None:
