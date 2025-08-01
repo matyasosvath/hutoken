@@ -146,7 +146,7 @@ char* pretokenizer_encode(const char* text,
  * and return its Unicode code point.
  * Needed for tokenizers which use byte encoding.
  */
-uint32_t utf8_to_codepoint(const unsigned char *p, int *bytes_read) {
+uint32_t utf8_to_codepoint(const unsigned char* p, int* bytes_read) {
     uint32_t cp = 0;
     if (p[0] < 0x80) {
         cp = p[0];
@@ -158,7 +158,8 @@ uint32_t utf8_to_codepoint(const unsigned char *p, int *bytes_read) {
         cp = ((p[0] & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
         *bytes_read = 3;
     } else if ((p[0] & 0xF8) == 0xF0) {
-        cp = ((p[0] & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) | (p[3] & 0x3F);
+        cp = ((p[0] & 0x07) << 18) | ((p[1] & 0x3F) << 12) |
+             ((p[2] & 0x3F) << 6) | (p[3] & 0x3F);
         *bytes_read = 4;
     } else {
         cp = 0xFFFD;
@@ -166,7 +167,6 @@ uint32_t utf8_to_codepoint(const unsigned char *p, int *bytes_read) {
     }
     return cp;
 }
-
 
 char* pretokenizer_decode(const char* text,
                           const char** special_chars,
@@ -204,7 +204,8 @@ char* pretokenizer_decode(const char* text,
 
             bool matched = false;
             for (int i = 0; i < 256; i++) {
-                if (special_chars[i] && strcmp(current_char_str, special_chars[i]) == 0) {
+                if (special_chars[i] &&
+                    strcmp(current_char_str, special_chars[i]) == 0) {
                     *dest++ = (unsigned char)i;
                     matched = true;
                     break;

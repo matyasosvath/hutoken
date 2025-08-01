@@ -187,7 +187,8 @@ void test_with_prefix_and_replacements(void) {
     replacements['e'] = "E";
     const char* prefix = "Juicy ";
 
-    char* result_encoded = pretokenizer_encode(text, replacements, prefix, false);
+    char* result_encoded =
+        pretokenizer_encode(text, replacements, prefix, false);
     char* result_decoded =
         pretokenizer_decode(result_encoded, replacements, prefix, false);
 
@@ -218,7 +219,8 @@ void test_with_prefix_and_empty_input_string(void) {
     const char* replacements[256] = {NULL};
     const char* prefix = "Start:";
 
-    char* result_encoded = pretokenizer_encode(text, replacements, prefix, false);
+    char* result_encoded =
+        pretokenizer_encode(text, replacements, prefix, false);
     char* result_decoded =
         pretokenizer_decode(result_encoded, replacements, prefix, false);
 
@@ -234,7 +236,8 @@ void test_with_empty_string_as_prefix(void) {
     const char* replacements[256] = {NULL};
     const char* prefix = "";
 
-    char* result_encoded = pretokenizer_encode(text, replacements, prefix, false);
+    char* result_encoded =
+        pretokenizer_encode(text, replacements, prefix, false);
     char* result_decoded =
         pretokenizer_decode(result_encoded, replacements, prefix, false);
 
@@ -251,8 +254,10 @@ void test_with_multibyte_char(void) {
     const char* prefix = NULL;
     replacements[145] = "ĳ";
 
-    char* result_encoded = pretokenizer_encode(text, replacements, prefix, true);
-    char* result_decoded = pretokenizer_decode(result_encoded, replacements, prefix, true);
+    char* result_encoded =
+        pretokenizer_encode(text, replacements, prefix, true);
+    char* result_decoded =
+        pretokenizer_decode(result_encoded, replacements, prefix, true);
 
     assert(strcmp(result_decoded, text) == 0);
 

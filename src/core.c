@@ -245,7 +245,8 @@ PyObject* decode(PyObject* tokens,
             word, text, text_size);
     }
 
-    char* decoded_text = pretokenizer_decode(text, special_chars, prefix, is_byte_encoder);
+    char* decoded_text =
+        pretokenizer_decode(text, special_chars, prefix, is_byte_encoder);
 
     PyObject* result = PyUnicode_FromString(decoded_text);
     if (!result) {
