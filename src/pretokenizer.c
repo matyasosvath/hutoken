@@ -84,13 +84,12 @@ char* pretokenizer_encode(const char* text,
         }
 
         *dest = '\0';
-        *is_special_dest = '\0';
+        free(is_special);
         return result;
     } else {
         const char* p = text;
         while (*p != '\0') {
             unsigned char current_char = (unsigned char)*p;
-            int char_len = utf8_char_length(&current_char);
             const char* replacement = special_chars[current_char];
 
             if (replacement != NULL) {
@@ -115,6 +114,7 @@ char* pretokenizer_encode(const char* text,
 
     char* byte_text = malloc(result_len * 2 + 1);
     if (!byte_text) {
+        free(is_special);
         free(result);
         return NULL;
     }
