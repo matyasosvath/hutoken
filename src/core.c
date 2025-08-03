@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 #include <time.h>
 
 #include "hutoken/hashmap.h"
@@ -90,20 +92,68 @@ void encode(char* text,
             int* tokens_size) {
     log_debug("Starting encode function with text: %s", text);
 
-    regex_t regex;
-    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
-        log_debug("Error: Regex could not be compiled.");
-        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+    PCRE2_SPTR search_term = (PCRE2_SPTR) pattern;
+    PCRE2_SPTR subject = (PCRE2_SPTR) text;
+
+    pcre2_code *regex = pcre2_compile(
+        (PCRE2_SPTR) pattern,
+        PCRE2_ZERO_TERMINATED,
+        PCRE2_UTF,
+        &error_number,
+        &error_offset,
+        NULL);
+    
+    if(regex == NULL){
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(error_number,buffer,sizeof(buffer));
+        log_debug("PCRE2 compilation failed at offset %d: %s\n",(int)error_offset, buffer);
+        PyErr_Format(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
     }
 
-    regmatch_t match;
-    char* cursor = text;
+    re = pcre2_compile(pattern,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
 
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
-        int word_start = match.rm_so;
-        int word_end = match.rm_eo;
-        int word_len = word_end - word_start;
+    if (re = NULL)
+    {
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(error_number,buffer,sizeof(buffer));
+        log_debug("PCRE2 compilation failed at offset %d: %s\n",(int)error_offset, buffer);
+        PyErr_Format(PyExc_RuntimeError, "Regex could not be compiled.");
+        return;
+    }
+    
+    match_data = pcre2_match_data_create_from_pattern(re,NULL);
+
+    PCRE2_SIZE start_offset = 0;
+
+    while(start_offset < subject_length){
+        int rc = pcre2_match(
+            regex,
+            subject,
+            subject_length,
+            start_offset,
+            0,
+            match_data,
+            NULL);
+
+        if(rc < 0){
+            if(rc == PCRE2_ERROR_NOMATCH){
+                break;
+            }else{
+                log_debug("Error: PCRE2 matching error: %d", rc);
+                PyErr_Format(PyExc_RuntimeError, "PCRE2 matching error: %d", rc);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(regex);
+                return;
+            }
+        }
+
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+        PCRE2_SIZE match_start = ovector[0];
+        PCRE2_SIZE match_end = ovector[1];
+        PCRE2_SIZE word_len = match_end - match_start;
 
         // If the regex finds a zero-length match, word_len will be 0.
         // This would lead to calling `bpe_encode` with unitialized arrays, or
@@ -120,7 +170,9 @@ void encode(char* text,
                   word_end, word_len);
 
         int i = 0;
-        struct Boundary word_token_boundaries[word_len];
+
+
+        Boundary word_token_boundaries[word_len];
 
         for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
             char* start = ptr;
@@ -135,17 +187,28 @@ void encode(char* text,
 
         bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
 
-        for (int i = 0; i < word_token_num; i++) {
+        for(int i = 0; i < word_token_num; i++){
             tokens[i + *tokens_size] = word_tokens[i];
             log_debug("Encoded token: %d", word_tokens[i]);
         }
 
-        cursor += word_end;
         *tokens_size += word_token_num;
+
+        start_offset = match_end;
+
+        if(match_start == match_end){
+            if(start_offset >= subject_length){
+                break;
+            }
+            start_offset++;
+        }
+
     }
 
-    regfree(&regex);
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(regex);
     log_debug("Completed encode function. Total tokens: %d", *tokens_size);
+
 }
 
 PyObject* decode(PyObject* tokens, char** vocab_decode, int vocab_size) {

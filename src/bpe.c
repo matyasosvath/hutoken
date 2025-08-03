@@ -9,43 +9,165 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
 
-void create_words(char* text,
-                  const char* pattern,
-                  struct Boundary token_boundaries[],
-                  size_t token_num) {
-    regex_t regex;
 
-    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
-        (void)fputs("Regex could not be compiled.", stderr);
-        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+void create_words(
+    char *text,
+    const char *pattern,
+    Boundary token_boundaries[],
+    int token_num
+)
+{
+    int error_number;
+    PCRE2_SIZE error_offset;
+    pcre2_code *regex = pcre2_compile(
+        (PCRE2_SPTR) pattern,
+        PCRE2_ZERO_TERMINATED,
+        0,
+        &error_number,
+        &error_offset,
+        NULL0);
+
+    if(regex == NULL){
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(error_number, buffer, sizeof(buffer));
+        fprintf(stderr, "PCRE2 compilation failed at offset %d: %s\n", (int)error_offset, buffer);
+        PyErr_Format(PyExc_RuntimeError, "PCRE2 compilation failed at offset %d: %s", (int)error_offset, buffer);
         return;
     }
 
-    regmatch_t match;
-    char* cursor = text;
+    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(regex, NULL);
+    if(match_data == NULL){
+        fprintf(stderr, "Failed to create PCRE2 match data.\n");
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create PCRE2 match data.");
+        pcre2_code_free(regex);
+        return;
+    }
+
+    PCRE2_SPTR subject = (PCRE2_SPTR) text;
+    PCRE2_SIZE subject_length = strlen(text);
+    PCRE2_SIZE start_offset = 0;
     int i = 0;
 
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
-        int word_start = match.rm_so;
-        int word_end = match.rm_eo;
+    while(start_offset < subject_length){
+        int rc = pcre2_match(
+            regex,
+            subject,
+            subject_length,
+            start_offset,
+            0,
+            match_data,
+            NULL);
+        
+        if(rc < 0){
+            if(rc == PCRE2_ERROR_NOMATCH){
+                break;
+            }else{
+                fprintf(stderr, "PCRE2 matching error: %d\n", rc);
+                PyErr_Format(PyExc_RuntimeError, "PCRE2 matching error: %d", rc);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(regex);
+                return;
+            }
+        }
 
-        for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
-            char* start = ptr;
-            char* end = ptr;
+    }
+
+
+    regex_t regex;
+
+void create_words(
+    char* text,
+    const char* pattern,
+    struct Boundary token_boundaries[],
+    size_t token_num
+)
+{
+    int error_number;
+    PCRE2_SIZE error_offset;
+    pcre2_code *regex = pcre2_compile(
+        (PCRE2_SPTR) pattern,
+        PCRE2_ZERO_TERMINATED,
+        PCRE2_UTF,
+        &error_number,
+        &error_offset,
+        NULL);
+
+    if(regex == NULL){
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(error_number, buffer, sizeof(buffer));
+        fprintf(stderr, "PCRE2 compilation failed at offset %d: %s\n", (int)error_offset, buffer);
+        PyErr_Format(PyExc_RuntimeError, "PCRE2 compilation failed at offset %d: %s", (int)error_offset, buffer);
+        return;
+    }
+
+    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(regex, NULL);
+    if(match_data == NULL){
+        fprintf(stderr, "Failed to create PCRE2 match data.\n");
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create PCRE2 match data.");
+        pcre2_code_free(regex);
+        return;
+    }
+
+    PCRE2_SPTR subject = (PCRE2_SPTR) text;
+    PCRE2_SIZE subject_length = strlen(text);
+    PCRE2_SIZE start_offset = 0;
+    int i = 0;
+
+    while(start_offset < subject_length){
+        int rc = pcre2_match(
+            regex,
+            subject,
+            subject_length,
+            start_offset,
+            0,
+            match_data,
+            NULL);
+        
+        if(rc < 0){
+            if(rc == PCRE2_ERROR_NOMATCH){
+                break;
+            }else{
+                fprintf(stderr, "PCRE2 matching error: %d\n", rc);
+                PyErr_Format(PyExc_RuntimeError, "PCRE2 matching error: %d", rc);
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(regex);
+                return;
+            }
+        }
+
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+        PCRE2_SIZE match_start = ovector[0];
+        PCRE2_SIZE match_end = ovector[1];
+
+        for(char *ptr = text + match_start; ptr < text + match_end; ptr++){
+            char *start = ptr;
+            char *end = ptr;
 
             struct Boundary token_boundary = {.start = start, .end = end};
 
             token_boundaries[i] = token_boundary;
             i += 1;
         }
-        cursor += word_end;
+
+        start_offset = match_end;
+
+        if(match_start == match_end){
+            if(start_offset >= subject_length){
+                break;
+            }
+            start_offset++;
+        }
     }
 
-    regfree(&regex);
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(regex);
+
 }
 
 void bpe_train_core(struct HashMap* vocab,

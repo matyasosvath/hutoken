@@ -3,10 +3,7 @@ import sys
 import traceback
 from transformers import AutoTokenizer
 
-try:
-    import _hutoken
-except ImportError:
-    _hutoken = None
+import _hutoken
 
 def initialize(model_or_path, *args, **kwargs):
     """
