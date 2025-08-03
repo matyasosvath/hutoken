@@ -155,16 +155,29 @@ void encode(char* text,
         PCRE2_SIZE match_end = ovector[1];
         PCRE2_SIZE word_len = match_end - match_start;
 
-        log_debug("Matched word: start=%d, end=%d, length=%d", (int)match_start, (int)match_end, (int)word_len);
+        // If the regex finds a zero-length match, word_len will be 0.
+        // This would lead to calling `bpe_encode` with unitialized arrays, or
+        // the `cursor` not advancing to the next step.
+        if (cursor + word_start >= cursor + word_end) {
+            if (cursor[word_start] == '\0') {
+                break;
+            }
+            cursor += word_start + 1;
+            continue;
+        }
+
+        log_debug("Matched word: start=%d, end=%d, length=%d", word_start,
+                  word_end, word_len);
 
         int i = 0;
 
+
         Boundary word_token_boundaries[word_len];
 
-        for(char *ptr = text + match_start; ptr < text + match_end; ptr++){
-            char *start = ptr;
-            char *end = ptr;
-            Boundary word_token_boundary = {start, end};
+        for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
+            char* start = ptr;
+            char* end = ptr;
+            struct Boundary word_token_boundary = {.start = start, .end = end};
             word_token_boundaries[i] = word_token_boundary;
             i += 1;
         }

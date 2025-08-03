@@ -82,10 +82,10 @@ void create_words(
     regex_t regex;
 
 void create_words(
-    char *text,
-    const char *pattern,
-    Boundary token_boundaries[],
-    int token_num
+    char* text,
+    const char* pattern,
+    struct Boundary token_boundaries[],
+    size_t token_num
 )
 {
     int error_number;
