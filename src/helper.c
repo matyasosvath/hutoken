@@ -80,12 +80,13 @@ void hex_str_to_ascii(const char* hex_str,
             hex_str += 2;
 
             if (hex_str[0] != '\0' && hex_str[1] != '\0') {
-                char hexValue[3] = {hex_str[0], hex_str[1], '\0'};
-                int charValue = (int)strtol(hexValue, NULL, 16);
+                char hex_value[3] = {hex_str[0], hex_str[1], '\0'};
+                unsigned int byte_value =
+                    (unsigned int)strtol(hex_value, NULL, 16);
 
                 log_debug(
                     "Parsed hex value: %s -> ASCII char: %c (decimal: %d)",
-                    hexValue, (char)charValue, charValue);
+                    hex_value, (char)byte_value, byte_value);
 
                 if (i >= ascii_str_size - 1) {
                     log_debug(
@@ -99,7 +100,7 @@ void hex_str_to_ascii(const char* hex_str,
                     return;
                 }
 
-                ascii_str[i++] = (char)charValue;
+                ascii_str[i++] = (char)byte_value;
             } else {
                 log_debug("Error: Incomplete hex pair at position: %s",
                           hex_str);
