@@ -89,24 +89,26 @@ static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
     static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix",
-                             "is_byte_encoder", "special_token_id",  NULL};
+                             "is_byte_encoder", "special_token_id",  "regex_pattern", NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* local_prefix = NULL;
     int local_is_byte_encoder = 0;
     int special_token_id = -1;  // Optional parameter for special token ID
     prefix = NULL;
+    char* local_pattern = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|i", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|iz", kwlist,
                                      &vocab_file_path, &special_file_path,
                                      &local_prefix, &local_is_byte_encoder,
-                                     &special_token_id)) {
+                                     &special_token_id, &local_pattern)) {
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(PyExc_TypeError,
                         "Invalid arguments. Expected a string "
                         "(vocab_file_path), a string (special_file_path), "
-                        "a string or None (prefix) a bool and an"
-                        "optional integer (special_token_id).");
+                        "a string or None (prefix) a bool an"
+                        "optional integer (special_token_id) and"
+                        " an optional string (regex_patter)");
         return NULL;
     }
 
@@ -114,6 +116,10 @@ static PyObject* p_initialize(PyObject* self,
         prefix = strdup(local_prefix);
     }
     is_byte_encoder = local_is_byte_encoder;
+    
+    if(local_pattern){
+        pattern = strdup(local_pattern);
+    }
 
     log_debug("Initializing with vocab file: %s", vocab_file_path);
 
