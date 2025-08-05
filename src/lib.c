@@ -89,7 +89,7 @@ static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
     static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix",
-                             "is_byte_encoder", "special_token_id",  "regex_pattern", NULL};
+                             "is_byte_encoder", "special_token_id",  "pattern", NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* local_prefix = NULL;
@@ -108,7 +108,7 @@ static PyObject* p_initialize(PyObject* self,
                         "(vocab_file_path), a string (special_file_path), "
                         "a string or None (prefix) a bool an"
                         "optional integer (special_token_id) and"
-                        " an optional string (regex_patter)");
+                        " an optional string (regex_pattern)");
         return NULL;
     }
 
