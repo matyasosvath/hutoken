@@ -94,9 +94,10 @@ void encode(char* text,
 
     PCRE2_SPTR search_term = (PCRE2_SPTR) pattern;
     PCRE2_SPTR subject = (PCRE2_SPTR) text;
+    PCRE2_SIZE subject_length = strlen(text);
 
     pcre2_code *regex = pcre2_compile(
-        (PCRE2_SPTR) pattern,
+        (PCRE2_SPTR) search_term,
         PCRE2_ZERO_TERMINATED,
         PCRE2_UTF,
         &error_number,
@@ -111,19 +112,7 @@ void encode(char* text,
         return;
     }
 
-    re = pcre2_compile(pattern,PCRE2_ZERO_TERMINATED,0,&errornumber,&errorofset, NULL);
-
-    if (re = NULL)
-    {
-        PCRE2_UCHAR buffer[256];
-        pcre2_get_error_message(error_number,buffer,sizeof(buffer));
-        log_debug("PCRE2 compilation failed at offset %d: %s\n",(int)error_offset, buffer);
-        PyErr_Format(PyExc_RuntimeError, "Regex could not be compiled.");
-        return;
-    }
-    
-    match_data = pcre2_match_data_create_from_pattern(re,NULL);
-
+    match_data = pcre2_match_data_create_from_pattern(regex,NULL);
     PCRE2_SIZE start_offset = 0;
 
     while(start_offset < subject_length){
@@ -148,10 +137,11 @@ void encode(char* text,
             }
         }
 
+        char* cursor = text;
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
-        PCRE2_SIZE match_start = ovector[0];
-        PCRE2_SIZE match_end = ovector[1];
-        PCRE2_SIZE word_len = match_end - match_start;
+        PCRE2_SIZE word_start = ovector[0];
+        PCRE2_SIZE word_end = ovector[1];
+        PCRE2_SIZE word_len = word_end - word_start;
 
         // If the regex finds a zero-length match, word_len will be 0.
         // This would lead to calling `bpe_encode` with unitialized arrays, or
@@ -168,8 +158,6 @@ void encode(char* text,
                   word_end, word_len);
 
         int i = 0;
-
-
         struct Boundary word_token_boundaries[word_len];
 
         for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
@@ -190,11 +178,11 @@ void encode(char* text,
             log_debug("Encoded token: %d", word_tokens[i]);
         }
 
+        cursor += word_end;
         *tokens_size += word_token_num;
+        start_offset = word_end;
 
-        start_offset = match_end;
-
-        if(match_start == match_end){
+        if(word_start == word_end){
             if(start_offset >= subject_length){
                 break;
             }

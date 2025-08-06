@@ -75,10 +75,10 @@ void create_words(
         }
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
-        PCRE2_SIZE match_start = ovector[0];
-        PCRE2_SIZE match_end = ovector[1];
+        PCRE2_SIZE word_start = ovector[0];
+        PCRE2_SIZE word_end = ovector[1];
 
-        for(char *ptr = text + match_start; ptr < text + match_end; ptr++){
+        for(char *ptr = text + word_start; ptr < text + word_end; ptr++){
             char *start = ptr;
             char *end = ptr;
 
@@ -88,9 +88,9 @@ void create_words(
             i += 1;
         }
 
-        start_offset = match_end;
+        start_offset = word_end;
 
-        if(match_start == match_end){
+        if(word_start == word_end){
             if(start_offset >= subject_length){
                 break;
             }
