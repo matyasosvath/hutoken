@@ -55,8 +55,6 @@ def test_encode_basic():
     hutoken.initialize("NYTK/PULI-LlumiX-32K")
     hf_enc = AutoTokenizer.from_pretrained("NYTK/PULI-LlumiX-32K")
 
-    print(hutoken.encode("Hello World"))
-    print(hf_enc.encode("Hello World"))
     assert hutoken.encode(sentence1) == hf_enc.encode(sentence1)
     assert hutoken.encode(sentence2) == hf_enc.encode(sentence2)
     assert hutoken.encode(paragraph1) == hf_enc.encode(paragraph1)

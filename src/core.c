@@ -149,8 +149,6 @@ void encode(char* text,
         }
 
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
-
-        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         PCRE2_SIZE match_start = ovector[0];
         PCRE2_SIZE match_end = ovector[1];
         PCRE2_SIZE word_len = match_end - match_start;
@@ -172,7 +170,7 @@ void encode(char* text,
         int i = 0;
 
 
-        Boundary word_token_boundaries[word_len];
+        struct Boundary word_token_boundaries[word_len];
 
         for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
             char* start = ptr;
