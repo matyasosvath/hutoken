@@ -156,7 +156,7 @@ void bpe_train_core(struct HashMap* vocab,
         }
         token_n = j;
 
-        visualize_bpe_train(text, token_boundaries, most_common_pair, token,
+        visualize_bpe_train(most_common_pair,
                             token_n);
 
         hashmap_free(stats);
