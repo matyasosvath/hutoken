@@ -30,8 +30,9 @@ def initialize(model_or_path, *args, **kwargs):
         prefix = kwargs.get('prefix', None)
         is_byte_encoder = kwargs.get('is_byte_encoder', False)
         token_id = kwargs.get('token_id', -1)
+        regex_pattern = kwargs.get('pattern', None)
 
-        result = _hutoken.initialize(model_or_path, special_chars_file, prefix, is_byte_encoder, token_id)
+        result = _hutoken.initialize(model_or_path, special_chars_file, prefix, is_byte_encoder, token_id, regex_pattern)
         return result
     else:
         try:
