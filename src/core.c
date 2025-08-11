@@ -90,14 +90,14 @@ void encode(char* text,
             char* pattern,
             int tokens[],
             int* tokens_size) {
+
     log_debug("Starting encode function with text: %s", text);
 
-    PCRE2_SPTR search_term = (PCRE2_SPTR) pattern;
-    PCRE2_SPTR subject = (PCRE2_SPTR) text;
-    PCRE2_SIZE subject_length = strlen(text);
-
+    int error_number;
+    PCRE2_SIZE error_offset;
+    
     pcre2_code *regex = pcre2_compile(
-        (PCRE2_SPTR) search_term,
+        (PCRE2_SPTR)pattern,
         PCRE2_ZERO_TERMINATED,
         PCRE2_UTF,
         &error_number,
@@ -112,7 +112,8 @@ void encode(char* text,
         return;
     }
 
-    match_data = pcre2_match_data_create_from_pattern(regex,NULL);
+    PCRE2_SPTR subject = (PCRE2_SPTR) text;
+    PCRE2_SIZE subject_length = strlen(text);
     PCRE2_SIZE start_offset = 0;
 
     while(start_offset < subject_length){
@@ -137,22 +138,10 @@ void encode(char* text,
             }
         }
 
-        char* cursor = text;
         PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         PCRE2_SIZE word_start = ovector[0];
         PCRE2_SIZE word_end = ovector[1];
         PCRE2_SIZE word_len = word_end - word_start;
-
-        // If the regex finds a zero-length match, word_len will be 0.
-        // This would lead to calling `bpe_encode` with unitialized arrays, or
-        // the `cursor` not advancing to the next step.
-        if (cursor + word_start >= cursor + word_end) {
-            if (cursor[word_start] == '\0') {
-                break;
-            }
-            cursor += word_start + 1;
-            continue;
-        }
 
         log_debug("Matched word: start=%d, end=%d, length=%d", word_start,
                   word_end, word_len);
@@ -160,7 +149,7 @@ void encode(char* text,
         int i = 0;
         struct Boundary word_token_boundaries[word_len];
 
-        for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
+        for (char* ptr = text + word_start; ptr < text + word_end; ptr++) {
             char* start = ptr;
             char* end = ptr;
             struct Boundary word_token_boundary = {.start = start, .end = end};
@@ -178,7 +167,6 @@ void encode(char* text,
             log_debug("Encoded token: %d", word_tokens[i]);
         }
 
-        cursor += word_end;
         *tokens_size += word_token_num;
         start_offset = word_end;
 

@@ -23,8 +23,9 @@ void create_words(
         
     int error_number;
     PCRE2_SIZE error_offset;
+
     pcre2_code *regex = pcre2_compile(
-        (PCRE2_SPTR) pattern,
+        (PCRE2_SPTR)pattern,
         PCRE2_ZERO_TERMINATED,
         PCRE2_UTF,
         &error_number,
@@ -47,7 +48,7 @@ void create_words(
         return;
     }
 
-    PCRE2_SPTR subject = (PCRE2_SPTR) text;
+    PCRE2_SPTR subject = (PCRE2_SPTR)text;
     PCRE2_SIZE subject_length = strlen(text);
     PCRE2_SIZE start_offset = 0;
     int i = 0;
@@ -81,9 +82,7 @@ void create_words(
         for(char *ptr = text + word_start; ptr < text + word_end; ptr++){
             char *start = ptr;
             char *end = ptr;
-
             struct Boundary token_boundary = {.start = start, .end = end};
-
             token_boundaries[i] = token_boundary;
             i += 1;
         }
