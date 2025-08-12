@@ -1,7 +1,9 @@
 #include "hutoken/lib.h"
 
 #include "Python.h"
+#ifdef USE_FOMA
 #include "fomalib.h"
+#endif
 
 #include <limits.h>
 #include <stdbool.h>
@@ -486,6 +488,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
                   (const char**)special_chars, prefix, is_byte_encoder);
 }
 
+#ifdef USE_FOMA
 PyObject* p_initialize_foma(PyObject* self) {
     return initialize_foma();
 }
@@ -515,6 +518,7 @@ PyObject* p_look_up_word(PyObject* self, PyObject* args) {
 
     return look_up_word(handle, word, only_longest);
 }
+#endif
 
 static PyMethodDef huTokenMethods[] = {
     {"bpe_train", p_bpe_train, METH_VARARGS, "BPE training"},
@@ -523,10 +527,12 @@ static PyMethodDef huTokenMethods[] = {
      "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
+    #ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,
      "Initilaizes the foma fst"},
     {"look_up_word", (PyCFunction)p_look_up_word, METH_VARARGS,
      "Morphological analysis of a word"},
+    #endif
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef huToken = {PyModuleDef_HEAD_INIT, "huToken",

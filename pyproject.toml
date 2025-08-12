@@ -4,14 +4,14 @@ version = "0.1.0.dev6"
 description = "Fast BPT tokeniser for Hungarian language."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 license-files = [ "LICENSE" ]
 
 authors = [
     { name = "NYTUD", email = "linginst@nytud.elte.hu" },
-    { name = "Mátyás Osváth", email = ""},
+    { name = "Mátyás Osváth"},
     { name = "Máté Norbert Molnár", email = "graves-bluff-pesky@duck.com" },
-    { name = "Roland Gunics", email = ""}
+    { name = "Roland Gunics"}
 ]
 
 keywords = ["text-tokenization", "neural-network", "machine-learning"]
@@ -49,31 +49,6 @@ dev = [
 
 [tool.setuptools]
 py-modules = ["hutoken"]
-
-[tool.setuptools.extension."_hutoken"]
-sources = [
-    "src/lib.c",
-    "src/bpe.c",
-    "src/core.c",
-    "src/hash.c",
-    "src/hashmap.c",
-    "src/helper.c",
-    "src/string.c",
-    "src/pretokenizer.c",
-    "src/bbpe.c",
-]
-include-dirs = ["include"]
-extra-compile-args = ["-O3", "-march=native", "-funroll-loops", "-Iinclude"]
-extra-link-args = ["-flto"]
-
-[tool.setuptools.extension."_hutoken_foma"]
-optional = true
-sources = [
-    "src/core.c"
-]
-include-dirs = ["include"]
-extra-compile-args = ["-O3", "-march=native", "-funroll-loops", "-Iinclude", "-DUSE_FOMA"]
-extra-link-args = ["-flto", "-lfoma"]
 
 [project.urls]
 Homepage = "https://github.com/matyasosvath/hutoken"

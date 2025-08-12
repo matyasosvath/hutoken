@@ -1,7 +1,9 @@
 #include "hutoken/core.h"
 
 #include "Python.h"
+#ifdef USE_FOMA
 #include "fomalib.h"
+#endif
 #include "listobject.h"
 #include "unicodeobject.h"
 

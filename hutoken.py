@@ -1,7 +1,10 @@
 import os
 import sys
 import traceback
-from transformers import AutoTokenizer
+try:
+    from transformers import AutoTokenizer
+except ImportError:
+    transformers = None
 
 try:
     import _hutoken
