@@ -264,6 +264,8 @@ PyObject* decode(PyObject* tokens,
     return result;
 }
 
+#ifdef USE_FOMA
+
 PyObject* initialize_foma(void) {
     log_debug("Starting foma initialization");
 
@@ -377,3 +379,5 @@ PyObject* look_up_word(struct apply_handle* handle,
 
     return py_list;
 }
+
+#endif

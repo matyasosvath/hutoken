@@ -140,11 +140,19 @@ def bbpe_train(*args, **kwargs):
 def initialize_foma():
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed.")
-    if _hutoken.initialize_foma() is None:
-        raise RuntimeError("hutoken: '_hutoken' does not provide 'initialize_foma'.")
+    if not hasattr(_hutoken, "initialize_foma"):
+        raise RuntimeError(
+            "hutoken: '_hutoken' does not provide 'initialize_foma' "
+            "or Foma support is not installed."
+        )
     return _hutoken.initialize_foma()
 
 def look_up_word(*args):
     if _hutoken is None:
-        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or does not provide 'look_up_word'.")
+        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed.")
+    if not hasattr(_hutoken, "look_up_word"):
+        raise RuntimeError(
+            "hutoken: '_hutoken' does not provide 'look_up_word' "
+            "or Foma support is not installed."
+        )
     return _hutoken.look_up_word(*args)
