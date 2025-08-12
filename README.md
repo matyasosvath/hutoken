@@ -26,6 +26,7 @@ If a bug is found please leave feedback with the exact details.
 - [Scripts](#scripts)
 - [Data format](#data-format)
 - [Contributing](#contributing)
+- [Contact](#contact)
 
 # License
 
@@ -309,3 +310,12 @@ follows these requirements:
     file.
 -   Fix every `clang-tidy` lint, using the `.clang-tidy` configuration file.
 -   Document your changes either in code, or in the README.
+
+# Contact
+
+To personally contact the maintainers of the library, here are the core
+developers working on the project:
+
+- [Mátyás Osváth](https://github.com/matyasosvath)
+- [Roland Gunics](https://github.com/gunicsroland)
+- [Máté Norbert Molnár](https://github.com/matee8)
