@@ -90,8 +90,9 @@ PyObject* p_bbpe_train(PyObject* self, PyObject* args) {
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix",
-                             "is_byte_encoder", "special_token_id",  "pattern", NULL};
+    static char* kwlist[] = {
+        "vocab_file_path",  "special_file_path", "prefix", "is_byte_encoder",
+        "special_token_id", "pattern",           NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* local_prefix = NULL;
@@ -118,8 +119,8 @@ static PyObject* p_initialize(PyObject* self,
         prefix = strdup(local_prefix);
     }
     is_byte_encoder = local_is_byte_encoder;
-    
-    if(local_pattern){
+
+    if (local_pattern) {
         pattern = strdup(local_pattern);
     }
 
@@ -527,12 +528,12 @@ static PyMethodDef huTokenMethods[] = {
      "Initalize tokenizer"},
     {"encode", p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
-    #ifdef USE_FOMA
+#ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,
      "Initilaizes the foma fst"},
     {"look_up_word", (PyCFunction)p_look_up_word, METH_VARARGS,
      "Morphological analysis of a word"},
-    #endif
+#endif
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef huToken = {PyModuleDef_HEAD_INIT, "huToken",

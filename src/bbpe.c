@@ -21,6 +21,10 @@ int find_pair(struct TokenPair* pairs, size_t pair_count, int id1, int id2) {
 void find_most_common_pair(size_t token_n,
                            const int* token_ids,
                            struct TokenPair* most_common_pair) {
+    if (token_n <= 1) {
+        return;
+    }
+
     struct TokenPair* pairs = malloc((token_n - 1) * sizeof(struct TokenPair));
     size_t pair_count = 0;
 

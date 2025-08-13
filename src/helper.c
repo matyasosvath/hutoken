@@ -51,8 +51,7 @@ void visualize(int arr[], char* text, int n) {
     }
 }
 
-void visualize_bpe_train(struct Token current_token,
-                         size_t value) {
+void visualize_bpe_train(struct Token current_token, size_t value) {
     if (VISUALIZE) {
         (void)printf("Most common pair: '%s', rank: %d\n", current_token.key,
                      current_token.value);
