@@ -87,9 +87,7 @@ PyObject* p_bbpe_train(PyObject* self, PyObject* args) {
     return Py_None;
 }
 
-static PyObject* p_initialize(PyObject* self,
-                              PyObject* args,
-                              PyObject* kwargs) {
+PyObject* p_initialize(PyObject* self, PyObject* args, PyObject* kwargs) {
     static char* kwlist[] = {
         "vocab_file_path",  "special_file_path", "prefix", "is_byte_encoder",
         "special_token_id", "pattern",           NULL};
