@@ -86,17 +86,13 @@ void bpe_encode(struct HashMap* vocab,
 }
 
 void encode(char* text,
-            struct HashMap* vocab,
-            char* pattern,
+            struct EncodeContext* ctx,
             int tokens[],
-            int* tokens_size,
-            const char** special_chars,
-            const char* prefix,
-            bool is_byte_encoder) {
+            int* tokens_size) {
     log_debug("Starting encode function with text: %s", text);
 
     regex_t regex;
-    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
+    if (regcomp(&regex, ctx->pattern, REG_EXTENDED) == true) {
         log_debug("Error: Regex could not be compiled.");
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
@@ -128,7 +124,7 @@ void encode(char* text,
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
         char* encoded_word = pretokenizer_encode(
-            word, special_chars, add_prefix ? prefix : NULL, is_byte_encoder);
+            word, ctx->special_chars, add_prefix ? ctx->prefix : NULL, ctx->is_byte_encoder);
         add_prefix = false;
 
         int i = 0;
@@ -150,7 +146,7 @@ void encode(char* text,
         int word_token_num = i;
         int word_tokens[word_len];
 
-        bpe_encode(vocab, word_token_boundaries, word_tokens, &word_token_num);
+        bpe_encode(ctx->vocab_encode, word_token_boundaries, word_tokens, &word_token_num);
 
         for (int i = 0; i < word_token_num; i++) {
             tokens[i + *tokens_size] = word_tokens[i];
@@ -166,11 +162,7 @@ void encode(char* text,
 }
 
 PyObject* decode(PyObject* tokens,
-                 char** vocab_decode,
-                 int vocab_size,
-                 const char** special_chars,
-                 const char* prefix,
-                 bool is_byte_encoder) {
+                 struct DecodeContext* ctx) {
     log_debug("Entered decode function");
 
     Py_ssize_t token_num = PyList_Size(tokens);
@@ -201,10 +193,10 @@ PyObject* decode(PyObject* tokens,
         }
 
         int item = (int)PyLong_AsLong(token);
-        if (item < 0 || item >= vocab_size) {
+        if (item < 0 || item >= ctx->vocab_size_decode) {
             log_debug(
                 "Error: Token value %d is out of bounds (vocab_size = %d)",
-                item, vocab_size);
+                item, ctx->vocab_size_decode);
             PyErr_SetString(
                 PyExc_ValueError,
                 "Element must be non-negative and less than vocab size.");
@@ -212,7 +204,7 @@ PyObject* decode(PyObject* tokens,
             return NULL;
         }
 
-        const char* word = vocab_decode[item];
+        const char* word = ctx->vocab_decode[item];
         size_t word_len = strlen(word);
         log_debug("Decoded token value %d to word '%s' (length: %zu)", item,
                   word, word_len);
@@ -247,7 +239,7 @@ PyObject* decode(PyObject* tokens,
     }
 
     char* decoded_text =
-        pretokenizer_decode(text, special_chars, prefix, is_byte_encoder);
+        pretokenizer_decode(text, ctx->special_chars, ctx->prefix, ctx->is_byte_encoder);
 
     PyObject* result = PyUnicode_FromString(decoded_text);
     if (!result) {

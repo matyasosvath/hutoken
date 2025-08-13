@@ -2,6 +2,25 @@
 #define HUTOKEN_LIB_H
 
 #include "Python.h"
+#include <stdbool.h>
+
+struct EncodeContext{
+    bool initialized_encode;
+    struct HashMap* vocab_encode;
+    char* pattern;
+    char** special_chars;
+    char* prefix;
+    bool is_byte_encoder;
+};
+
+struct DecodeContext {
+    bool initialized_decode;
+    char** vocab_decode;
+    int vocab_size_decode;
+    char** special_chars;
+    char* prefix;
+    bool is_byte_encoder;
+}
 
 PyObject* p_bpe_train(PyObject* self, PyObject* args);
 PyObject* p_bbpe_train(PyObject* self, PyObject* args);
