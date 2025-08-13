@@ -43,8 +43,7 @@ transformers = [
 ]
 dev = [
     "tiktoken",
-    "pytest",
-    "timeit"
+    "pytest"
 ]
 
 [tool.setuptools]
