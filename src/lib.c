@@ -99,6 +99,8 @@ PyObject* p_initialize(PyObject* self, PyObject* args, PyObject* kwargs) {
     prefix = NULL;
     char* local_pattern = NULL;
 
+    initialize_logging();
+
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|iz", kwlist,
                                      &vocab_file_path, &special_file_path,
                                      &local_prefix, &local_is_byte_encoder,
