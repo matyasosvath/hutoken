@@ -21,6 +21,19 @@
 #include "hutoken/helper.h"
 #include "hutoken/pretokenizer.h"
 
+#if defined(_WIN32) || defined(_WIN64)
+    #include <windows.h>
+    typedef HANDLE thread_t;
+    #define THREAD_CREATE(thr, func, arg) \
+        *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
+    #define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
+#else
+    #include <pthread.h>
+    typedef pthread_t thread_t;
+    #define THREAD_CREATE(thr, func, arg) pthread_create(thr, NULL, func, arg)
+    #define THREAD_JOIN(thr) pthread_join(thr, NULL)
+#endif
+
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
                 int tokens[],

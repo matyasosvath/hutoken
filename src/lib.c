@@ -471,7 +471,9 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     int tokens_size = 0;
     int tokens[strlen(text)];
 
+    Py_BEGIN_ALLOW_THREADS
     encode(text, ctx, tokens, &tokens_size);
+    Py_END_ALLOW_THREADS
 
     PyObject* list = PyList_New(tokens_size);
     if (!list) {
