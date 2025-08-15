@@ -141,8 +141,13 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
         (void)printf("Directory already exists: %s\n", dir_path);
     }
 
-    char file_path[1024];
-    (void)snprintf(file_path, sizeof(file_path), "%s/%s", dir_path, file_name);
+    size_t file_path_len = strlen(dir_path) + 1 + strlen(file_name) + 1;
+    char* file_path = malloc(file_path_len);
+    if(!file_path){
+        PyErr_SetString(PyExc_MemoryError, "Cannot allocate memory for file path");
+    }
+
+    (void)snprintf(file_path, file_path_len, "%s/%s", dir_path, file_name);
 
     FILE* file = fopen(file_path, "w");
     if (file == NULL) {
