@@ -101,7 +101,8 @@ void bpe_encode(struct HashMap* vocab,
 void encode(char* text,
             struct EncodeContext* ctx,
             int tokens[],
-            int* tokens_size) {
+            int* tokens_size,
+            int num_threads) {
     log_debug("Starting encode function with text: %s and pattern: %s", text, ctx->pattern);
 
     regex_t regex;
@@ -331,8 +332,7 @@ PyObject* look_up_word(struct apply_handle* handle,
             return NULL;
         }
 
-        strncpy(tmp, split_morphemes, tmp_len - 1);
-        tmp[tmp_len - 1] = '\0';
+        strcpy(tmp, split_morphemes);
 
         char* token = strtok(tmp, "[]");
         int should_add = 1;

@@ -452,7 +452,7 @@ static PyObject* p_initialize(PyObject* self,
     Py_RETURN_NONE;
 }
 
-PyObject* p_encode(PyObject* self, PyObject* args) {
+PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
     struct EncodeContext* ctx = global_encode_context;
 
     if (!ctx ||!ctx->initialized_encode) {
@@ -462,9 +462,15 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
+    static char* kwlist[] = {"text", "num_threads", NULL};
     char* text = NULL;
+    int num_threads = 1;
 
-    if (!PyArg_ParseTuple(args, "s", &text)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i", kwlist, &text, &num_threads)) {
+        log_debug("Error: Invalid arguments passed to encode.");
+        PyErr_SetString(PyExc_TypeError,
+                        "Invalid arguments. Expected a string "
+                        "(text) and an optional integer (num_threads).");
         return NULL;
     }
 
@@ -472,7 +478,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     int tokens[strlen(text)];
 
     Py_BEGIN_ALLOW_THREADS
-    encode(text, ctx, tokens, &tokens_size);
+    encode(text, ctx, tokens, &tokens_size, num_threads);
     Py_END_ALLOW_THREADS
 
     PyObject* list = PyList_New(tokens_size);
@@ -562,7 +568,7 @@ static PyMethodDef huTokenMethods[] = {
     {"bbpe_train", p_bbpe_train, METH_VARARGS, "BBPE training"},
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS,
      "Initalize tokenizer"},
-    {"encode", p_encode, METH_VARARGS, "Encodes string"},
+    {"encode", p_encode, METH_VARARGS | METH_KEYWORDS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
     #ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,

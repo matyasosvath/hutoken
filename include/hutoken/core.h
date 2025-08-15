@@ -10,7 +10,8 @@
 void encode(char* text,
             struct EncodeContext* ctx,
             int tokens[],
-            int* tokens_size);
+            int* tokens_size,
+            int num_threads);
 PyObject* decode(PyObject* tokens,
                 struct DecodeContext* ctx);
 PyObject* initialize_foma(void);
