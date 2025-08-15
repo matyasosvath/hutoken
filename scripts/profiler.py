@@ -36,6 +36,10 @@ def main() -> None:
                         default=5000,
                         help='number of iterations to run')
 
+    parser.add_argument('--decode',
+                        action='store_true',
+                        help='run decoding too')
+
     args = parser.parse_args()
 
     logger.info('Loading document from: %s.', args.file_path)
@@ -53,7 +57,8 @@ def main() -> None:
     for _ in range(args.iter):
         encoded_tokens = hutoken.encode(document)
 
-        hutoken.decode(encoded_tokens)
+        if args.decode:
+            hutoken.decode(encoded_tokens)
     logger.info('Profiling loop finished.')
 
 
