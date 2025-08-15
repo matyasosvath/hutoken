@@ -2,7 +2,9 @@
 #define HUTOKEN_CORE_H
 
 #include "Python.h"
+#ifdef USE_FOMA
 #include "fomalib.h"
+#endif
 
 #include "hutoken/hashmap.h"
 
