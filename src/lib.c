@@ -81,6 +81,46 @@ PyObject* p_bbpe_train(PyObject* self, PyObject* args) {
     return Py_None;
 }
 
+int initialize_context(void){
+    global_encode_context = malloc(sizeof(struct EncodeContext));
+    if(!global_encode_context){
+        log_debug("Error: Failed to allocate memory for encode_context.");
+        PyErr_SetString(PyExc_MemoryError,
+                        "Failed to allocate memory for encode_context.");
+        return -1;
+    }
+    memset(global_encode_context, 0, sizeof(struct EncodeContext));
+
+    global_decode_context = malloc(sizeof(struct DecodeContext));
+    if(!global_decode_context){
+        log_debug("Error: Failed to allocate memory for decode_context.");
+        PyErr_SetString(PyExc_MemoryError,
+                        "Failed to allocate memory for decode_context.");
+        return -1;
+    }
+    memset(global_decode_context, 0, sizeof(struct DecodeContext));
+
+    global_encode_context->prefix = NULL;
+    global_encode_context->is_byte_encoder = false;
+    global_encode_context->initialized_encode = false;
+    global_encode_context->pattern = pattern;
+
+    global_encode_context->vocab_encode = hashmap_new(256);
+    if (!global_encode_context->vocab_encode) {
+        log_debug("Error: Failed to create hashmap for vocab_encode.");
+        PyErr_SetString(PyExc_MemoryError,
+                        "Failed to create hashmap for vocab_encode.");
+        return -1;
+    }
+
+    global_decode_context->vocab_size_decode = 0;
+    global_decode_context->prefix = NULL;
+    global_decode_context->is_byte_encoder = false;
+    global_decode_context->initialized_decode = false;
+
+    return 1;
+}
+
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
@@ -107,40 +147,23 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
-    global_encode_context = malloc(sizeof(struct EncodeContext));
-    if(!global_encode_context){
-        log_debug("Error: Failed to allocate memory for encode_context.");
-        PyErr_SetString(PyExc_MemoryError,
-                        "Failed to allocate memory for encode_context.");
-        return NULL;
-    }
-
-    global_decode_context = malloc(sizeof(struct DecodeContext));
-    if(!global_decode_context){
-        log_debug("Error: Failed to allocate memory for decode_context.");
-        PyErr_SetString(PyExc_MemoryError,
-                        "Failed to allocate memory for decode_context.");
+    if (initialize_context() == -1) {
         return NULL;
     }
 
     if (local_prefix) {
         global_encode_context->prefix = strdup(local_prefix);
+        global_decode_context->prefix = strdup(local_prefix);
     }
+
     global_encode_context->is_byte_encoder = local_is_byte_encoder;
+    global_decode_context->is_byte_encoder = local_is_byte_encoder;
 
     if(local_pattern){
         global_encode_context->pattern = strdup(local_pattern);
     }
 
     log_debug("Initializing with vocab file: %s", vocab_file_path);
-
-    global_encode_context->vocab_encode = hashmap_new(256);
-    if (!global_encode_context->vocab_encode) {
-        log_debug("Error: Failed to create hashmap for vocab_encode.");
-        PyErr_SetString(PyExc_MemoryError,
-                        "Failed to create hashmap for vocab_encode.");
-        return NULL;
-    }
 
     struct String hex_buffer;
     if (string_with_capacity(&hex_buffer, 1024) == STRING_ALLOC_ERROR) {
@@ -420,8 +443,8 @@ static PyObject* p_initialize(PyObject* self,
             "Loaded special character for pretokenization: key=%d, value='%s'",
             index, value);
 
-        global_encode_context->special_chars[index] = value;
-        global_decode_context->special_chars[index] = value;
+        global_encode_context->special_chars[index] = strdup(value);;
+        global_decode_context->special_chars[index] = strdup(value);
     }
 
     (void)fclose(special_chars_file);
@@ -432,7 +455,7 @@ static PyObject* p_initialize(PyObject* self,
 PyObject* p_encode(PyObject* self, PyObject* args) {
     struct EncodeContext* ctx = global_encode_context;
 
-    if (!ctx->initialized_encode) {
+    if (!ctx ||!ctx->initialized_encode) {
         PyErr_SetString(PyExc_RuntimeError,
                         "Vocabulary is not initialized for encoding. "
                         "Call 'initialize_encode' function first.");
@@ -469,7 +492,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
 static PyObject* p_decode(PyObject* self, PyObject* args) {
     struct DecodeContext* ctx = global_decode_context;
 
-    if (!ctx->initialized_decode) {
+    if (!ctx || !ctx->initialized_decode) {
         PyErr_SetString(PyExc_RuntimeError,
                         "Vocabulary is not initialized for decoding. "
                         "Call 'initialize_decode' function first.");

@@ -89,7 +89,7 @@ void encode(char* text,
             struct EncodeContext* ctx,
             int tokens[],
             int* tokens_size) {
-    log_debug("Starting encode function with text: %s", text);
+    log_debug("Starting encode function with text: %s and pattern: %s", text, ctx->pattern);
 
     regex_t regex;
     if (regcomp(&regex, ctx->pattern, REG_EXTENDED) == true) {
@@ -124,7 +124,7 @@ void encode(char* text,
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
         char* encoded_word = pretokenizer_encode(
-            word, ctx->special_chars, add_prefix ? ctx->prefix : NULL, ctx->is_byte_encoder);
+            word, (const char**)ctx->special_chars, add_prefix ? ctx->prefix : NULL, ctx->is_byte_encoder);
         add_prefix = false;
 
         int i = 0;
@@ -239,11 +239,12 @@ PyObject* decode(PyObject* tokens,
     }
 
     char* decoded_text =
-        pretokenizer_decode(text, ctx->special_chars, ctx->prefix, ctx->is_byte_encoder);
+        pretokenizer_decode(text, (const char**)ctx->special_chars, ctx->prefix, ctx->is_byte_encoder);
+    log_debug("Decoded_text: %s", decoded_text);
 
     PyObject* result = PyUnicode_FromString(decoded_text);
     if (!result) {
-        log_debug("Error: Failed to create Python string from decoded text");
+        log_debug("Error: Failed to create Python string from decoded text.");
         free(text);
         return NULL;
     }
