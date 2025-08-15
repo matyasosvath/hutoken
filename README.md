@@ -55,7 +55,15 @@ to the results.
     > Thus, this should not be installed using `pip`, but using your system's
     > package manager, or add the header files to `C:\Windows`, depending on
     > your OS.
-    > For example
+    >
+    > For example, in Debian and Ubuntu, you can use:
+    > ```bash
+    > apt install libfoma-dev
+    > ```
+    > In Arch Linux, you can install `foma` from AUR with your favourite
+    > AUR helper.
+    >
+    > Make sure to install the header files alongside the foma binaries.
 
 # Installation
 
