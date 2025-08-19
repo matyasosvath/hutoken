@@ -135,12 +135,23 @@ def encode(text, num_threads=1):
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error encoding text: {e}")
-    
-def decode(tokens):
+
+def decode(tokens, num_threads=1):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
     try:
-        text = _hutoken.decode(tokens)
+        token_len = len(tokens)
+        chunk_size = (token_len + num_threads - 1) // num_threads
+        chunks = []
+        
+        for i in range(num_threads):
+            start = i * chunk_size
+            end = min(start + chunk_size, token_len)
+
+            chunks.append(tokens[start:end])
+
+        print(chunks)
+        text = _hutoken.decode(chunks)
         return text
     except ValueError as e:
         traceback.print_exc(file=sys.stderr)

@@ -36,6 +36,11 @@
         return 0;
     }
 
+    DWORD WINAPI decode_wrapper(LPVOID arg) {
+        decode(arg);
+        return 0;
+    }
+
 #else
     #include <pthread.h>
     typedef pthread_t thread_t;
@@ -47,6 +52,11 @@
     // Wrapper for POSIX-style function
     void* encode_wrapper(void* arg) {
         encode(arg);
+        return NULL;
+    }
+
+    void* decode_wrapper(void* arg) {
+        decode(arg);
         return NULL;
     }
 #endif
@@ -509,7 +519,7 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
     }
 
     thread_t* threads = malloc(num_chunks * sizeof(thread_t));
-    struct ThreadTask* tasks = malloc(num_chunks * sizeof(struct ThreadTask));
+    struct EncodeTask* tasks = malloc(num_chunks * sizeof(struct EncodeTask));
 
     for(Py_ssize_t i = 0; i < num_chunks; i++) {
         PyObject* item = PyList_GetItem(chunks, i);
@@ -596,21 +606,129 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    PyObject* tokens = NULL;
+    PyObject* chunks = NULL;
 
-    if (!PyArg_ParseTuple(args, "O", &tokens)) {
+    if (!PyArg_ParseTuple(args, "O", &chunks)) {
         PyErr_SetString(
             PyExc_TypeError,
             "Failed to parse arguments. Expected a single list of tokens.");
         return NULL;
     }
 
-    if (!PyList_Check(tokens)) {
-        PyErr_SetString(PyExc_TypeError, "Argument must be a list of integers");
+    Py_ssize_t num_chunks = PyList_Size(chunks);
+    if (num_chunks <= 0) {
+        PyErr_SetString(PyExc_ValueError, "No chunks provided.");
         return NULL;
     }
 
-    return decode(tokens, ctx);
+    thread_t* threads = malloc(num_chunks * sizeof(thread_t));
+    struct DecodeTask* tasks = malloc(num_chunks * sizeof(struct DecodeTask));
+
+    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+        PyObject* item = PyList_GetItem(chunks, i);
+        if (!item) {
+            log_debug("Error: Failed to get chunk at index %zd", i);
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get chunk.");
+            return NULL;
+        }
+
+        if(!PyList_Check(item)) {
+            log_debug("Error: Chunk at index %zd is not a list", i);
+            PyErr_SetString(PyExc_TypeError, "Each chunk must be a list of integers.");
+            return NULL;
+        }
+
+        if(i){
+            ctx->prefix = NULL;
+        }
+
+        int tokens_size = PyList_Size(item);
+        tasks[i].tokens = malloc(sizeof(int) * tokens_size);
+        if (!tasks[i].tokens) {
+            log_debug("Error: Memory allocation failed for tokens");
+            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for tokens");
+            return NULL;
+        }
+        for(Py_ssize_t j = 0; j < tokens_size; j++){
+            PyObject* token = PyList_GetItem(item, j);
+            if (token) {
+                tasks[i].tokens[j] = (int)PyLong_AsLong(token);
+            } else {
+                tasks[i].tokens[j] = -1;
+            }
+        }
+
+        tasks[i].tokens_size = malloc(sizeof(int));
+        if (!tasks[i].tokens_size) {
+            log_debug("Error: Memory allocation failed for tokens_size");
+            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for tokens_size");
+            return NULL;
+        }
+        *tasks[i].tokens_size = tokens_size;
+        
+        tasks[i].result = NULL;
+        tasks[i].ctx = ctx;    
+    }
+
+    Py_BEGIN_ALLOW_THREADS
+
+    for(int i = 0; i < num_chunks; i++) {
+        log_debug("Starting thread for chunk %d with tokens size: %d", i, *tasks[i].tokens_size);
+        THREAD_CREATE(&threads[i], decode_wrapper, &tasks[i]);
+    }
+
+    for(int i = 0; i < num_chunks; i++) {
+        THREAD_JOIN(threads[i]);
+    }
+    log_debug("All threads joined");
+
+    Py_END_ALLOW_THREADS
+
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
+        if (tasks[i].error_msg) {
+            log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
+            PyErr_SetString(PyExc_ValueError, tasks[i].error_msg);
+            return NULL;
+        }
+    }
+
+    PyObject* results_list = PyList_New(num_chunks);
+    if (!results_list) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for result list");
+        return NULL;
+    }
+
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
+        PyObject* string = PyUnicode_FromString(tasks[i].result);
+        if (!string) {
+            Py_DECREF(results_list);
+            PyErr_SetString(PyExc_MemoryError, "Failed to create Python string from decoded text");
+            return NULL;
+        }
+        PyList_SET_ITEM(results_list, i, string);
+
+        free(tasks[i].result);
+        free(tasks[i].tokens);
+        free(tasks[i].tokens_size);
+    }
+
+    PyObject* sep = PyUnicode_FromString("");
+    if (!sep) {
+        Py_DECREF(results_list);
+        PyErr_SetString(PyExc_MemoryError, "Failed to create separator string");
+        return NULL;
+    }
+
+    PyObject* joined_result = PyUnicode_Join(sep, results_list);
+    Py_DECREF(sep);
+    Py_DECREF(results_list);
+
+    if (!joined_result) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to create joined string");
+        return NULL;
+    }
+
+    return joined_result;
 }
 
 #ifdef USE_FOMA
@@ -650,7 +768,7 @@ static PyMethodDef huTokenMethods[] = {
     {"bbpe_train", p_bbpe_train, METH_VARARGS, "BBPE training"},
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS,
      "Initalize tokenizer"},
-    {"encode", (PyCFunction)p_encode, METH_VARARGS | METH_KEYWORDS, "Encodes string"},
+    {"encode", (PyCFunction)p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
     #ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,

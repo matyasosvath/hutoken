@@ -85,7 +85,7 @@ void bpe_encode(struct HashMap* vocab,
     }
 }
 
-void encode(struct ThreadTask* task) {
+void encode(struct EncodeTask* task) {
     log_debug("Starting encode function with text: %s and pattern: %s", task->text, task->ctx->pattern);
 
     regex_t regex;
@@ -158,14 +158,13 @@ void encode(struct ThreadTask* task) {
     log_debug("Completed encode function. Total tokens: %d", *task->tokens_size);
 }
 
-PyObject* decode(PyObject* tokens,
-                 struct DecodeContext* ctx) {
+void decode(struct DecodeTask* task) {
     log_debug("Entered decode function");
 
-    Py_ssize_t token_num = PyList_Size(tokens);
-    log_debug("Number of tokens to decode: %zd", token_num);
+    int token_num = *task->tokens_size;
+    log_debug("Number of tokens to decode: %d", token_num);
 
-    size_t text_size = sizeof(char) * ((int)token_num + 1);
+    size_t text_size = sizeof(char) * (token_num + 1);
     char* text = (char*)malloc(text_size);
 
     if (!text) {
@@ -201,7 +200,7 @@ PyObject* decode(PyObject* tokens,
             return NULL;
         }
 
-        const char* word = ctx->vocab_decode[item];
+        const char* word = task->ctx->vocab_decode[item];
         size_t word_len = strlen(word);
         log_debug("Decoded token value %d to word '%s' (length: %zu)", item,
                   word, word_len);
@@ -236,7 +235,7 @@ PyObject* decode(PyObject* tokens,
     }
 
     char* decoded_text =
-        pretokenizer_decode(text, (const char**)ctx->special_chars, ctx->prefix, ctx->is_byte_encoder);
+        pretokenizer_decode(text, (const char**)task->ctx->special_chars, task->ctx->prefix, task->ctx->is_byte_encoder);
     log_debug("Decoded_text: %s", decoded_text);
 
     PyObject* result = PyUnicode_FromString(decoded_text);
@@ -253,7 +252,6 @@ PyObject* decode(PyObject* tokens,
 
     free(text);
     free(decoded_text);
-    return result;
 }
 
 #ifdef USE_FOMA

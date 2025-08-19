@@ -7,9 +7,8 @@
 #include "hutoken/hashmap.h"
 #include "hutoken/lib.h"
 
-void encode(struct ThreadTask* task);
-PyObject* decode(PyObject* tokens,
-                struct DecodeContext* ctx);
+void encode(struct EncodeTask* task);
+void decode(struct DecodeTask* task);
 PyObject* initialize_foma(void);
 PyObject* look_up_word(struct apply_handle* handle,
                        char* word,
