@@ -126,7 +126,8 @@ def encode(text, num_threads=1):
             else:
                 next_start = end
 
-            chunks.append(text[start:end])
+            if start < end:
+                chunks.append(text[start:end])
             start = next_start
 
         tokens = _hutoken.encode(chunks)
