@@ -21,19 +21,6 @@
 #include "hutoken/helper.h"
 #include "hutoken/pretokenizer.h"
 
-#if defined(_WIN32) || defined(_WIN64)
-    #include <windows.h>
-    typedef HANDLE thread_t;
-    #define THREAD_CREATE(thr, func, arg) \
-        *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
-    #define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
-#else
-    #include <pthread.h>
-    typedef pthread_t thread_t;
-    #define THREAD_CREATE(thr, func, arg) pthread_create(thr, NULL, func, arg)
-    #define THREAD_JOIN(thr) pthread_join(thr, NULL)
-#endif
-
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
                 int tokens[],
@@ -98,15 +85,11 @@ void bpe_encode(struct HashMap* vocab,
     }
 }
 
-void encode(char* text,
-            struct EncodeContext* ctx,
-            int tokens[],
-            int* tokens_size,
-            int num_threads) {
-    log_debug("Starting encode function with text: %s and pattern: %s", text, ctx->pattern);
+void encode(struct ThreadTask* task) {
+    log_debug("Starting encode function with text: %s and pattern: %s", task->text, task->ctx->pattern);
 
     regex_t regex;
-    if (regcomp(&regex, ctx->pattern, REG_EXTENDED) == true) {
+    if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
         log_debug("Error: Regex could not be compiled.");
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
@@ -114,7 +97,7 @@ void encode(char* text,
 
     regmatch_t match;
 
-    char* cursor = text;
+    char* cursor = task->text;
     bool add_prefix = true;
     while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
@@ -138,7 +121,7 @@ void encode(char* text,
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
         char* encoded_word = pretokenizer_encode(
-            word, (const char**)ctx->special_chars, add_prefix ? ctx->prefix : NULL, ctx->is_byte_encoder);
+            word, (const char**)task->ctx->special_chars, add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
         add_prefix = false;
 
         int i = 0;
@@ -160,19 +143,19 @@ void encode(char* text,
         int word_token_num = i;
         int word_tokens[word_len];
 
-        bpe_encode(ctx->vocab_encode, word_token_boundaries, word_tokens, &word_token_num);
+        bpe_encode(task->ctx->vocab_encode, word_token_boundaries, word_tokens, &word_token_num);
 
         for (int i = 0; i < word_token_num; i++) {
-            tokens[i + *tokens_size] = word_tokens[i];
+            task->tokens[i + *task->tokens_size] = word_tokens[i];
             log_debug("Encoded token: %d", word_tokens[i]);
         }
 
         cursor += word_end;
-        *tokens_size += word_token_num;
+        *task->tokens_size += word_token_num;
     }
 
     regfree(&regex);
-    log_debug("Completed encode function. Total tokens: %d", *tokens_size);
+    log_debug("Completed encode function. Total tokens: %d", *task->tokens_size);
 }
 
 PyObject* decode(PyObject* tokens,

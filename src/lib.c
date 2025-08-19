@@ -21,6 +21,36 @@
 #include "object.h"
 #include "pyerrors.h"
 
+#if defined(_WIN32) || defined(_WIN64)
+    #include <windows.h>
+    typedef HANDLE thread_t;
+    typedef DWORD WINAPI thread_return_t;
+    typedef LPVOID thread_arg_t;
+    #define THREAD_CREATE(thr, func, arg) \
+        *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
+    #define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
+
+    // Wrapper for POSIX-style function
+    DWORD WINAPI encode_wrapper(LPVOID arg) {
+        encode(arg);
+        return 0;
+    }
+
+#else
+    #include <pthread.h>
+    typedef pthread_t thread_t;
+    typedef void* thread_return_t;
+    typedef void* thread_arg_t;
+    #define THREAD_CREATE(thr, func, arg) pthread_create(thr, NULL, func, arg)
+    #define THREAD_JOIN(thr) pthread_join(thr, NULL)
+
+    // Wrapper for POSIX-style function
+    void* encode_wrapper(void* arg) {
+        encode(arg);
+        return NULL;
+    }
+#endif
+
 static char* pattern =
     "[ ]?[A-Za-záéíóúőűüöÁÉÍÓÚŐÜŰÖ]+|[ ]?[0-9]+|[ "
     "]?[^[:space:][:alpha:][:digit:]]+|[ ]+";
@@ -462,39 +492,91 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
         return NULL;
     }
 
-    static char* kwlist[] = {"text", "num_threads", NULL};
-    char* text = NULL;
-    int num_threads = 1;
+    static char* kwlist[] = {"chunks", NULL};
+    PyObject* chunks = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i", kwlist, &text, &num_threads)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kwlist, &chunks)) {
         log_debug("Error: Invalid arguments passed to encode.");
         PyErr_SetString(PyExc_TypeError,
-                        "Invalid arguments. Expected a string "
-                        "(text) and an optional integer (num_threads).");
+                        "Invalid arguments. Expected a string.");
         return NULL;
     }
 
-    int tokens_size = 0;
-    int tokens[strlen(text)];
+    Py_ssize_t num_chunks = PyList_Size(chunks);
+    if (num_chunks <= 0) {
+        PyErr_SetString(PyExc_ValueError, "No chunks provided.");
+        return NULL;
+    }
 
-    Py_BEGIN_ALLOW_THREADS
-    encode(text, ctx, tokens, &tokens_size, num_threads);
-    Py_END_ALLOW_THREADS
+    thread_t* threads = malloc(num_chunks * sizeof(thread_t));
+    struct ThreadTask* tasks = malloc(num_chunks * sizeof(struct ThreadTask));
 
-    PyObject* list = PyList_New(tokens_size);
-    if (!list) {
+    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+        PyObject* item = PyList_GetItem(chunks, i);
+        if (!item) {
+            log_debug("Error: Failed to get chunk at index %zd", i);
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get chunk.");
+            return NULL;
+        }
+
+        char* text_chunk = (char *)PyUnicode_AsUTF8(item);
+
+        if(i){
+            ctx->prefix = NULL;
+        }
+
+        tasks[i].text = strdup(text_chunk);
+        tasks[i].ctx = ctx;
+        tasks[i].tokens = malloc(sizeof(int) * strlen(text_chunk));
+        tasks[i].tokens_size = malloc(sizeof(int));
+        *tasks[i].tokens_size = 0;
+
+        log_debug("Starting thread for chunk %zd with text: %s", i, text_chunk);
+        THREAD_CREATE(&threads[i], encode_wrapper, &tasks[i]);
+    }
+
+    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+        THREAD_JOIN(threads[i]);
+    }
+    log_debug("All threads joined");
+
+    Py_ssize_t total_tokens = 0;
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
+        total_tokens += *tasks[i].tokens_size;
+    }
+
+    // Allocate final Python list
+    PyObject* result = PyList_New(total_tokens);
+    if (!result) {
         return PyErr_NoMemory();
     }
 
-    for (int i = 0; i < tokens_size; i++) {
-        PyObject* item = PyLong_FromLong(tokens[i]);
-        if (!item) {
-            Py_DECREF(list);  // cleanup in case of error
-            return PyErr_NoMemory();
+    // Second pass: insert tokens in correct order
+    Py_ssize_t offset = 0;
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
+        log_debug("Inserting tokens for chunk %zd, size: %d", i, *tasks[i].tokens_size);
+        for (int j = 0; j < *tasks[i].tokens_size; j++) {
+            PyObject* item = PyLong_FromLong(tasks[i].tokens[j]);
+            if (!item) {
+                Py_DECREF(result);
+                return PyErr_NoMemory();
+            }
+            PyList_SetItem(result, offset + j, item);
         }
-        PyList_SetItem(list, i, item);
+
+        offset += *tasks[i].tokens_size;  // move forward for next chunk
     }
-    return list;
+
+    for (Py_ssize_t i = 0; i < num_chunks; i++){
+        free(tasks[i].text);
+        free(tasks[i].tokens);
+        free(tasks[i].tokens_size);
+    }
+
+    free(threads);
+    free(tasks);
+
+    return result;
 }
 
 static PyObject* p_decode(PyObject* self, PyObject* args) {
@@ -568,7 +650,7 @@ static PyMethodDef huTokenMethods[] = {
     {"bbpe_train", p_bbpe_train, METH_VARARGS, "BBPE training"},
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS,
      "Initalize tokenizer"},
-    {"encode", p_encode, METH_VARARGS | METH_KEYWORDS, "Encodes string"},
+    {"encode", (PyCFunction)p_encode, METH_VARARGS | METH_KEYWORDS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
     #ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,

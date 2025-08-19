@@ -7,11 +7,7 @@
 #include "hutoken/hashmap.h"
 #include "hutoken/lib.h"
 
-void encode(char* text,
-            struct EncodeContext* ctx,
-            int tokens[],
-            int* tokens_size,
-            int num_threads);
+void encode(struct ThreadTask* task);
 PyObject* decode(PyObject* tokens,
                 struct DecodeContext* ctx);
 PyObject* initialize_foma(void);
