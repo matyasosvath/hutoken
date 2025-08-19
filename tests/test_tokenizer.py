@@ -190,8 +190,8 @@ def test_decode_with_hugginface_using_hutoken_encdoe():
     ht_decoded = hutoken.decode(ht_tokens)
 
     assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
-    
-def test_encode_basic_with_multithreading():
+
+def test_multithreading_encode():
 
     tt_enc = tiktoken.get_encoding("gpt2")
     hutoken.initialize("openai-community/gpt2")
@@ -200,7 +200,7 @@ def test_encode_basic_with_multithreading():
     == [tok for seq in tt_enc.encode_ordinary_batch(sentence2_batch, num_threads=4) for tok in seq]
 
 
-def test_decode_basic_with_multithreading():
+def test_decode_with_multithreading_encode():
 
     hutoken.initialize("openai-community/gpt2")
 
@@ -213,8 +213,24 @@ def test_multithreading_prefix():
     hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt', is_byte_encoder=True, prefix="prefix")
     
     tokens = hutoken.encode(sentence1, num_threads=4)
-    decoded = hutoken.decode(tokens)
+    decoded = hutoken.decode(tokens, num_threads=4)
     assert decoded == sentence1, f"Decoded text does not match the original text {decoded} vs {sentence1}"
+    
+def test_multithreading_decode():
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.decode(hutoken.encode(sentence1), num_threads=4) == sentence1
+    assert hutoken.decode(hutoken.encode(sentence2), num_threads=4) == sentence2
+    assert hutoken.decode(hutoken.encode(paragraph1), num_threads=4) == paragraph1
+    assert hutoken.decode(hutoken.encode(paragraph2), num_threads=4) == paragraph2
+    
+def test_multithreading_encode_decode():
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.decode(hutoken.encode(sentence1, num_threads=4), num_threads=4) == sentence1
+    assert hutoken.decode(hutoken.encode(sentence2, num_threads=4), num_threads=4) == sentence2
+    assert hutoken.decode(hutoken.encode(paragraph1, num_threads=4), num_threads=4) == paragraph1
+    assert hutoken.decode(hutoken.encode(paragraph2, num_threads=4), num_threads=4) == paragraph2
 
 def test_morphological_analyzer():
     handle = hutoken.initialize_foma()
