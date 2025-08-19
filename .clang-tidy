@@ -31,7 +31,8 @@ Checks: "*,
         -clang-diagnostic-unused-parameter,
         -bugprone-narrowing-conversions,
         -cppcoreguidelines-narrowing-conversions,
-        -clang-diagnostic-missing-field-initializers
+        -clang-diagnostic-missing-field-initializers,
+        -misc-no-recursion
 "
 WarningsAsErrors: ''
 HeaderFilterRegex: ''

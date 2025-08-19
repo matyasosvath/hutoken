@@ -34,6 +34,7 @@ sources = [
     "src/string.c",
     "src/pretokenizer.c",
     "src/bbpe.c",
+    "src/queue.c"
 ]
 
 include_dirs = ["include"]

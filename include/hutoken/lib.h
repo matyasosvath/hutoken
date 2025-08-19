@@ -30,7 +30,6 @@ struct ThreadTask {
     int* tokens_size;
 };
 
-PyObject* p_initialize(PyObject* self, PyObject* args, PyObject* kwargs);
 PyObject* p_bpe_train(PyObject* self, PyObject* args);
 PyObject* p_bbpe_train(PyObject* self, PyObject* args);
 PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs);
