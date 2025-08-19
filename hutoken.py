@@ -114,11 +114,21 @@ def encode(text, num_threads=1):
         text_len = len(text)
         chunk_size = (text_len + num_threads -1) // num_threads
         chunks = []
+        start = 0
+        
         for i in range(num_threads):
-            start = i * chunk_size
             end = min(start + chunk_size, text_len)
-            chunks.append(text[start:end])
             
+            if end < text_len and i < num_threads - 1:
+                while end < text_len and text[end] not in (' ', '\n', '\t'):
+                    end += 1
+                next_start = end
+            else:
+                next_start = end
+
+            chunks.append(text[start:end])
+            start = next_start
+
         tokens = _hutoken.encode(chunks)
         return tokens
     except Exception as e:
