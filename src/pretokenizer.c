@@ -30,6 +30,7 @@ char* pretokenizer_encode(const char* text,
     if (!text) {
         return NULL;
     }
+    log_debug("Starting pretokenize_encode function with text: %s and prefix: %s", text, prefix);
 
     size_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0;
     size_t new_len = prefix_len;
@@ -51,6 +52,7 @@ char* pretokenizer_encode(const char* text,
         free(is_special);
         return NULL;
     }
+    log_debug("New result length: %zu", new_len);
 
     char* dest = result;
     char* is_special_dest = is_special;
@@ -139,6 +141,7 @@ char* pretokenizer_encode(const char* text,
 
     free(result);
     free(is_special);
+    log_debug("finished pretokenize_encode function: %s", byte_text);
 
     return byte_text;
 }
@@ -177,6 +180,7 @@ char* pretokenizer_decode(const char* text,
     if (!text) {
         return NULL;
     }
+    log_debug("Starting pretokenize_decode function with text: %s and prefix: %s and byte_encode: %d", text, prefix, byte_level);
 
     size_t text_len = strlen(text);
     if (prefix) {
@@ -208,6 +212,7 @@ char* pretokenizer_decode(const char* text,
             for (int i = 0; i < 256; i++) {
                 if (special_chars[i] &&
                     strcmp(current_char_str, special_chars[i]) == 0) {
+                    log_debug("Matched special char: %d, %s", i, special_chars[i]);
                     *dest++ = (unsigned char)i;
                     matched = true;
                     break;
@@ -230,6 +235,7 @@ char* pretokenizer_decode(const char* text,
                 if (special_chars[i]) {
                     size_t tok_len = strlen(special_chars[i]);
                     if (strncmp(p, special_chars[i], tok_len) == 0) {
+                        log_debug("Matched special char: %d, %s", i, special_chars[i]);
                         *dest++ = (unsigned char)i;
                         p += tok_len;
                         matched = true;
@@ -258,6 +264,7 @@ char* pretokenizer_decode(const char* text,
     memcpy(result, buffer, final_len);
     result[final_len] = '\0';
     free(buffer);
+    log_debug("Finished pretokenize_decode function: %s", result);
 
     return result;
 }
