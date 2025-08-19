@@ -86,7 +86,8 @@ void bpe_encode(struct HashMap* vocab,
 }
 
 void encode(struct ThreadTask* task) {
-    log_debug("Starting encode function with text: %s and pattern: %s", task->text, task->ctx->pattern);
+    log_debug("Starting encode function with text: %s and pattern: %s",
+              task->text, task->ctx->pattern);
 
     regex_t regex;
     if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
@@ -121,7 +122,8 @@ void encode(struct ThreadTask* task) {
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
         char* encoded_word = pretokenizer_encode(
-            word, (const char**)task->ctx->special_chars, add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
+            word, (const char**)task->ctx->special_chars,
+            add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
         add_prefix = false;
 
         int i = 0;
@@ -143,7 +145,8 @@ void encode(struct ThreadTask* task) {
         int word_token_num = i;
         int word_tokens[word_len];
 
-        bpe_encode(task->ctx->vocab_encode, word_token_boundaries, word_tokens, &word_token_num);
+        bpe_encode(task->ctx->vocab_encode, word_token_boundaries, word_tokens,
+                   &word_token_num);
 
         for (int i = 0; i < word_token_num; i++) {
             task->tokens[i + *task->tokens_size] = word_tokens[i];
@@ -155,11 +158,11 @@ void encode(struct ThreadTask* task) {
     }
 
     regfree(&regex);
-    log_debug("Completed encode function. Total tokens: %d", *task->tokens_size);
+    log_debug("Completed encode function. Total tokens: %d",
+              *task->tokens_size);
 }
 
-PyObject* decode(PyObject* tokens,
-                 struct DecodeContext* ctx) {
+PyObject* decode(PyObject* tokens, struct DecodeContext* ctx) {
     log_debug("Entered decode function");
 
     Py_ssize_t token_num = PyList_Size(tokens);
@@ -236,7 +239,8 @@ PyObject* decode(PyObject* tokens,
     }
 
     char* decoded_text =
-        pretokenizer_decode(text, (const char**)ctx->special_chars, ctx->prefix, ctx->is_byte_encoder);
+        pretokenizer_decode(text, (const char**)ctx->special_chars, ctx->prefix,
+                            ctx->is_byte_encoder);
     log_debug("Decoded_text: %s", decoded_text);
 
     PyObject* result = PyUnicode_FromString(decoded_text);

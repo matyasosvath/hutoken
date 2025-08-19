@@ -22,33 +22,33 @@
 #include "pyerrors.h"
 
 #if defined(_WIN32) || defined(_WIN64)
-    #include <windows.h>
-    typedef HANDLE thread_t;
-    typedef DWORD WINAPI thread_return_t;
-    typedef LPVOID thread_arg_t;
-    #define THREAD_CREATE(thr, func, arg) \
-        *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
-    #define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
+#include <windows.h>
+typedef HANDLE thread_t;
+typedef DWORD WINAPI thread_return_t;
+typedef LPVOID thread_arg_t;
+#define THREAD_CREATE(thr, func, arg) \
+    *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
+#define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
 
-    // Wrapper for POSIX-style function
-    DWORD WINAPI encode_wrapper(LPVOID arg) {
-        encode(arg);
-        return 0;
-    }
+// Wrapper for POSIX-style function
+DWORD WINAPI encode_wrapper(LPVOID arg) {
+    encode(arg);
+    return 0;
+}
 
 #else
-    #include <pthread.h>
-    typedef pthread_t thread_t;
-    typedef void* thread_return_t;
-    typedef void* thread_arg_t;
-    #define THREAD_CREATE(thr, func, arg) pthread_create(thr, NULL, func, arg)
-    #define THREAD_JOIN(thr) pthread_join(thr, NULL)
+#include <pthread.h>
+typedef pthread_t thread_t;
+typedef void* thread_return_t;
+typedef void* thread_arg_t;
+#define THREAD_CREATE(thr, func, arg) pthread_create(thr, NULL, func, arg)
+#define THREAD_JOIN(thr) pthread_join(thr, NULL)
 
-    // Wrapper for POSIX-style function
-    void* encode_wrapper(void* arg) {
-        encode(arg);
-        return NULL;
-    }
+// Wrapper for POSIX-style function
+void* encode_wrapper(void* arg) {
+    encode(arg);
+    return NULL;
+}
 #endif
 
 static char* pattern =
@@ -111,9 +111,9 @@ PyObject* p_bbpe_train(PyObject* self, PyObject* args) {
     return Py_None;
 }
 
-int initialize_context(void){
+int initialize_context(void) {
     global_encode_context = malloc(sizeof(struct EncodeContext));
-    if(!global_encode_context){
+    if (!global_encode_context) {
         log_debug("Error: Failed to allocate memory for encode_context.");
         PyErr_SetString(PyExc_MemoryError,
                         "Failed to allocate memory for encode_context.");
@@ -122,7 +122,7 @@ int initialize_context(void){
     memset(global_encode_context, 0, sizeof(struct EncodeContext));
 
     global_decode_context = malloc(sizeof(struct DecodeContext));
-    if(!global_decode_context){
+    if (!global_decode_context) {
         log_debug("Error: Failed to allocate memory for decode_context.");
         PyErr_SetString(PyExc_MemoryError,
                         "Failed to allocate memory for decode_context.");
@@ -154,8 +154,9 @@ int initialize_context(void){
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix",
-                             "is_byte_encoder", "special_token_id",  "pattern", NULL};
+    static char* kwlist[] = {
+        "vocab_file_path",  "special_file_path", "prefix", "is_byte_encoder",
+        "special_token_id", "pattern",           NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* local_prefix = NULL;
@@ -191,7 +192,7 @@ static PyObject* p_initialize(PyObject* self,
     global_encode_context->is_byte_encoder = local_is_byte_encoder;
     global_decode_context->is_byte_encoder = local_is_byte_encoder;
 
-    if(local_pattern){
+    if (local_pattern) {
         global_encode_context->pattern = strdup(local_pattern);
     }
 
@@ -331,8 +332,9 @@ static PyObject* p_initialize(PyObject* self,
             return NULL;
         }
 
-        hashmap_set(global_encode_context->vocab_encode, &(struct Token){.key = durable_ascii_str,
-                                                  .value = (int)value});
+        hashmap_set(
+            global_encode_context->vocab_encode,
+            &(struct Token){.key = durable_ascii_str, .value = (int)value});
 
         log_debug("Added vocab entry for encoding: key=%s, value=%d",
                   durable_ascii_str, value);
@@ -352,7 +354,8 @@ static PyObject* p_initialize(PyObject* self,
 
     global_encode_context->initialized_encode = true;
 
-    global_decode_context->vocab_decode = (char**)malloc(global_decode_context->vocab_size_decode * sizeof(char*));
+    global_decode_context->vocab_decode = (char**)malloc(
+        global_decode_context->vocab_size_decode * sizeof(char*));
     if (!global_decode_context->vocab_decode) {
         (void)fclose(file);
         hashmap_free(global_encode_context->vocab_encode);
@@ -475,7 +478,8 @@ static PyObject* p_initialize(PyObject* self,
             "Loaded special character for pretokenization: key=%d, value='%s'",
             index, value);
 
-        global_encode_context->special_chars[index] = strdup(value);;
+        global_encode_context->special_chars[index] = strdup(value);
+        ;
         global_decode_context->special_chars[index] = strdup(value);
     }
 
@@ -487,7 +491,7 @@ static PyObject* p_initialize(PyObject* self,
 PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
     struct EncodeContext* ctx = global_encode_context;
 
-    if (!ctx ||!ctx->initialized_encode) {
+    if (!ctx || !ctx->initialized_encode) {
         PyErr_SetString(PyExc_RuntimeError,
                         "Vocabulary is not initialized for encoding. "
                         "Call 'initialize_encode' function first.");
@@ -513,7 +517,7 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
     thread_t* threads = malloc(num_chunks * sizeof(thread_t));
     struct ThreadTask* tasks = malloc(num_chunks * sizeof(struct ThreadTask));
 
-    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
         PyObject* item = PyList_GetItem(chunks, i);
         if (!item) {
             log_debug("Error: Failed to get chunk at index %zd", i);
@@ -521,9 +525,9 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
             return NULL;
         }
 
-        char* text_chunk = (char *)PyUnicode_AsUTF8(item);
+        char* text_chunk = (char*)PyUnicode_AsUTF8(item);
 
-        if(i){
+        if (i) {
             ctx->prefix = NULL;
         }
 
@@ -537,7 +541,7 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
         THREAD_CREATE(&threads[i], encode_wrapper, &tasks[i]);
     }
 
-    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
         THREAD_JOIN(threads[i]);
     }
     log_debug("All threads joined");
@@ -556,7 +560,8 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
     // Second pass: insert tokens in correct order
     Py_ssize_t offset = 0;
     for (Py_ssize_t i = 0; i < num_chunks; i++) {
-        log_debug("Inserting tokens for chunk %zd, size: %d", i, *tasks[i].tokens_size);
+        log_debug("Inserting tokens for chunk %zd, size: %d", i,
+                  *tasks[i].tokens_size);
         for (int j = 0; j < *tasks[i].tokens_size; j++) {
             PyObject* item = PyLong_FromLong(tasks[i].tokens[j]);
             if (!item) {
@@ -569,7 +574,7 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
         offset += *tasks[i].tokens_size;  // move forward for next chunk
     }
 
-    for (Py_ssize_t i = 0; i < num_chunks; i++){
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
         free(tasks[i].text);
         free(tasks[i].tokens);
         free(tasks[i].tokens_size);
@@ -652,7 +657,8 @@ static PyMethodDef huTokenMethods[] = {
     {"bbpe_train", p_bbpe_train, METH_VARARGS, "BBPE training"},
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS,
      "Initalize tokenizer"},
-    {"encode", (PyCFunction)p_encode, METH_VARARGS | METH_KEYWORDS, "Encodes string"},
+    {"encode", (PyCFunction)p_encode, METH_VARARGS | METH_KEYWORDS,
+     "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
 #ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,

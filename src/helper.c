@@ -152,8 +152,9 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
 
     size_t file_path_len = strlen(dir_path) + 1 + strlen(file_name) + 1;
     char* file_path = malloc(file_path_len);
-    if(!file_path){
-        PyErr_SetString(PyExc_MemoryError, "Cannot allocate memory for file path");
+    if (!file_path) {
+        PyErr_SetString(PyExc_MemoryError,
+                        "Cannot allocate memory for file path");
     }
 
     (void)snprintf(file_path, file_path_len, "%s/%s", dir_path, file_name);

@@ -30,7 +30,9 @@ char* pretokenizer_encode(const char* text,
     if (!text) {
         return NULL;
     }
-    log_debug("Starting pretokenize_encode function with text: %s and prefix: %s", text, prefix);
+    log_debug(
+        "Starting pretokenize_encode function with text: %s and prefix: %s",
+        text, prefix);
 
     size_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0;
     size_t new_len = prefix_len;
@@ -180,7 +182,10 @@ char* pretokenizer_decode(const char* text,
     if (!text) {
         return NULL;
     }
-    log_debug("Starting pretokenize_decode function with text: %s and prefix: %s and byte_encode: %d", text, prefix, byte_level);
+    log_debug(
+        "Starting pretokenize_decode function with text: %s and prefix: %s and "
+        "byte_encode: %d",
+        text, prefix, byte_level);
 
     size_t text_len = strlen(text);
     if (prefix) {
@@ -212,7 +217,8 @@ char* pretokenizer_decode(const char* text,
             for (int i = 0; i < 256; i++) {
                 if (special_chars[i] &&
                     strcmp(current_char_str, special_chars[i]) == 0) {
-                    log_debug("Matched special char: %d, %s", i, special_chars[i]);
+                    log_debug("Matched special char: %d, %s", i,
+                              special_chars[i]);
                     *dest++ = (unsigned char)i;
                     matched = true;
                     break;
@@ -235,7 +241,8 @@ char* pretokenizer_decode(const char* text,
                 if (special_chars[i]) {
                     size_t tok_len = strlen(special_chars[i]);
                     if (strncmp(p, special_chars[i], tok_len) == 0) {
-                        log_debug("Matched special char: %d, %s", i, special_chars[i]);
+                        log_debug("Matched special char: %d, %s", i,
+                                  special_chars[i]);
                         *dest++ = (unsigned char)i;
                         p += tok_len;
                         matched = true;

@@ -1,10 +1,11 @@
 #ifndef HUTOKEN_LIB_H
 #define HUTOKEN_LIB_H
 
-#include "Python.h"
 #include <stdbool.h>
 
-struct EncodeContext{
+#include "Python.h"
+
+struct EncodeContext {
     bool initialized_encode;
     struct HashMap* vocab_encode;
     char* pattern;
@@ -22,7 +23,7 @@ struct DecodeContext {
     bool is_byte_encoder;
 };
 
-struct ThreadTask{
+struct ThreadTask {
     char* text;
     struct EncodeContext* ctx;
     int* tokens;
