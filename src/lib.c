@@ -539,15 +539,29 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
         tasks[i].tokens = malloc(sizeof(int) * strlen(text_chunk));
         tasks[i].tokens_size = malloc(sizeof(int));
         *tasks[i].tokens_size = 0;
+    }
 
-        log_debug("Starting thread for chunk %zd with text: %s", i, text_chunk);
+    Py_BEGIN_ALLOW_THREADS
+
+    for(int i = 0; i < num_chunks; i++) {
+        log_debug("Starting thread for chunk %d with text: %s", i, tasks[i].text);
         THREAD_CREATE(&threads[i], encode_wrapper, &tasks[i]);
     }
 
-    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+    for(int i = 0; i < num_chunks; i++) {
         THREAD_JOIN(threads[i]);
     }
     log_debug("All threads joined");
+
+    Py_END_ALLOW_THREADS
+
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
+        if (tasks[i].error_msg) {
+            log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
+            PyErr_SetString(PyExc_RuntimeError, tasks[i].error_msg);
+            return NULL;
+        }
+    }
 
     Py_ssize_t total_tokens = 0;
     for (Py_ssize_t i = 0; i < num_chunks; i++) {

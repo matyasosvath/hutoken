@@ -91,7 +91,7 @@ void encode(struct EncodeTask* task) {
     regex_t regex;
     if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
         log_debug("Error: Regex could not be compiled.");
-        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+        task->error_msg = "Regex could not be compiled.";
         return;
     }
 
@@ -154,6 +154,8 @@ void encode(struct EncodeTask* task) {
         *task->tokens_size += word_token_num;
     }
 
+    task->error_msg = NULL;
+
     regfree(&regex);
     log_debug("Completed encode function. Total tokens: %d", *task->tokens_size);
 }
@@ -169,35 +171,36 @@ void decode(struct DecodeTask* task) {
 
     if (!text) {
         log_debug("Error: Memory allocation failed for text buffer");
-        return PyErr_NoMemory();
+        task->error_msg = "Failed to allocate memory for text buffer";
+        task->result = NULL;
+        return;
     }
 
     text[0] = '\0';
     log_debug("Initialized text buffer to an empty string (size: %zu bytes)",
               text_size);
 
-    for (Py_ssize_t i = 0; i < token_num; i++) {
-        log_debug("Processing token at index %zd", i);
+    for (int i = 0; i < token_num; i++) {
+        log_debug("Processing token at index %d", i);
 
-        PyObject* token = PyList_GetItem(tokens, i);
-        if (!PyLong_Check(token)) {
-            log_debug("Error: Token at index %zd is not an integer", i);
-            PyErr_SetString(PyExc_TypeError,
-                            "All elements of the list must be integers");
+        int* token = &task->tokens[i];
+        if (!token) {
+            log_debug("Error: Token at index %d is not an integer", i);
+            task->error_msg = "All elements of the list must be integers";
             free(text);
-            return NULL;
+            task->result = NULL;
+            return;
         }
 
-        int item = (int)PyLong_AsLong(token);
-        if (item < 0 || item >= ctx->vocab_size_decode) {
+        int item = *token;
+        if (item < 0 || item >= task->ctx->vocab_size_decode) {
             log_debug(
                 "Error: Token value %d is out of bounds (vocab_size = %d)",
-                item, ctx->vocab_size_decode);
-            PyErr_SetString(
-                PyExc_ValueError,
-                "Element must be non-negative and less than vocab size.");
+                item, task->ctx->vocab_size_decode);
+            task->error_msg = "Element must be non-negative and less than vocab size.";
             free(text);
-            return NULL;
+            task->result = NULL;
+            return;
         }
 
         const char* word = task->ctx->vocab_decode[item];
@@ -219,7 +222,9 @@ void decode(struct DecodeTask* task) {
             if (new_text == NULL) {
                 log_debug("Error: Memory reallocation failed for text buffer");
                 free(text);
-                return PyErr_NoMemory();
+                task->error_msg = "Failed to allocate memory for text buffer";
+                task->result = NULL;
+                return;
             }
             text = new_text;
             text_size = buffer_size;
@@ -238,17 +243,14 @@ void decode(struct DecodeTask* task) {
         pretokenizer_decode(text, (const char**)task->ctx->special_chars, task->ctx->prefix, task->ctx->is_byte_encoder);
     log_debug("Decoded_text: %s", decoded_text);
 
-    PyObject* result = PyUnicode_FromString(decoded_text);
-    if (!result) {
-        log_debug("Error: Failed to create Python string from decoded text.");
-        free(text);
-        return NULL;
-    }
-
+    /*
     log_debug(
         "Successfully created Python string from decoded text (UTF-8 encoded, "
         "might be wrong here): '%s'",
-        decoded_text);
+        decoded_text);*/
+    
+    task->result = strdup(decoded_text);
+    task->error_msg = NULL;
 
     free(text);
     free(decoded_text);
