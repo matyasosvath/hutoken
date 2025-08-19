@@ -189,7 +189,33 @@ def test_decode_with_hugginface_using_hutoken_encdoe():
     ht_decoded = hutoken.decode(ht_tokens)
 
     assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
+    
+def test_encode_basic_with_multithreading():
 
+    tt_enc = tiktoken.get_encoding("gpt2")
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.encode(sentence1, num_threads=4) == tt_enc.encode(sentence1)
+    assert hutoken.encode(sentence2, num_threads=4) == tt_enc.encode(sentence2)
+    assert hutoken.encode(paragraph1, num_threads=4) == tt_enc.encode(paragraph1)
+    assert hutoken.encode(paragraph2, num_threads=4) == tt_enc.encode(paragraph2)
+
+
+def test_decode_basic_with_multithreading():
+
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.decode(hutoken.encode(sentence1, num_threads=4)) == sentence1
+    assert hutoken.decode(hutoken.encode(sentence2, num_threads=4)) == sentence2
+    assert hutoken.decode(hutoken.encode(paragraph1, num_threads=4)) == paragraph1
+    assert hutoken.decode(hutoken.encode(paragraph2, num_threads=4)) == paragraph2
+    
+def test_multithreading_prefix():
+    hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt', is_byte_encoder=True, prefix="prefix")
+    
+    tokens = hutoken.encode(sentence1, num_threads=4)
+    decoded = hutoken.decode(tokens)
+    assert decoded == "prefix" + sentence1, f"Decoded text does not match the original text with prefix: {decoded} vs {"prefix" + sentence1}"
 
 def test_morphological_analyzer():
     handle = hutoken.initialize_foma()
