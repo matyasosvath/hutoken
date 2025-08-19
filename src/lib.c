@@ -492,7 +492,7 @@ static PyObject* p_initialize(PyObject* self,
     Py_RETURN_NONE;
 }
 
-PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
+PyObject* p_encode(PyObject* self, PyObject* args) {
     struct EncodeContext* ctx = global_encode_context;
 
     if (!ctx ||!ctx->initialized_encode) {
@@ -502,10 +502,9 @@ PyObject* p_encode(PyObject* self, PyObject* args, PyObject* kwargs) {
         return NULL;
     }
 
-    static char* kwlist[] = {"chunks", NULL};
     PyObject* chunks = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kwlist, &chunks)) {
+    if (!PyArg_ParseTuple(args, "O", &chunks)) {
         log_debug("Error: Invalid arguments passed to encode.");
         PyErr_SetString(PyExc_TypeError,
                         "Invalid arguments. Expected a string.");
