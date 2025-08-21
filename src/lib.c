@@ -498,6 +498,8 @@ static PyObject* p_initialize(PyObject* self,
 
 PyObject* p_encode(PyObject* self, PyObject* args) {
     struct EncodeContext* ctx = global_encode_context;
+    thread_t* threads = NULL;
+    struct EncodeTask* tasks = NULL;
 
     if (!ctx || !ctx->initialized_encode) {
         PyErr_SetString(PyExc_RuntimeError,
@@ -521,8 +523,8 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    thread_t* threads = malloc(num_chunks * sizeof(thread_t));
-    struct EncodeTask* tasks = malloc(num_chunks * sizeof(struct EncodeTask));
+    threads = malloc(num_chunks * sizeof(thread_t));
+    tasks = malloc(num_chunks * sizeof(struct EncodeTask));
 
     for (Py_ssize_t i = 0; i < num_chunks; i++) {
         PyObject* item = PyList_GetItem(chunks, i);
@@ -576,7 +578,9 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     // Allocate final Python list
     PyObject* result = PyList_New(total_tokens);
     if (!result) {
-        return PyErr_NoMemory();
+        log_debug("Error: Failed to create result list");
+        PyErr_NoMemory();
+        return NULL;
     }
 
     // Second pass: insert tokens in correct order
@@ -588,7 +592,8 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
             PyObject* item = PyLong_FromLong(tasks[i].tokens[j]);
             if (!item) {
                 Py_DECREF(result);
-                return PyErr_NoMemory();
+                PyErr_NoMemory();
+                return NULL;
             }
             PyList_SetItem(result, offset + j, item);
         }
@@ -610,6 +615,8 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
 
 static PyObject* p_decode(PyObject* self, PyObject* args) {
     struct DecodeContext* ctx = global_decode_context;
+    thread_t* threads = NULL;
+    struct EncodeTask* tasks = NULL;
 
     if (!ctx || !ctx->initialized_decode) {
         PyErr_SetString(PyExc_RuntimeError,
@@ -640,8 +647,8 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    thread_t* threads = malloc(num_chunks * sizeof(thread_t));
-    struct DecodeTask* tasks = malloc(num_chunks * sizeof(struct DecodeTask));
+    threads = malloc(num_chunks * sizeof(thread_t));
+    tasks = malloc(num_chunks * sizeof(struct DecodeTask));
 
     for (Py_ssize_t i = 0; i < num_chunks; i++) {
         PyObject* item = PyList_GetItem(chunks, i);

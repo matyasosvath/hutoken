@@ -18,10 +18,11 @@
 
 void log_debug(const char* format, ...) {
     const char* debug_env = getenv("DEBUG");  // NOLINT: concurrency-mt-unsafe
+    struct tm* local_time = NULL;
+
     if (debug_env && strcmp(debug_env, "1") == 0) {
         time_t now = time(NULL);
-        struct tm* local_time =
-            localtime(&now);  // NOLINT: concurrency-mt-unsafe
+        local_time = localtime(&now);  // NOLINT: concurrency-mt-unsafe
         char timestamp[20];
         (void)strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S",
                        local_time);

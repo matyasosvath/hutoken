@@ -48,12 +48,14 @@ char* pretokenizer_encode(const char* text,
 
     char* result = (char*)malloc(new_len + 1);
     char* is_special = (char*)malloc(new_len + 1);
-
     if (!result || !is_special) {
         free(result);
         free(is_special);
         return NULL;
     }
+    memset(result, 0, new_len + 1);
+    memset(is_special, 0, new_len + 1);
+
     log_debug("New result length: %zu", new_len);
 
     char* dest = result;
