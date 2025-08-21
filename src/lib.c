@@ -616,7 +616,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
 static PyObject* p_decode(PyObject* self, PyObject* args) {
     struct DecodeContext* ctx = global_decode_context;
     thread_t* threads = NULL;
-    struct EncodeTask* tasks = NULL;
+    struct DecodeTask* tasks = NULL;
 
     if (!ctx || !ctx->initialized_decode) {
         PyErr_SetString(PyExc_RuntimeError,
