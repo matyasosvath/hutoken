@@ -86,7 +86,8 @@ void bpe_encode(struct HashMap* vocab,
 }
 
 void encode(struct EncodeTask* task) {
-    log_debug("Starting encode function with text: %s and pattern: %s", task->text, task->ctx->pattern);
+    log_debug("Starting encode function with text: %s and pattern: %s",
+              task->text, task->ctx->pattern);
 
     regex_t regex;
     if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
@@ -121,7 +122,8 @@ void encode(struct EncodeTask* task) {
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
         char* encoded_word = pretokenizer_encode(
-            word, (const char**)task->ctx->special_chars, add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
+            word, (const char**)task->ctx->special_chars,
+            add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
         add_prefix = false;
 
         int i = 0;
@@ -143,7 +145,8 @@ void encode(struct EncodeTask* task) {
         int word_token_num = i;
         int word_tokens[word_len];
 
-        bpe_encode(task->ctx->vocab_encode, word_token_boundaries, word_tokens, &word_token_num);
+        bpe_encode(task->ctx->vocab_encode, word_token_boundaries, word_tokens,
+                   &word_token_num);
 
         for (int i = 0; i < word_token_num; i++) {
             task->tokens[i + *task->tokens_size] = word_tokens[i];
@@ -157,7 +160,8 @@ void encode(struct EncodeTask* task) {
     task->error_msg = NULL;
 
     regfree(&regex);
-    log_debug("Completed encode function. Total tokens: %d", *task->tokens_size);
+    log_debug("Completed encode function. Total tokens: %d",
+              *task->tokens_size);
 }
 
 void decode(struct DecodeTask* task) {
@@ -197,7 +201,8 @@ void decode(struct DecodeTask* task) {
             log_debug(
                 "Error: Token value %d is out of bounds (vocab_size = %d)",
                 item, task->ctx->vocab_size_decode);
-            task->error_msg = "Element must be non-negative and less than vocab size.";
+            task->error_msg =
+                "Element must be non-negative and less than vocab size.";
             free(text);
             task->result = NULL;
             return;
@@ -240,7 +245,8 @@ void decode(struct DecodeTask* task) {
     }
 
     char* decoded_text =
-        pretokenizer_decode(text, (const char**)task->ctx->special_chars, task->ctx->prefix, task->ctx->is_byte_encoder);
+        pretokenizer_decode(text, (const char**)task->ctx->special_chars,
+                            task->ctx->prefix, task->ctx->is_byte_encoder);
     log_debug("Decoded_text: %s", decoded_text);
 
     /*
@@ -248,7 +254,7 @@ void decode(struct DecodeTask* task) {
         "Successfully created Python string from decoded text (UTF-8 encoded, "
         "might be wrong here): '%s'",
         decoded_text);*/
-    
+
     task->result = strdup(decoded_text);
     task->error_msg = NULL;
 

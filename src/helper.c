@@ -51,8 +51,7 @@ void visualize(int arr[], char* text, int n) {
     }
 }
 
-void visualize_bpe_train(struct Token current_token,
-                         size_t value) {
+void visualize_bpe_train(struct Token current_token, size_t value) {
     if (VISUALIZE) {
         (void)printf("Most common pair: '%s', rank: %d\n", current_token.key,
                      current_token.value);
@@ -143,8 +142,9 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
 
     size_t file_path_len = strlen(dir_path) + 1 + strlen(file_name) + 1;
     char* file_path = malloc(file_path_len);
-    if(!file_path){
-        PyErr_SetString(PyExc_MemoryError, "Cannot allocate memory for file path");
+    if (!file_path) {
+        PyErr_SetString(PyExc_MemoryError,
+                        "Cannot allocate memory for file path");
     }
 
     (void)snprintf(file_path, file_path_len, "%s/%s", dir_path, file_name);

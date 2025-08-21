@@ -22,43 +22,43 @@
 #include "pyerrors.h"
 
 #if defined(_WIN32) || defined(_WIN64)
-    #include <windows.h>
-    typedef HANDLE thread_t;
-    typedef DWORD WINAPI thread_return_t;
-    typedef LPVOID thread_arg_t;
-    #define THREAD_CREATE(thr, func, arg) \
-        *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
-    #define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
+#include <windows.h>
+typedef HANDLE thread_t;
+typedef DWORD WINAPI thread_return_t;
+typedef LPVOID thread_arg_t;
+#define THREAD_CREATE(thr, func, arg) \
+    *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
+#define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
 
-    // Wrapper for POSIX-style function
-    DWORD WINAPI encode_wrapper(LPVOID arg) {
-        encode(arg);
-        return 0;
-    }
+// Wrapper for POSIX-style function
+DWORD WINAPI encode_wrapper(LPVOID arg) {
+    encode(arg);
+    return 0;
+}
 
-    DWORD WINAPI decode_wrapper(LPVOID arg) {
-        decode(arg);
-        return 0;
-    }
+DWORD WINAPI decode_wrapper(LPVOID arg) {
+    decode(arg);
+    return 0;
+}
 
 #else
-    #include <pthread.h>
-    typedef pthread_t thread_t;
-    typedef void* thread_return_t;
-    typedef void* thread_arg_t;
-    #define THREAD_CREATE(thr, func, arg) pthread_create(thr, NULL, func, arg)
-    #define THREAD_JOIN(thr) pthread_join(thr, NULL)
+#include <pthread.h>
+typedef pthread_t thread_t;
+typedef void* thread_return_t;
+typedef void* thread_arg_t;
+#define THREAD_CREATE(thr, func, arg) pthread_create(thr, NULL, func, arg)
+#define THREAD_JOIN(thr) pthread_join(thr, NULL)
 
-    // Wrapper for POSIX-style function
-    void* encode_wrapper(void* arg) {
-        encode(arg);
-        return NULL;
-    }
+// Wrapper for POSIX-style function
+void* encode_wrapper(void* arg) {
+    encode(arg);
+    return NULL;
+}
 
-    void* decode_wrapper(void* arg) {
-        decode(arg);
-        return NULL;
-    }
+void* decode_wrapper(void* arg) {
+    decode(arg);
+    return NULL;
+}
 #endif
 
 static char* pattern =
@@ -121,9 +121,9 @@ PyObject* p_bbpe_train(PyObject* self, PyObject* args) {
     return Py_None;
 }
 
-int initialize_context(void){
+int initialize_context(void) {
     global_encode_context = malloc(sizeof(struct EncodeContext));
-    if(!global_encode_context){
+    if (!global_encode_context) {
         log_debug("Error: Failed to allocate memory for encode_context.");
         PyErr_SetString(PyExc_MemoryError,
                         "Failed to allocate memory for encode_context.");
@@ -132,7 +132,7 @@ int initialize_context(void){
     memset(global_encode_context, 0, sizeof(struct EncodeContext));
 
     global_decode_context = malloc(sizeof(struct DecodeContext));
-    if(!global_decode_context){
+    if (!global_decode_context) {
         log_debug("Error: Failed to allocate memory for decode_context.");
         PyErr_SetString(PyExc_MemoryError,
                         "Failed to allocate memory for decode_context.");
@@ -164,8 +164,9 @@ int initialize_context(void){
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {"vocab_file_path", "special_file_path", "prefix",
-                             "is_byte_encoder", "special_token_id",  "pattern", NULL};
+    static char* kwlist[] = {
+        "vocab_file_path",  "special_file_path", "prefix", "is_byte_encoder",
+        "special_token_id", "pattern",           NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* local_prefix = NULL;
@@ -199,7 +200,7 @@ static PyObject* p_initialize(PyObject* self,
     global_encode_context->is_byte_encoder = local_is_byte_encoder;
     global_decode_context->is_byte_encoder = local_is_byte_encoder;
 
-    if(local_pattern){
+    if (local_pattern) {
         global_encode_context->pattern = strdup(local_pattern);
     }
 
@@ -339,8 +340,9 @@ static PyObject* p_initialize(PyObject* self,
             return NULL;
         }
 
-        hashmap_set(global_encode_context->vocab_encode, &(struct Token){.key = durable_ascii_str,
-                                                  .value = (int)value});
+        hashmap_set(
+            global_encode_context->vocab_encode,
+            &(struct Token){.key = durable_ascii_str, .value = (int)value});
 
         log_debug("Added vocab entry for encoding: key=%s, value=%d",
                   durable_ascii_str, value);
@@ -360,7 +362,8 @@ static PyObject* p_initialize(PyObject* self,
 
     global_encode_context->initialized_encode = true;
 
-    global_decode_context->vocab_decode = (char**)malloc(global_decode_context->vocab_size_decode * sizeof(char*));
+    global_decode_context->vocab_decode = (char**)malloc(
+        global_decode_context->vocab_size_decode * sizeof(char*));
     if (!global_decode_context->vocab_decode) {
         (void)fclose(file);
         hashmap_free(global_encode_context->vocab_encode);
@@ -483,7 +486,8 @@ static PyObject* p_initialize(PyObject* self,
             "Loaded special character for pretokenization: key=%d, value='%s'",
             index, value);
 
-        global_encode_context->special_chars[index] = strdup(value);;
+        global_encode_context->special_chars[index] = strdup(value);
+        ;
         global_decode_context->special_chars[index] = strdup(value);
     }
 
@@ -495,7 +499,7 @@ static PyObject* p_initialize(PyObject* self,
 PyObject* p_encode(PyObject* self, PyObject* args) {
     struct EncodeContext* ctx = global_encode_context;
 
-    if (!ctx ||!ctx->initialized_encode) {
+    if (!ctx || !ctx->initialized_encode) {
         PyErr_SetString(PyExc_RuntimeError,
                         "Vocabulary is not initialized for encoding. "
                         "Call 'initialize_encode' function first.");
@@ -520,7 +524,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     thread_t* threads = malloc(num_chunks * sizeof(thread_t));
     struct EncodeTask* tasks = malloc(num_chunks * sizeof(struct EncodeTask));
 
-    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
         PyObject* item = PyList_GetItem(chunks, i);
         if (!item) {
             log_debug("Error: Failed to get chunk at index %zd", i);
@@ -528,9 +532,9 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
             return NULL;
         }
 
-        char* text_chunk = (char *)PyUnicode_AsUTF8(item);
+        char* text_chunk = (char*)PyUnicode_AsUTF8(item);
 
-        if(i){
+        if (i) {
             ctx->prefix = NULL;
         }
 
@@ -543,19 +547,20 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
 
     Py_BEGIN_ALLOW_THREADS
 
-    for(int i = 0; i < num_chunks; i++) {
-        log_debug("Starting thread for chunk %d with text: %s", i, tasks[i].text);
+        for (int i = 0; i < num_chunks; i++) {
+        log_debug("Starting thread for chunk %d with text: %s", i,
+                  tasks[i].text);
         THREAD_CREATE(&threads[i], encode_wrapper, &tasks[i]);
     }
 
-    for(int i = 0; i < num_chunks; i++) {
+    for (int i = 0; i < num_chunks; i++) {
         THREAD_JOIN(threads[i]);
     }
     log_debug("All threads joined");
 
     Py_END_ALLOW_THREADS
 
-    for (Py_ssize_t i = 0; i < num_chunks; i++) {
+        for (Py_ssize_t i = 0; i < num_chunks; i++) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_RuntimeError, tasks[i].error_msg);
@@ -577,7 +582,8 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     // Second pass: insert tokens in correct order
     Py_ssize_t offset = 0;
     for (Py_ssize_t i = 0; i < num_chunks; i++) {
-        log_debug("Inserting tokens for chunk %zd, size: %d", i, *tasks[i].tokens_size);
+        log_debug("Inserting tokens for chunk %zd, size: %d", i,
+                  *tasks[i].tokens_size);
         for (int j = 0; j < *tasks[i].tokens_size; j++) {
             PyObject* item = PyLong_FromLong(tasks[i].tokens[j]);
             if (!item) {
@@ -590,7 +596,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
         offset += *tasks[i].tokens_size;  // move forward for next chunk
     }
 
-    for (Py_ssize_t i = 0; i < num_chunks; i++){
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
         free(tasks[i].text);
         free(tasks[i].tokens);
         free(tasks[i].tokens_size);
@@ -637,7 +643,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     thread_t* threads = malloc(num_chunks * sizeof(thread_t));
     struct DecodeTask* tasks = malloc(num_chunks * sizeof(struct DecodeTask));
 
-    for(Py_ssize_t i = 0; i < num_chunks; i++) {
+    for (Py_ssize_t i = 0; i < num_chunks; i++) {
         PyObject* item = PyList_GetItem(chunks, i);
         if (!item) {
             log_debug("Error: Failed to get chunk at index %zd", i);
@@ -645,13 +651,14 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
             return NULL;
         }
 
-        if(!PyList_Check(item)) {
+        if (!PyList_Check(item)) {
             log_debug("Error: Chunk at index %zd is not a list", i);
-            PyErr_SetString(PyExc_TypeError, "Each chunk must be a list of integers.");
+            PyErr_SetString(PyExc_TypeError,
+                            "Each chunk must be a list of integers.");
             return NULL;
         }
 
-        if(i){
+        if (i) {
             ctx->prefix = NULL;
         }
 
@@ -659,10 +666,11 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         tasks[i].tokens = malloc(sizeof(int) * tokens_size);
         if (!tasks[i].tokens) {
             log_debug("Error: Memory allocation failed for tokens");
-            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for tokens");
+            PyErr_SetString(PyExc_MemoryError,
+                            "Failed to allocate memory for tokens");
             return NULL;
         }
-        for(Py_ssize_t j = 0; j < tokens_size; j++){
+        for (Py_ssize_t j = 0; j < tokens_size; j++) {
             PyObject* token = PyList_GetItem(item, j);
             if (token) {
                 tasks[i].tokens[j] = (int)PyLong_AsLong(token);
@@ -674,30 +682,32 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         tasks[i].tokens_size = malloc(sizeof(int));
         if (!tasks[i].tokens_size) {
             log_debug("Error: Memory allocation failed for tokens_size");
-            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for tokens_size");
+            PyErr_SetString(PyExc_MemoryError,
+                            "Failed to allocate memory for tokens_size");
             return NULL;
         }
         *tasks[i].tokens_size = tokens_size;
-        
+
         tasks[i].result = NULL;
-        tasks[i].ctx = ctx;    
+        tasks[i].ctx = ctx;
     }
 
     Py_BEGIN_ALLOW_THREADS
 
-    for(int i = 0; i < num_chunks; i++) {
-        log_debug("Starting thread for chunk %d with tokens size: %d", i, *tasks[i].tokens_size);
+        for (int i = 0; i < num_chunks; i++) {
+        log_debug("Starting thread for chunk %d with tokens size: %d", i,
+                  *tasks[i].tokens_size);
         THREAD_CREATE(&threads[i], decode_wrapper, &tasks[i]);
     }
 
-    for(int i = 0; i < num_chunks; i++) {
+    for (int i = 0; i < num_chunks; i++) {
         THREAD_JOIN(threads[i]);
     }
     log_debug("All threads joined");
 
     Py_END_ALLOW_THREADS
 
-    for (Py_ssize_t i = 0; i < num_chunks; i++) {
+        for (Py_ssize_t i = 0; i < num_chunks; i++) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_ValueError, tasks[i].error_msg);
@@ -707,7 +717,8 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
 
     PyObject* results_list = PyList_New(num_chunks);
     if (!results_list) {
-        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for result list");
+        PyErr_SetString(PyExc_MemoryError,
+                        "Failed to allocate memory for result list");
         return NULL;
     }
 
@@ -715,7 +726,8 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         PyObject* string = PyUnicode_FromString(tasks[i].result);
         if (!string) {
             Py_DECREF(results_list);
-            PyErr_SetString(PyExc_MemoryError, "Failed to create Python string from decoded text");
+            PyErr_SetString(PyExc_MemoryError,
+                            "Failed to create Python string from decoded text");
             return NULL;
         }
         PyList_SET_ITEM(results_list, i, string);
@@ -783,12 +795,12 @@ static PyMethodDef huTokenMethods[] = {
      "Initalize tokenizer"},
     {"encode", (PyCFunction)p_encode, METH_VARARGS, "Encodes string"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
-    #ifdef USE_FOMA
+#ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,
      "Initilaizes the foma fst"},
     {"look_up_word", (PyCFunction)p_look_up_word, METH_VARARGS,
      "Morphological analysis of a word"},
-    #endif
+#endif
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef huToken = {PyModuleDef_HEAD_INIT, "huToken",
