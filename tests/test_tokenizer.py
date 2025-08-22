@@ -192,12 +192,18 @@ def test_decode_with_hugginface_using_hutoken_encdoe():
     assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
 
 def test_multithreading_encode():
+    hutoken.initialize("openai-community/gpt2")
+    hf_enc = AutoTokenizer.from_pretrained("openai-community/gpt2")
+
+    assert hutoken.encode(sentence2, num_threads=4) == sum(hf_enc(sentence2_batch)["input_ids"], [])
+
+def test_multithreading_encode_with_tiktoken():
 
     tt_enc = tiktoken.get_encoding("gpt2")
     hutoken.initialize("openai-community/gpt2")
 
     assert hutoken.encode(sentence2, num_threads=4) \
-    == [tok for seq in tt_enc.encode_ordinary_batch(sentence2_batch, num_threads=4) for tok in seq]
+    == sum(tt_enc.encode_ordinary_batch(sentence2_batch, num_threads=4), [])
 
 
 def test_decode_with_multithreading_encode():
