@@ -8,7 +8,8 @@
 #include "unicodeobject.h"
 
 #include <assert.h>
-#include <regex.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -95,38 +96,96 @@ void encode(char* text,
             bool is_byte_encoder) {
     log_debug("Starting encode function with text: %s", text);
 
-    regex_t regex;
-    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
-        log_debug("Error: Regex could not be compiled.");
+    int errorcode;
+    PCRE2_SIZE erroroffset;
+    pcre2_code *regex;
+    pcre2_match_data *match_data;
+    PCRE2_SIZE *ovector;
+
+    // Compile the regular expression
+    regex = pcre2_compile(
+        (PCRE2_SPTR)pattern,    /* the pattern */
+        PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
+        PCRE2_UTF,                      /* using UTF-8 */
+        &errorcode,             /* for error code */
+        &erroroffset,           /* for error offset */
+        NULL);    
+
+    if (regex == NULL) {
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(errorcode, buffer, sizeof(buffer));
+        log_debug("Error: PCRE2 compilation failed at offset %d: %s", 
+                  (int)erroroffset, buffer);
         PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
         return;
     }
 
-    regmatch_t match;
+    // Create a match data block for storing the result
+    match_data = pcre2_match_data_create_from_pattern(regex, NULL);
+    if (match_data == NULL) {
+        log_debug("Error: Failed to create match data");
+        pcre2_code_free(regex);
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create match data.");
+        return;
+    }
 
     char* cursor = text;
+    size_t text_length = strlen(text);
+    size_t offset = 0;
     bool add_prefix = true;
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
-        int word_start = match.rm_so;
-        int word_end = match.rm_eo;
-        int word_len = word_end - word_start;
 
-        // If the regex finds a zero-length match, word_len will be 0.
-        // This would lead to calling `bpe_encode` with unitialized arrays, or
-        // the `cursor` not advancing to the next step.
-        if (cursor + word_start >= cursor + word_end) {
-            if (cursor[word_start] == '\0') {
+    while (offset < text_length) {
+        int rc = pcre2_match(
+            regex,                  /* the compiled pattern */
+            (PCRE2_SPTR)text,      /* the subject string */
+            text_length,           /* the length of the subject */
+            offset,                /* start at this offset */
+            0,                     /* default options */
+            match_data,            /* block for storing the result */
+            NULL);                 /* use default match context */
+
+        if (rc < 0) {
+            if (rc == PCRE2_ERROR_NOMATCH) {
+                // No more matches
                 break;
             }
-            cursor += word_start + 1;
+            // Handle other errors
+            log_debug("Error: PCRE2 matching failed with error code %d", rc);
+            break;
+        }
+
+        // Get pointer to the output vector
+        ovector = pcre2_get_ovector_pointer(match_data);
+        
+        PCRE2_SIZE word_start = ovector[0];
+        PCRE2_SIZE word_end = ovector[1];
+        size_t word_len = word_end - word_start;
+
+        // If the regex finds a zero-length match, word_len will be 0.
+        // This would lead to calling `bpe_encode` with uninitialized arrays, or
+        // the `offset` not advancing to the next step.
+        if (word_len == 0) {
+            if (word_start >= text_length) {
+                break;
+            }
+            offset = word_start + 1;
             continue;
         }
 
         char* word = malloc(word_len + 1);
-        memcpy(word, cursor, word_len);
+        if (word == NULL) {
+            log_debug("Error: Memory allocation failed for word");
+            pcre2_match_data_free(match_data);
+            pcre2_code_free(regex);
+            PyErr_SetString(PyExc_MemoryError, "Memory allocation failed.");
+            return;
+        }
+        
+        memcpy(word, text + word_start, word_len);
         word[word_len] = '\0';
-        log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
+        log_debug("Matched word: start=%zu, end=%zu, length=%zu, word='%s'",
                   word_start, word_end, word_len, word);
+                  
         char* encoded_word = pretokenizer_encode(
             word, special_chars, add_prefix ? prefix : NULL, is_byte_encoder);
         add_prefix = false;
@@ -157,12 +216,15 @@ void encode(char* text,
             log_debug("Encoded token: %d", word_tokens[i]);
         }
 
-        cursor += word_end;
+        free(word);
+        offset = word_end;
         *tokens_size += word_token_num;
     }
 
-    regfree(&regex);
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(regex);
     log_debug("Completed encode function. Total tokens: %d", *tokens_size);
+
 }
 
 PyObject* decode(PyObject* tokens,
