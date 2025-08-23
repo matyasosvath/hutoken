@@ -38,7 +38,7 @@ sources = [
 
 include_dirs = ["include"]
 extra_compile_args = ["-O3", "-march=native", "-funroll-loops", "-Iinclude"]
-extra_link_args = ["-flto"]
+extra_link_args = ["-flto","-lpcre2-8"]
 
 if is_foma_installed():
     extra_compile_args.append("-DUSE_FOMA")
