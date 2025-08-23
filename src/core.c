@@ -106,7 +106,7 @@ void encode(char* text,
     regex = pcre2_compile(
         (PCRE2_SPTR)pattern,    /* the pattern */
         PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
-        PCRE2_UTF,                      /* using UTF-8 */
+        PCRE2_UTF,              /* using UTF-8 */
         &errorcode,             /* for error code */
         &erroroffset,           /* for error offset */
         NULL);    
