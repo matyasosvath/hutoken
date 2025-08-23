@@ -107,21 +107,51 @@ def initialize(model_or_path, *args, **kwargs):
 
         return result
 
-def encode(text):
+def encode(text, num_threads=1):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
     try:
-        tokens = _hutoken.encode(text)
+        text_len = len(text)
+        chunk_size = (text_len + num_threads -1) // num_threads
+        chunks = []
+        start = 0
+        
+        for i in range(num_threads):
+            end = min(start + chunk_size, text_len)
+            
+            if end < text_len and i < num_threads - 1:
+                while end < text_len and text[end] not in (' ', '\n', '\t'):
+                    end += 1
+                next_start = end
+            else:
+                next_start = end
+
+            if start < end:
+                chunks.append(text[start:end])
+            start = next_start
+
+        tokens = _hutoken.encode(chunks)
         return tokens
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error encoding text: {e}")
 
-def decode(tokens):
+def decode(tokens, num_threads=1):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
     try:
-        text = _hutoken.decode(tokens)
+        token_len = len(tokens)
+        chunk_size = (token_len + num_threads - 1) // num_threads
+        chunks = []
+        
+        for i in range(num_threads):
+            start = i * chunk_size
+            end = min(start + chunk_size, token_len)
+
+            chunks.append(tokens[start:end])
+
+        print(chunks)
+        text = _hutoken.decode(chunks)
         return text
     except ValueError as e:
         traceback.print_exc(file=sys.stderr)

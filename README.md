@@ -189,6 +189,17 @@ text = hutoken.decode([14, 9, 19, 19, 24, 0, 23, 14, 17, 19, 11])
 print(text) # example output: "hello world"
 ```
 
+## Using multiple threads
+
+During encoding or decoding you can use multiple threads.
+
+```python
+tokens = hutoken.encode("hello world", num_threads = 4)
+print(tokens) # example output: [14, 9, 19, 19, 24, 0, 23, 14, 17, 19, 11]
+text = hutoken.decode([14, 9, 19, 19, 24, 0, 23, 14, 17, 19, 11], num_threads = 4)
+print(text) # example output: "hello world"
+```
+
 ## Morphological analyzer
 
 ### Looking up a word's morphemes
