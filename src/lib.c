@@ -24,9 +24,7 @@
 static bool initialized_encode = false;
 static bool initialized_decode = false;
 static char* pattern =
-    "[ ]?[A-Za-záéíóúőűüöÁÉÍÓÚŐÜŰÖ]+|[ ]?[0-9]+|[ "
-    "]?[^[:space:][:alpha:][:digit:]]+|[ ]+";
-
+    """'s|'t|'re|'ve|'m|'ll|'d| ?[\p{L}]+| ?[\p{N}]+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""";
 struct HashMap* vocab_encode;
 char** vocab_decode;
 int vocab_size_decode;
