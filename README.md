@@ -60,10 +60,23 @@ to the results.
 -   `pcre2` (PCRE - Perl Compatible Regular Expressions).
 
     > The PCRE library is a set of functions that implement regular expression pattern matching using the same syntax and semantics as Perl 5. This library is required to use a more robust regex system (e.g.: use python style regex) instead of the standard C style POSIX regex for tokenization.
-    > Ubuntu/Debian: sudo apt-get install libpcre2-dev
-    > CentOS/RHEL/Fedora: sudo yum install pcre2-devel OR sudo dnf install pcre2-devel
-    > macOS: brew install pcre2
 
+    ### Installation of pcre2 on different systems:
+
+    Ubuntu/Debian:
+    ```bash
+    sudo apt-get install libpcre2-dev
+    ```
+
+    CentOS/RHEL/Fedora:
+    ```bash
+    sudo yum install pcre2-devel OR sudo dnf install pcre2-devel
+    ```
+    macOS: 
+    ```bash
+    brew install pcre2
+    ```
+    
 # Installation
 
 ## PyPI
