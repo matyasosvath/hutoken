@@ -188,6 +188,7 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
+    log_debug("Initializing context for encode and decode");
     if (initialize_context() == -1) {
         return NULL;
     }
@@ -497,6 +498,54 @@ static PyObject* p_initialize(PyObject* self,
 }
 
 PyObject* p_encode(PyObject* self, PyObject* args) {
+    struct EncodeContext* ctx = global_encode_context;
+
+    if (!ctx || !ctx->initialized_encode) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "Vocabulary is not initialized for encoding. "
+                        "Call 'initialize_encode' function first.");
+        return NULL;
+    }
+
+    char* text = NULL;
+
+    if (!PyArg_ParseTuple(args, "s", &text)) {
+        return NULL;
+    }
+
+    if(!text){
+        PyErr_SetString(PyExc_ValueError, "Text is empty.");
+        return NULL;
+    }
+
+    int tokens_size = 0;
+    int tokens[strlen(text)];
+
+    encode(&(struct EncodeTask){
+        .text = text,
+        .ctx = ctx,
+        .tokens = tokens,
+        .tokens_size = &tokens_size,
+        .error_msg = NULL,
+    });
+
+    PyObject* list = PyList_New(tokens_size);
+    if (!list) {
+        return PyErr_NoMemory();
+    }
+
+    for (int i = 0; i < tokens_size; i++) {
+        PyObject* item = PyLong_FromLong(tokens[i]);
+        if (!item) {
+            Py_DECREF(list);  // cleanup in case of error
+            return PyErr_NoMemory();
+        }
+        PyList_SetItem(list, i, item);
+    }
+    return list;
+}
+
+PyObject* p_batch_encode(PyObject* self, PyObject* args){
     struct EncodeContext* ctx = global_encode_context;
     thread_t* threads = NULL;
     struct EncodeTask* tasks = NULL;
