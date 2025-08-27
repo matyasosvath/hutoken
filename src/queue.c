@@ -3,10 +3,16 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include "hutoken/arena.h"
 
 static const int INITIAL_CAPACITY = 16;
 
 static enum MinPQError resize(struct MinPQ* pq, const size_t new_capacity);
+static enum MinPQError resize_arena(struct Arena* arena,
+                                    struct MinPQ* pq,
+                                    const size_t new_capacity);
 static void heapify_up(struct MinPQ* pq, const size_t index);
 static void heapify_down(struct MinPQ* pq, const size_t index);
 static void swap(struct MergeCandidate* a, struct MergeCandidate* b);
@@ -77,6 +83,41 @@ bool min_pq_is_empty(const struct MinPQ* pq) {
     return pq ? pq->size == 0 : true;
 }
 
+enum MinPQError min_pq_init_arena(struct Arena* arena,
+                                  struct MinPQ* pq,
+                                  const size_t capacity) {
+    size_t initial_cap = (capacity > 0) ? capacity : INITIAL_CAPACITY;
+    pq->data = arena_alloc(arena, initial_cap * sizeof(struct MergeCandidate));
+    if (!pq->data) {
+        return MIN_PQ_ALLOC_ERROR;
+    }
+
+    pq->size = 0;
+    pq->capacity = initial_cap;
+
+    return MIN_PQ_SUCCESS;
+}
+
+enum MinPQError min_pq_push_arena(struct Arena* arena,
+                                  struct MinPQ* pq,
+                                  const struct MergeCandidate candidate) {
+    if (!pq) {
+        return MIN_PQ_INVALID_ARGUMENT;
+    }
+
+    if (pq->size >= pq->capacity) {
+        if (resize_arena(arena, pq, pq->capacity * 2) != MIN_PQ_SUCCESS) {
+            return MIN_PQ_ALLOC_ERROR;
+        }
+    }
+
+    pq->data[pq->size] = candidate;
+    heapify_up(pq, pq->size);
+    ++pq->size;
+
+    return MIN_PQ_SUCCESS;
+}
+
 static enum MinPQError resize(struct MinPQ* pq, const size_t new_capacity) {
     struct MergeCandidate* new_data =
         realloc(pq->data, new_capacity * sizeof(struct MergeCandidate));
@@ -85,6 +126,23 @@ static enum MinPQError resize(struct MinPQ* pq, const size_t new_capacity) {
         return MIN_PQ_ALLOC_ERROR;
     }
 
+    pq->data = new_data;
+    pq->capacity = new_capacity;
+
+    return MIN_PQ_SUCCESS;
+}
+
+static enum MinPQError resize_arena(struct Arena* arena,
+                                    struct MinPQ* pq,
+                                    const size_t new_capacity) {
+    struct MergeCandidate* new_data =
+        arena_alloc(arena, new_capacity * sizeof(struct MergeCandidate));
+
+    if (!new_data) {
+        return MIN_PQ_ALLOC_ERROR;
+    }
+
+    memcpy(new_data, pq->data, pq->size * sizeof(struct MergeCandidate));
     pq->data = new_data;
     pq->capacity = new_capacity;
 
