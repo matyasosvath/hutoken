@@ -56,3 +56,19 @@ typedef struct {
 
 void taskqueue_init(TaskQueue* q, struct EncodeTask* tasks, int num_tasks);
 struct EncodeTask* taskqueue_get(TaskQueue* q);
+
+typedef struct {
+    struct DecodeTask* tasks;
+    int num_tasks;
+    int next_task;
+    #if defined(_WIN32) || defined(_WIN64)
+    CRITICAL_SECTION lock;
+    #else
+    pthread_mutex_t lock;
+    #endif
+} DecodeQueue;
+
+void decodequeue_init(DecodeQueue* q, struct DecodeTask* tasks, int num_tasks);
+struct DecodeTask* decodequeue_get(DecodeQueue* q);
+
+#endif

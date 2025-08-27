@@ -20,6 +20,7 @@
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
 #include "hutoken/pretokenizer.h"
+#include "hutoken/taskqueue.h"
 
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
@@ -234,7 +235,7 @@ void decode(struct DecodeTask* task) {
             text = new_text;
             text_size = buffer_size;
 
-            log_debug("Resized text buffer to new size: %d bytes", buffer_size);
+            log_debug("Resized text buffer to new size: %zu bytes", buffer_size);
         }
 
         (void)strcat(text, word);

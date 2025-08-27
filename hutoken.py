@@ -126,26 +126,24 @@ def batch_encode(texts, num_threads=1):
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error encoding texts: {e}")
 
-def decode(tokens, num_threads=1):
+def decode(tokens):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
     try:
-        token_len = len(tokens)
-        chunk_size = (token_len + num_threads - 1) // num_threads
-        chunks = []
-        
-        for i in range(num_threads):
-            start = i * chunk_size
-            end = min(start + chunk_size, token_len)
-
-            chunks.append(tokens[start:end])
-
-        print(chunks)
-        text = _hutoken.decode(chunks)
+        text = _hutoken.decode(tokens)
         return text
     except ValueError as e:
         traceback.print_exc(file=sys.stderr)
         raise ValueError(f"hutoken: Error decoding tokens {tokens}: {e}")
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        raise RuntimeError(f"hutoken: Error decoding tokens: {e}")
+
+def batch_decode(tokens, num_threads=1):
+    if _hutoken is None:
+        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
+    try:
+        return _hutoken.batch_decode(tokens, num_threads)
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error decoding tokens: {e}")
