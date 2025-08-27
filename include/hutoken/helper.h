@@ -17,8 +17,7 @@ struct Boundary {
 void log_debug(const char* format, ...);
 void visualize(int arr[], char* text, int n);
 void visualize_bbpe_train(struct TokenPair current_token, size_t value);
-void visualize_bpe_train(struct Token current_token,
-                         size_t value);
+void visualize_bpe_train(struct Token current_token, size_t value);
 void hex_str_to_ascii(const char* hex_str,
                       char* ascii_str,
                       size_t ascii_str_size);

@@ -1,8 +1,8 @@
 #ifndef HUTOKEN_LIB_H
 #define HUTOKEN_LIB_H
 
-#include "Python.h"
 #include <stdbool.h>
+#include "Python.h"
 
 PyObject* p_bpe_train(PyObject* self, PyObject* args);
 PyObject* p_bbpe_train(PyObject* self, PyObject* args);

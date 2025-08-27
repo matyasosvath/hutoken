@@ -34,7 +34,7 @@ struct EncodeTask* taskqueue_get(TaskQueue* q) {
     return t;
 }
 
-void decodequeue_init(DecodeQueue *q, struct DecodeTask *tasks, int num_tasks){
+void decodequeue_init(DecodeQueue* q, struct DecodeTask* tasks, int num_tasks) {
     q->tasks = tasks;
     q->num_tasks = num_tasks;
     q->next_task = 0;
