@@ -1,3 +1,6 @@
+#ifndef HUTOKEN_TASKQUEUE_H
+#define HUTOKEN_TASKQUEUE_H
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #else
@@ -5,6 +8,40 @@
 #endif
 
 #include <stdbool.h>
+
+struct EncodeContext{
+    bool initialized_encode;
+    struct HashMap* vocab_encode;
+    char* pattern;
+    char* special_chars[256];
+    char* prefix;
+    bool is_byte_encoder;
+};
+
+struct DecodeContext {
+    bool initialized_decode;
+    char** vocab_decode;
+    int vocab_size_decode;
+    char* special_chars[256];
+    char* prefix;
+    bool is_byte_encoder;
+};
+
+struct EncodeTask{
+    char* text;
+    struct EncodeContext* ctx;
+    int* tokens;
+    int* tokens_size;
+    char* error_msg;
+};
+
+struct DecodeTask{
+    int* tokens;
+    int* tokens_size;
+    struct DecodeContext* ctx;
+    char* result;
+    char* error_msg;
+};
 
 typedef struct {
     struct EncodeTask* tasks;

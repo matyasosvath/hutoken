@@ -6,6 +6,7 @@
 
 #include "hutoken/hashmap.h"
 #include "hutoken/lib.h"
+#include "hutoken/taskqueue.h"
 
 void encode(struct EncodeTask* task);
 void decode(struct DecodeTask* task);
