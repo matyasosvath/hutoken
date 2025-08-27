@@ -91,6 +91,7 @@ char* pretokenizer_encode(const char* text,
 
         *dest = '\0';
         free(is_special);
+        log_debug("finished pretokenize_encode function: %s", result);
         return result;
     } else {
         const char* p = text;

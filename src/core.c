@@ -100,7 +100,9 @@ void encode(struct EncodeTask* task) {
     regmatch_t match;
 
     char* cursor = task->text;
-    bool add_prefix = true;
+    bool add_prefix = cursor[0] != ' ';
+    bool add_prefix_token = !add_prefix;
+
     while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
@@ -122,6 +124,36 @@ void encode(struct EncodeTask* task) {
         word[word_len] = '\0';
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
+        
+        if(add_prefix_token && task->ctx->prefix) {
+            char* prefix_encoded = pretokenizer_encode(
+            task->ctx->prefix, (const char**)task->ctx->special_chars, NULL,
+            task->ctx->is_byte_encoder);
+
+            struct Boundary prefix_boundaries[strlen(prefix_encoded)];
+            int prefix_tokens[strlen(prefix_encoded)];
+            int pcount = 0;
+
+            for (char* ptr = prefix_encoded; *ptr != '\0';
+                ptr += utf8_char_length((unsigned char*)ptr)) {
+                int clen = utf8_char_length((unsigned char*)ptr);
+                struct Boundary b = {.start = ptr, .end = ptr + clen - 1};
+                prefix_boundaries[pcount++] = b;
+            }
+
+            bpe_encode(task->ctx->vocab_encode, prefix_boundaries,
+                    prefix_tokens, &pcount);
+
+            for (int i = 0; i < pcount; i++) {
+                task->tokens[*task->tokens_size + i] = prefix_tokens[i];
+                log_debug("Encoded prefix token: %d", prefix_tokens[i]);
+            }
+            *task->tokens_size += pcount;
+
+            free(prefix_encoded);
+            add_prefix_token = false;
+        }
+        
         char* encoded_word = pretokenizer_encode(
             word, (const char**)task->ctx->special_chars,
             add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
