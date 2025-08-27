@@ -521,7 +521,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    if(!text){
+    if (!text) {
         PyErr_SetString(PyExc_ValueError, "Text is empty.");
         return NULL;
     }
@@ -539,28 +539,30 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
 
     PyObject* list = PyList_New(tokens_size);
     if (!list) {
-        return PyErr_NoMemory();
+        PyErr_NoMemory();
+        return NULL;
     }
 
     for (int i = 0; i < tokens_size; i++) {
         PyObject* item = PyLong_FromLong(tokens[i]);
         if (!item) {
             Py_DECREF(list);  // cleanup in case of error
-            return PyErr_NoMemory();
+            PyErr_NoMemory();
+            return NULL;
         }
         PyList_SetItem(list, i, item);
     }
     return list;
 }
 
-PyObject* p_batch_encode(PyObject* self, PyObject* args){
+PyObject* p_batch_encode(PyObject* self, PyObject* args) {
     struct EncodeContext* ctx = global_encode_context;
     thread_t* threads = NULL;
     struct EncodeTask* tasks = NULL;
     PyObject* texts = NULL;
     int num_threads = 1;
     int num_texts = 0;
-    
+
     if (!ctx || !ctx->initialized_encode) {
         PyErr_SetString(PyExc_RuntimeError,
                         "Vocabulary is not initialized for encoding. "
@@ -586,7 +588,7 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args){
     num_texts = PyList_Size(texts);
     tasks = malloc(num_texts * sizeof(struct EncodeTask));
 
-    for (Py_ssize_t i = 0; i < num_texts; i++){
+    for (Py_ssize_t i = 0; i < num_texts; i++) {
         PyObject* item = PyList_GetItem(texts, i);
         if (!item) {
             log_debug("Error: Failed to get item at index %zd", i);
@@ -609,7 +611,7 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args){
 
     Py_BEGIN_ALLOW_THREADS
 
-    for (int i = 0; i < num_threads; i++) {
+        for (int i = 0; i < num_threads; i++) {
         log_debug("Starting thread number %d", i);
         THREAD_CREATE(&threads[i], encode_wrapper, &q);
     }
@@ -621,7 +623,7 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args){
 
     Py_END_ALLOW_THREADS
 
-    for (Py_ssize_t i = 0; i < num_texts; i++) {
+        for (Py_ssize_t i = 0; i < num_texts; i++) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_RuntimeError, tasks[i].error_msg);
@@ -712,7 +714,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     char* error_msg = NULL;
     int* token_array = malloc(sizeof(int) * tokens_size);
 
-    for(int i = 0; i < tokens_size; i++){
+    for (int i = 0; i < tokens_size; i++) {
         PyObject* item = PyList_GetItem(tokens, i);
         if (!item) {
             PyErr_SetString(PyExc_RuntimeError, "Failed to get token item.");
@@ -730,7 +732,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
 
     decode(task);
 
-    if(task->error_msg){
+    if (task->error_msg) {
         PyErr_SetString(PyExc_ValueError, task->error_msg);
         free(task->tokens);
         free(task);
@@ -740,7 +742,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     return task->result ? PyUnicode_FromString(task->result) : Py_None;
 }
 
-static PyObject* p_batch_decode(PyObject* self, PyObject* args){
+static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
     struct DecodeContext* ctx = global_decode_context;
     thread_t* threads = NULL;
     struct DecodeTask* tasks = NULL;
@@ -771,7 +773,7 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args){
     threads = malloc(num_threads * sizeof(thread_t));
     tasks = malloc(num_tokens * sizeof(struct DecodeTask));
 
-    for(Py_ssize_t i = 0; i < num_tokens; i++){
+    for (Py_ssize_t i = 0; i < num_tokens; i++) {
         PyObject* item = PyList_GetItem(tokens, i);
         if (!item) {
             PyErr_SetString(PyExc_RuntimeError, "Failed to get token item.");
@@ -819,7 +821,7 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args){
 
     Py_BEGIN_ALLOW_THREADS
 
-    for (int i = 0; i < num_threads; i++) {
+        for (int i = 0; i < num_threads; i++) {
         log_debug("Starting thread %d", i);
         THREAD_CREATE(&threads[i], decode_wrapper, &q);
     }
@@ -831,7 +833,7 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args){
 
     Py_END_ALLOW_THREADS
 
-    for (Py_ssize_t i = 0; i < num_tokens; i++) {
+        for (Py_ssize_t i = 0; i < num_tokens; i++) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_ValueError, tasks[i].error_msg);
@@ -902,9 +904,11 @@ static PyMethodDef huTokenMethods[] = {
     {"initialize", (PyCFunction)p_initialize, METH_VARARGS | METH_KEYWORDS,
      "Initalize tokenizer"},
     {"encode", (PyCFunction)p_encode, METH_VARARGS, "Encodes string"},
-    {"batch_encode", (PyCFunction)p_batch_encode, METH_VARARGS, "Encodes list of strings"},
+    {"batch_encode", (PyCFunction)p_batch_encode, METH_VARARGS,
+     "Encodes list of strings"},
     {"decode", p_decode, METH_VARARGS, "Decodes list of ints"},
-    {"batch_decode", p_batch_decode, METH_VARARGS, "Decodes list of lists of ints"},
+    {"batch_decode", p_batch_decode, METH_VARARGS,
+     "Decodes list of lists of ints"},
 #ifdef USE_FOMA
     {"initialize_foma", (PyCFunction)p_initialize_foma, METH_NOARGS,
      "Initilaizes the foma fst"},

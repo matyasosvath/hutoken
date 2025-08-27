@@ -235,7 +235,8 @@ void decode(struct DecodeTask* task) {
             text = new_text;
             text_size = buffer_size;
 
-            log_debug("Resized text buffer to new size: %zu bytes", buffer_size);
+            log_debug("Resized text buffer to new size: %zu bytes",
+                      buffer_size);
         }
 
         (void)strcat(text, word);

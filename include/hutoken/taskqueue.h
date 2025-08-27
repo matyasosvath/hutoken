@@ -9,7 +9,7 @@
 
 #include <stdbool.h>
 
-struct EncodeContext{
+struct EncodeContext {
     bool initialized_encode;
     struct HashMap* vocab_encode;
     char* pattern;
@@ -27,7 +27,7 @@ struct DecodeContext {
     bool is_byte_encoder;
 };
 
-struct EncodeTask{
+struct EncodeTask {
     char* text;
     struct EncodeContext* ctx;
     int* tokens;
@@ -35,7 +35,7 @@ struct EncodeTask{
     char* error_msg;
 };
 
-struct DecodeTask{
+struct DecodeTask {
     int* tokens;
     int* tokens_size;
     struct DecodeContext* ctx;
@@ -47,11 +47,11 @@ typedef struct {
     struct EncodeTask* tasks;
     int num_tasks;
     int next_task;
-    #if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64)
     CRITICAL_SECTION lock;
-    #else
+#else
     pthread_mutex_t lock;
-    #endif
+#endif
 } TaskQueue;
 
 void taskqueue_init(TaskQueue* q, struct EncodeTask* tasks, int num_tasks);
@@ -61,11 +61,11 @@ typedef struct {
     struct DecodeTask* tasks;
     int num_tasks;
     int next_task;
-    #if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64)
     CRITICAL_SECTION lock;
-    #else
+#else
     pthread_mutex_t lock;
-    #endif
+#endif
 } DecodeQueue;
 
 void decodequeue_init(DecodeQueue* q, struct DecodeTask* tasks, int num_tasks);
