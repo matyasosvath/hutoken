@@ -20,68 +20,180 @@
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
 #include "hutoken/pretokenizer.h"
+#include "hutoken/queue.h"
 #include "hutoken/taskqueue.h"
+
+struct TokenNode {
+    int prev;
+    int next;
+};
+
+static int get_pair_rank(const struct HashMap* vocab,
+                         const struct Boundary token_boundaries[],
+                         const int left_idx,
+                         const int right_idx);
 
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
                 int tokens[],
                 int* token_num) {
-    while (true) {
-        int min_idx = -1;
-        int min_rank = -1;
+    if (*token_num < 2) {
+        const char* start = token_boundaries[0].start;
+        const char* end = token_boundaries[0].end;
+        const ptrdiff_t len = (end - start) + 1;
 
-        for (int i = 0; i < *token_num - 1; i++) {
-            char* s1 = token_boundaries[i].start;
-            char* e1 = token_boundaries[i].end;
-            ptrdiff_t l1 = (e1 - s1) + 1;
+        char token_str[len + 1];
+        memcpy(token_str, start, len);
+        token_str[len] = '\0';
 
-            char* s2 = token_boundaries[i + 1].start;
-            char* e2 = token_boundaries[i + 1].end;
-            ptrdiff_t l2 = (e2 - s2) + 1;
+        const int rank = hashmap_get(vocab, &(struct Token){.key = token_str});
+        tokens[0] = rank;
+        return;
+    }
 
-            ptrdiff_t len = l1 + l2;
-            char pair[len + 1];
+    struct MinPQ pq;
+    if (min_pq_init(&pq, *token_num) != MIN_PQ_SUCCESS) {
+        log_debug("Failed to initialize priority queue.");
+        return;
+    }
 
-            (void)memcpy(pair, s1, l1);
-            (void)memcpy(pair + l1, s2, l2);
-            pair[len] = '\0';
+    // Before using the min-priority queue, we use a linked list to track the
+    // sequence of active tokens. This is because invalidating the tokens after
+    // a merge is inefficient, while tracking the active tokens with a linked
+    // list is not.
+    struct TokenNode* nodes = malloc(*token_num * sizeof(struct TokenNode));
+    bool* consumed = calloc(*token_num, sizeof(bool));
+    if (!nodes || !consumed) {
+        log_debug("Failed to allocate memory for token nodes.");
+        min_pq_release(&pq);
+        return;
+    }
 
-            int rank = hashmap_get(vocab, &(struct Token){.key = pair});
+    for (int i = 0; i < *token_num; ++i) {
+        nodes[i].prev = i - 1;
+        nodes[i].next = i + 1;
+        consumed[i] = false;
+    }
+    nodes[*token_num - 1].next = -1;
 
-            if (rank != -1 && (min_rank == -1 || rank < min_rank)) {
-                min_idx = i;
-                min_rank = rank;
+    for (int i = 0; i < *token_num - 1; ++i) {
+        const int rank = get_pair_rank(vocab, token_boundaries, i, i + 1);
+        if (rank != -1) {
+            const struct MergeCandidate candidate = {
+                .rank = rank, .left_idx = i, .right_idx = i + 1};
+
+            if (min_pq_push(&pq, candidate) != MIN_PQ_SUCCESS) {
+                log_debug("Failed to push to queue.");
+                free(nodes);
+                free(consumed);
+                min_pq_release(&pq);
+                return;
+            }
+        }
+    }
+
+    while (!min_pq_is_empty(&pq)) {
+        struct MergeCandidate best_pair = {0};
+
+        (void)min_pq_pop(&pq, &best_pair);
+
+        const int left_idx = best_pair.left_idx;
+        const int right_idx = best_pair.right_idx;
+
+        if (consumed[left_idx] || consumed[right_idx]) {
+            continue;
+        }
+
+        if (nodes[left_idx].next != right_idx) {
+            // The pair is stale.
+            continue;
+        }
+
+        const int current_rank =
+            get_pair_rank(vocab, token_boundaries, left_idx, right_idx);
+
+        if (best_pair.rank != current_rank) {
+            // It is possible that the right token has been modified, and the
+            // queue does not recognize that, which passes every other check.
+            // This way, if it has been modified, the rank is different as well,
+            // and the merge candidate is skipped.
+            continue;
+        }
+
+        token_boundaries[left_idx].end = token_boundaries[right_idx].end;
+
+        consumed[right_idx] = true;
+
+        const int prev_idx = nodes[left_idx].prev;
+        const int next_idx = nodes[right_idx].next;
+        nodes[left_idx].next = next_idx;
+        if (next_idx != -1) {
+            nodes[next_idx].prev = left_idx;
+        }
+
+        if (prev_idx != -1) {
+            const int rank = get_pair_rank(
+                vocab, token_boundaries, prev_idx,
+                left_idx);  // NOLINT: readability-suspicious-call-argument
+
+            if (rank != -1) {
+                min_pq_push(&pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = prev_idx,
+                                                    .right_idx = left_idx});
             }
         }
 
-        // no pairs to merge
-        if (min_rank == -1) {
-            break;
+        if (next_idx != -1) {
+            const int rank =
+                get_pair_rank(vocab, token_boundaries, left_idx, next_idx);
+
+            if (rank != -1) {
+                min_pq_push(&pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = left_idx,
+                                                    .right_idx = next_idx});
+            }
         }
-
-        assert(min_idx != -1);
-
-        // merge pairs, leave rest unchanged
-        token_boundaries[min_idx].end = token_boundaries[min_idx + 1].end;
-
-        for (int i = min_idx + 1; i < *token_num - 1; i++) {
-            token_boundaries[i] = token_boundaries[i + 1];
-        }
-        (*token_num)--;
     }
 
-    // update tokens
-    for (int i = 0; i < *token_num; i++) {
-        char* start = token_boundaries[i].start;
-        char* end = token_boundaries[i].end;
-        ptrdiff_t len = (end - start) + 1;
+    struct Boundary* final_boundaries =
+        malloc(*token_num * sizeof(struct Boundary));
+    if (!final_boundaries) {
+        log_debug("Failed to allocate memory for final boundaries.");
+        free(nodes);
+        free(consumed);
+        min_pq_release(&pq);
+        return;
+    }
 
-        char string[len + 1];
-        (void)memcpy(string, start, len);
-        string[len] = '\0';
+    int final_token_count = 0;
+    for (int i = 0; i < *token_num; ++i) {
+        if (!consumed[i]) {
+            final_boundaries[final_token_count++] = token_boundaries[i];
+        }
+    }
 
-        int rank = hashmap_get(vocab, &(struct Token){.key = string});
+    memcpy(token_boundaries, final_boundaries,
+           final_token_count * sizeof(struct Boundary));
+    *token_num = final_token_count;
 
+    free(final_boundaries);
+    free(nodes);
+    free(consumed);
+    min_pq_release(&pq);
+
+    for (int i = 0; i < *token_num; ++i) {
+        const char* start = token_boundaries[i].start;
+        const char* end = token_boundaries[i].end;
+        const ptrdiff_t len = (end - start) + 1;
+
+        char token_str[len + 1];
+        memcpy(token_str, start, len);
+        token_str[len] = '\0';
+
+        const int rank = hashmap_get(vocab, &(struct Token){.key = token_str});
+        log_debug("rank=%d", rank);
         tokens[i] = rank;
     }
 }
@@ -380,3 +492,23 @@ PyObject* look_up_word(struct apply_handle* handle,
 }
 
 #endif
+
+static int get_pair_rank(const struct HashMap* vocab,
+                         const struct Boundary token_boundaries[],
+                         const int left_idx,
+                         const int right_idx) {
+    const ptrdiff_t left_len =
+        (token_boundaries[left_idx].end - token_boundaries[left_idx].start) + 1;
+    const ptrdiff_t right_len =
+        (token_boundaries[right_idx].end - token_boundaries[right_idx].start) +
+        1;
+
+    const ptrdiff_t pair_len = left_len + right_len;
+    char pair_str[pair_len + 1];
+    memcpy(pair_str, token_boundaries[left_idx].start, left_len);
+    memcpy(pair_str + left_len, token_boundaries[right_idx].start, right_len);
+    pair_str[pair_len] = '\0';
+
+    return hashmap_get((struct HashMap*)vocab,
+                       &(struct Token){.key = pair_str});
+}

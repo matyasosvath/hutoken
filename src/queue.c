@@ -98,8 +98,13 @@ static void heapify_up(struct MinPQ* pq, const size_t index) {
 
     size_t parent_index = (index - 1) / 2;
 
-    if (pq->data[index].rank < pq->data[parent_index].rank) {
-        swap(&pq->data[index], &pq->data[parent_index]);
+    struct MergeCandidate* current = &pq->data[index];
+    struct MergeCandidate* parent = &pq->data[parent_index];
+
+    if (current->rank < parent->rank ||
+        (current->rank == parent->rank &&
+         current->left_idx < parent->left_idx)) {
+        swap(current, parent);
         heapify_up(pq, parent_index);
     }
 }
@@ -109,14 +114,24 @@ static void heapify_down(struct MinPQ* pq, const size_t index) {
     size_t right_child = 2 * index + 2;
     size_t smallest = index;
 
-    if (left_child < pq->size &&
-        pq->data[left_child].rank < pq->data[smallest].rank) {
-        smallest = left_child;
+    if (left_child < pq->size) {
+        struct MergeCandidate* smallest_cand = &pq->data[smallest];
+        struct MergeCandidate* left_cand = &pq->data[left_child];
+        if (left_cand->rank < smallest_cand->rank ||
+            (left_cand->rank == smallest_cand->rank &&
+             left_cand->left_idx < smallest_cand->left_idx)) {
+            smallest = left_child;
+        }
     }
 
-    if (right_child < pq->size &&
-        pq->data[right_child].rank < pq->data[smallest].rank) {
-        smallest = right_child;
+    if (right_child < pq->size) {
+        struct MergeCandidate* smallest_cand = &pq->data[smallest];
+        struct MergeCandidate* right_cand = &pq->data[right_child];
+        if (right_cand->rank < smallest_cand->rank ||
+            (right_cand->rank == smallest_cand->rank &&
+             right_cand->left_idx < smallest_cand->left_idx)) {
+            smallest = right_child;
+        }
     }
 
     if (smallest != index) {
