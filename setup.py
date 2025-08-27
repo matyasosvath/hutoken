@@ -32,6 +32,7 @@ sources = [
     "src/hashmap.c",
     "src/helper.c",
     "src/string.c",
+    "src/taskqueue.c",
     "src/pretokenizer.c",
     "src/bbpe.c",
     "src/queue.c"

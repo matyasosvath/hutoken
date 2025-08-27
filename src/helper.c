@@ -22,6 +22,7 @@ static bool debug_enabled = false;
 // This function takes care of that.
 void initialize_logging(void) {
     const char* debug_env = getenv("DEBUG");
+
     if (debug_env && strcmp(debug_env, "1") == 0) {
         debug_enabled = true;
     }
@@ -29,9 +30,9 @@ void initialize_logging(void) {
 
 void log_debug(const char* format, ...) {
     if (debug_enabled) {
+        struct tm* local_time = NULL;
         time_t now = time(NULL);
-        struct tm* local_time =
-            localtime(&now);  // NOLINT: concurrency-mt-unsafe
+        local_time = localtime(&now);  // NOLINT: concurrency-mt-unsafe
         char timestamp[20];
         (void)strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S",
                        local_time);

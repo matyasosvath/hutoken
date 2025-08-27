@@ -107,24 +107,25 @@ def initialize(model_or_path, *args, **kwargs):
 
         return result
 
-def encode(text, num_threads=1):
+def encode(text):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
     try:
-        text_len = len(text)
-        chunk_size = (text_len + num_threads -1) // num_threads
-        chunks = []
-        for i in range(num_threads):
-            start = i * chunk_size
-            end = min(start + chunk_size, text_len)
-            chunks.append(text[start:end])
-            
-        tokens = _hutoken.encode(chunks)
+        tokens = _hutoken.encode(text)
         return tokens
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error encoding text: {e}")
-    
+
+def batch_encode(texts, num_threads=1):
+    if _hutoken is None:
+        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
+    try:
+        return _hutoken.batch_encode(texts, num_threads)
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        raise RuntimeError(f"hutoken: Error encoding texts: {e}")
+
 def decode(tokens):
     if _hutoken is None:
         raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
@@ -134,6 +135,15 @@ def decode(tokens):
     except ValueError as e:
         traceback.print_exc(file=sys.stderr)
         raise ValueError(f"hutoken: Error decoding tokens {tokens}: {e}")
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        raise RuntimeError(f"hutoken: Error decoding tokens: {e}")
+
+def batch_decode(tokens, num_threads=1):
+    if _hutoken is None:
+        raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
+    try:
+        return _hutoken.batch_decode(tokens, num_threads)
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError(f"hutoken: Error decoding tokens: {e}")

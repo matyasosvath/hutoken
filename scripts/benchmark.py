@@ -1,3 +1,4 @@
+import math
 from typing import Any, cast
 
 import time
@@ -8,16 +9,46 @@ from statistics import mean
 
 __doc__ = """Measure tokenizers speed and performance for a given document."""
 
+def flatten(lst: list[Any]) -> list[Any]:
+    flat = []
+    for x in lst:
+        if isinstance(x, list):
+            flat.extend(x)
+        else:
+            flat.append(x)
+    return flat
 
-def benchmark(document, num_bytes):
+def split_document(document: str, num_parts: int) -> list[str]:
+    text_len = len(document)
+    chunk_size = (text_len + num_parts - 1) // num_parts
+    chunks = []
+    start = 0
+
+    for i in range(num_parts):
+        end = min(start + chunk_size, text_len)
+
+        if end < text_len and i < num_parts - 1:
+            while end < text_len and document[end] not in (' ', '\n', '\t'):
+                end += 1
+        next_start = end
+
+        if start < end:
+            chunks.append(document[start:end])
+            
+        start = next_start
+
+    return chunks
+
+def benchmark(document, num_bytes, thread_number):
+    document_batches = split_document(document, thread_number)
 
     import hutoken
 
-    hutoken.initialize('./vocabs/gpt2-vocab.txt', './vocabs/gpt2-vocab_special_chars.txt', is_byte_encoder=True)
+    hutoken.initialize("openai-community/gpt2")
     hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    ht_result = hutoken.encode(document)
+    ht_result = hutoken.encode(document, num_threads=thread_number) if thread_number == 1 else hutoken.batch_encode(document_batches, num_threads=thread_number)
     end = time.perf_counter_ns()
 
     ht_perf_result = num_bytes / (end - start) * 1e9
@@ -29,7 +60,7 @@ def benchmark(document, num_bytes):
     enc.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    tt_result = enc.encode(document)
+    tt_result = enc.encode(document) if thread_number == 1 else enc.encode_ordinary_batch(document_batches, num_threads=thread_number)
     end = time.perf_counter_ns()
 
     tt_perf_result = num_bytes / (end - start) * 1e9
@@ -42,17 +73,20 @@ def benchmark(document, num_bytes):
     hf_enc.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    hf_result = hf_enc(document)
+    hf_result = hf_enc(document)["input_ids"] if thread_number == 1 else hf_enc(document_batches)["input_ids"]
     end = time.perf_counter_ns()
 
     hf_perf_result = num_bytes / (end - start) * 1e9
+    
+    tt_result = flatten(tt_result) if isinstance(tt_result, list) else tt_result
+    hf_result = flatten(hf_result) if isinstance(hf_result, list) else hf_result
 
-    if not ht_result == tt_result == hf_result["input_ids"]:
+    if not ht_result == tt_result == hf_result:
 
         print("\n=== iter results tokens ===\n")
-        print(f"hutoken result tokens: {ht_result} decoded text hutoken: {hutoken.decode(ht_result)} decode text from correct: {hutoken.decode(tt_result)}\n")
+        print(f"hutoken result tokens: {ht_result} \ndecoded text hutoken: {hutoken.decode(ht_result)} \ndecode text from correct: {hutoken.decode(tt_result)}\n")
         print(f"tiktoken result tokens: {tt_result}\n")
-        print(f"huggingface result tokens: {hf_result["input_ids"]}\n")
+        print(f"huggingface result tokens: {hf_result}\n")
 
         print("\n=== iter results speed ===\n")
         print(f"hutoken result: {ht_perf_result} bytes / s.")
@@ -65,7 +99,7 @@ def benchmark(document, num_bytes):
     return ht_perf_result, tt_perf_result, hf_perf_result
 
 
-def benchmark_test(document: str, iter: int): # permutation based
+def benchmark_test(document: str, iter: int, thread_number: int): # permutation based
 
     num_bytes = len(str.encode(document))
     print(f"document char len: {len(document)}")
@@ -75,7 +109,7 @@ def benchmark_test(document: str, iter: int): # permutation based
     ht_results, tt_results, hf_results = [], [], []
 
     for _ in range(iter):
-        ht_result, tt_result, hf_result = benchmark(document, num_bytes)
+        ht_result, tt_result, hf_result = benchmark(document, num_bytes, thread_number)
 
         ht_results.append(ht_result)
         tt_results.append(tt_result)
@@ -109,10 +143,11 @@ if __name__ == "__main__":
     parser.add_argument("--file-path", type=str, required=True, help="file path")
     parser.add_argument("--iter", type=int, default=1000, help="number of iterations to run the benchmark")
     parser.add_argument("--chunk-size", type=int, default=1000, help="chunk size to test tokenizer on")
+    parser.add_argument("--thread-number", type=int, default=1, help="number of threads to use")
     args = parser.parse_args()
 
     document = read_file(args.file_path)
 
     doc = document[:args.chunk_size]
 
-    benchmark_test(doc, args.iter)
+    benchmark_test(doc, args.iter, args.thread_number)
