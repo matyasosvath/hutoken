@@ -35,7 +35,8 @@ sources = [
     "src/taskqueue.c",
     "src/pretokenizer.c",
     "src/bbpe.c",
-    "src/queue.c"
+    "src/queue.c",
+    "src/parser.c",
 ]
 
 include_dirs = ["include"]

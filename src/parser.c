@@ -28,7 +28,7 @@ bool parser_next_token(struct ParserState* state, struct TokenSlice* token) {
 
     const char* p = state->current_pos;
     token->start = p;
-    const char* end = p;
+    const char* end = NULL;
 
     const char* s = p;
     if (*s == ' ') {

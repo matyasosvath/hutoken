@@ -67,9 +67,7 @@ thread_return_t decode_wrapper(thread_arg_t arg) {
     return 0;
 }
 
-static char* pattern =
-    "[ ]?[A-Za-záéíóúőűüöÁÉÍÓÚŐÜŰÖ]+|[ ]?[0-9]+|[ "
-    "]?[^[:space:][:alpha:][:digit:]]+|[ ]+";
+static char* pattern = NULL;
 #define MAX_LINE_LENGTH 10000
 
 struct EncodeContext* global_encode_context;

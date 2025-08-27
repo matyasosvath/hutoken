@@ -12,26 +12,48 @@
 
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
+#include "hutoken/parser.h"
 
 void create_words(char* text,
                   const char* pattern,
                   struct Boundary token_boundaries[],
                   size_t token_num) {
     regex_t regex;
+    struct ParserState parser;
 
-    if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
-        (void)fputs("Regex could not be compiled.", stderr);
-        PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
-        return;
+    if (pattern != NULL) {
+        if (regcomp(&regex, pattern, REG_EXTENDED) == true) {
+            (void)fputs("Regex could not be compiled.", stderr);
+            PyErr_SetString(PyExc_RuntimeError, "Regex could not be compiled.");
+            return;
+        }
+    } else {
+        parser = parser_init(text);
     }
 
     regmatch_t match;
     char* cursor = text;
     int i = 0;
+    struct TokenSlice word;
 
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
-        int word_start = match.rm_so;
-        int word_end = match.rm_eo;
+    while (true) {
+        int word_start = 0;
+        int word_end = 0;
+        if (pattern != NULL) {
+            if (regexec(&regex, cursor, 1, &match, 0) != 0) {
+                break;
+            }
+
+            word_start = match.rm_so;
+            word_end = match.rm_eo;
+        } else {
+            if (parser_next_token(&parser, &word) == false) {
+                break;
+            }
+
+            word_start = word.start - cursor;
+            word_end = word_start + word.length;
+        }
 
         for (char* ptr = cursor + word_start; ptr < cursor + word_end; ptr++) {
             char* start = ptr;
@@ -45,7 +67,9 @@ void create_words(char* text,
         cursor += word_end;
     }
 
-    regfree(&regex);
+    if (pattern != NULL) {
+        regfree(&regex);
+    }
 }
 
 void bpe_train_core(struct HashMap* vocab,

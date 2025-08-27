@@ -19,6 +19,7 @@
 
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
+#include "hutoken/parser.h"
 #include "hutoken/pretokenizer.h"
 #include "hutoken/queue.h"
 #include "hutoken/taskqueue.h"
@@ -203,44 +204,69 @@ void encode(struct EncodeTask* task) {
               task->text, task->ctx->pattern);
 
     regex_t regex;
-    if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
-        log_debug("Error: Regex could not be compiled.");
-        task->error_msg = "Regex could not be compiled.";
-        return;
+    struct ParserState parser;
+    bool use_regex = task->ctx->pattern != NULL;
+    if (use_regex) {
+        if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
+            log_debug("Error: Regex could not be compiled.");
+            task->error_msg = "Regex could not be compiled.";
+            return;
+        }
+    } else {
+        parser = parser_init(task->text);
     }
 
-    regmatch_t match;
-
-    char* cursor = task->text;
+    const char* cursor = task->text;
     bool add_prefix = true;
-    while (regexec(&regex, cursor, 1, &match, 0) == 0) {
-        int word_start = match.rm_so;
-        int word_end = match.rm_eo;
-        int word_len = word_end - word_start;
+    while (true) {
+        struct TokenSlice word_slice;
+        bool has_token = false;
+
+        if (use_regex) {
+            regmatch_t match;
+            if (regexec(&regex, cursor, 1, &match, 0) == 0) {
+                word_slice.start = cursor + match.rm_so;
+                word_slice.length = match.rm_eo - match.rm_so;
+                has_token = true;
+            }
+        } else {
+            if (parser_next_token(&parser, &word_slice)) {
+                has_token = true;
+            }
+        }
+
+        if (!has_token) {
+            break;
+        }
 
         // If the regex finds a zero-length match, word_len will be 0.
         // This would lead to calling `bpe_encode` with unitialized arrays, or
         // the `cursor` not advancing to the next step.
-        if (cursor + word_start >= cursor + word_end) {
-            if (cursor[word_start] == '\0') {
+        if (word_slice.length == 0) {
+            if (*(word_slice.start) == '\0') {
                 break;
             }
-            cursor += word_start + 1;
+            if (use_regex) {
+                cursor = word_slice.start + 1;
+            }
             continue;
         }
 
-        char* word = malloc(word_len + 1);
-        memcpy(word, cursor, word_len);
-        word[word_len] = '\0';
-        log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
-                  word_start, word_end, word_len, word);
+        char* word = malloc(word_slice.length + 1);
+        memcpy(word, word_slice.start, word_slice.length);
+        word[word_slice.length] = '\0';
+        log_debug("Matched word: length=%zu, word='%s'", word_slice.length,
+                  word);
         char* encoded_word = pretokenizer_encode(
             word, (const char**)task->ctx->special_chars,
             add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
         add_prefix = false;
 
         int i = 0;
-        struct Boundary word_token_boundaries[word_len];
+        size_t encoded_len = strlen(encoded_word);
+        struct Boundary
+            word_token_boundaries[encoded_len > 0 ? encoded_len : 1];
+        int word_tokens[encoded_len > 0 ? encoded_len : 1];
 
         for (char* ptr = encoded_word; *ptr != '\0';
              ptr += utf8_char_length((unsigned char*)ptr)) {
@@ -256,7 +282,6 @@ void encode(struct EncodeTask* task) {
         }
 
         int word_token_num = i;
-        int word_tokens[word_len];
 
         bpe_encode(task->ctx->vocab_encode, word_token_boundaries, word_tokens,
                    &word_token_num);
@@ -266,13 +291,18 @@ void encode(struct EncodeTask* task) {
             log_debug("Encoded token: %d", word_tokens[i]);
         }
 
-        cursor += word_end;
         *task->tokens_size += word_token_num;
+
+        if (use_regex) {
+            cursor = word_slice.start + word_slice.length;
+        }
     }
 
     task->error_msg = NULL;
 
-    regfree(&regex);
+    if (use_regex) {
+        regfree(&regex);
+    }
     log_debug("Completed encode function. Total tokens: %d",
               *task->tokens_size);
 }
