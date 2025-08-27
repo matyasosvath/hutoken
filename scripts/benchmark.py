@@ -48,7 +48,7 @@ def benchmark(document, num_bytes, thread_number):
     hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    ht_result = hutoken.encode(document, num_threads=thread_number)
+    ht_result = hutoken.encode(document, num_threads=thread_number) if thread_number == 1 else hutoken.batch_encode(document_batches, num_threads=thread_number)
     end = time.perf_counter_ns()
 
     ht_perf_result = num_bytes / (end - start) * 1e9
