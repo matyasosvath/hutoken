@@ -46,11 +46,7 @@ def main() -> None:
     document = read_file(args.file_path)
 
     logger.debug('Initializing hutoken...')
-    hutoken.initialize(
-        './vocabs/gpt2-vocab.txt',
-        './vocabs/gpt2-vocab_special_chars.txt',
-        is_byte_encoder=True,
-    )
+    hutoken.initialize("openai-community/gpt2")
     logger.debug('Initialization complete.')
 
     logger.info('Starting profiling loop for %d iterations...', args.iter)
