@@ -152,7 +152,8 @@ int initialize_context(void) {
     global_encode_context->num_merge_rules = 0;
     global_encode_context->merges_map = NULL;
 
-    global_encode_context->vocab_encode = hashmap_new(256);
+    global_encode_context->vocab_encode =
+        hashmap_new(256, sizeof(struct Token), token_hash, token_compare);
     if (!global_encode_context->vocab_encode) {
         log_debug("Error: Failed to create hashmap for vocab_encode.");
         PyErr_SetString(PyExc_MemoryError,
@@ -353,6 +354,7 @@ static PyObject* p_initialize(PyObject* self,
             return NULL;
         }
 
+        log_debug("asdasdasdasdsadsad");
         hashmap_set(
             global_encode_context->vocab_encode,
             &(struct Token){.key = durable_ascii_str, .value = (int)value});
@@ -550,19 +552,22 @@ static PyObject* p_initialize(PyObject* self,
                     continue;
                 }
 
-                int left_id = hashmap_get(global_encode_context->vocab_encode,
-                                          &(struct Token){.key = left_str});
-                int right_id = hashmap_get(global_encode_context->vocab_encode,
-                                           &(struct Token){.key = right_str});
+                const struct Token* left =
+                    hashmap_get(global_encode_context->vocab_encode,
+                                &(struct Token){.key = left_str});
+                const struct Token* right =
+                    hashmap_get(global_encode_context->vocab_encode,
+                                &(struct Token){.key = right_str});
 
                 size_t merged_len = strlen(left_str) + strlen(right_str);
                 char merged_str[merged_len + 1];
                 strcpy(merged_str, left_str);
                 strcat(merged_str, right_str);
-                int merged_id = hashmap_get(global_encode_context->vocab_encode,
-                                            &(struct Token){.key = merged_str});
+                const struct Token* merged =
+                    hashmap_get(global_encode_context->vocab_encode,
+                                &(struct Token){.key = merged_str});
 
-                if (left_id == -1 || right_id == -1 || merged_id == -1) {
+                if (left == NULL || right == NULL || merged == NULL) {
                     log_debug(
                         "Skipping merge rule with unknown token(s): '%s' + "
                         "'%s' -> '%s'",
@@ -573,9 +578,9 @@ static PyObject* p_initialize(PyObject* self,
                 struct MergeRule* rule =
                     &global_encode_context->merge_rules[current_rule_idx];
                 rule->rank = rank++;
-                rule->left_id = left_id;
-                rule->right_id = right_id;
-                rule->merge_id = merged_id;
+                rule->left_id = left->value;
+                rule->right_id = right->value;
+                rule->merge_id = merged->value;
                 current_rule_idx++;
             }
             global_encode_context->num_merge_rules = current_rule_idx;

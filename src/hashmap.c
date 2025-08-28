@@ -14,13 +14,6 @@
 #define SHRINK_AT 0.10           /* 10% */
 #define HASHMAP_LOAD_FACTOR 0.60 /* 60% */
 
-// Open addressed hash map using robinhood hashing
-int compare(const void* a, const void* b) {
-    const struct Token* ua = a;
-    const struct Token* ub = b;
-    return strcmp(ua->key, ub->key);
-}
-
 struct Bucket {
     uint64_t hash : 48;
     uint64_t dib : 16;
@@ -57,7 +50,10 @@ static uint64_t get_hash(struct HashMap* map, const void* item) {
     return clip_hash(hash);
 }
 
-struct HashMap* hashmap_new(size_t capacity) {
+struct HashMap* hashmap_new(size_t capacity,
+                            size_t element_size,
+                            uint64_t (*hash_func)(const void* item),
+                            int (*compare_func)(const void* a, const void* b)) {
     size_t ncap = 16;
 
     if (capacity < ncap) {
@@ -69,7 +65,6 @@ struct HashMap* hashmap_new(size_t capacity) {
         capacity = ncap;
     }
 
-    size_t element_size = sizeof(struct Token);
     size_t bucket_size = sizeof(struct Bucket) + element_size;
 
     // platform dependent alignment
@@ -93,6 +88,8 @@ struct HashMap* hashmap_new(size_t capacity) {
     map->capacity = capacity;
     map->bucket_num = capacity;
     map->mask = map->bucket_num - 1;
+    map->hash_func = hash_func;
+    map->compare_func = compare_func;
 
     map->buckets = malloc(map->bucket_size * map->bucket_num);
 
@@ -115,7 +112,8 @@ struct HashMap* hashmap_new(size_t capacity) {
 }
 
 static bool resize(struct HashMap* map, size_t new_cap) {
-    struct HashMap* map2 = hashmap_new(new_cap);
+    struct HashMap* map2 = hashmap_new(new_cap, map->element_size,
+                                       map->hash_func, map->compare_func);
 
     if (!map2) {
         return false;
@@ -170,7 +168,7 @@ static bool resize(struct HashMap* map, size_t new_cap) {
 // Operation may allocate memory. If unable to allocate more memory, then
 // NULL is returned and map->oom will be true.
 const void* hashmap_set(struct HashMap* map, const void* item) {
-    uint64_t hash = get_hash(map, item);
+    uint64_t hash = map->hash_func(item);
     hash = clip_hash(hash);
 
     map->oom = false;
@@ -213,7 +211,8 @@ const void* hashmap_set(struct HashMap* map, const void* item) {
         bitem = bucket_item(bucket);  // token
 
         // replace item, if relevant
-        if (entry->hash == bucket->hash && (compare(eitem, bitem) == 0)) {
+        if (entry->hash == bucket->hash &&
+            (map->compare_func(eitem, bitem) == 0)) {
             memcpy(map->spare, bitem, map->element_size);
             memcpy(bitem, eitem, map->element_size);
 
@@ -236,7 +235,7 @@ const void* hashmap_set(struct HashMap* map, const void* item) {
 }
 
 // return item based on key. If item is not found, NULL is returned.
-int hashmap_get(struct HashMap* map, const void* key) {
+void* hashmap_get(struct HashMap* map, const void* key) {
     uint64_t hash = get_hash(map, key);
 
     hash = clip_hash(hash);
@@ -249,15 +248,14 @@ int hashmap_get(struct HashMap* map, const void* key) {
         struct Bucket* bucket = bucket_at(map, i);
 
         if (!bucket->dib) {
-            return -1;
+            return NULL;
         }
 
         if (bucket->hash == hash) {
             void* bitem = bucket_item(bucket);
 
-            if (compare(key, bitem) == false) {
-                struct Token* entry = bitem;
-                return entry->value;
+            if (map->compare_func(key, bitem) == false) {
+                return bitem;
             }
         }
         i = (i + 1) & map->mask;
@@ -265,6 +263,7 @@ int hashmap_get(struct HashMap* map, const void* key) {
 }
 
 // Get key based on value. If item is not found, NULL is returned.
+// NOTE: This function is specific to the `struct Token` vocab map.
 char* hashmap_get_key(struct HashMap* map, const int value) {
     size_t i = 0;
     void* item = NULL;
@@ -285,7 +284,7 @@ char* hashmap_get_key(struct HashMap* map, const int value) {
 // Remove item from the hash map and return it.
 // If item not found, NULL is returned.
 const void* hashmap_delete(struct HashMap* map, const void* key) {
-    uint64_t hash = get_hash(map, key);
+    uint64_t hash = map->hash_func(key);
     hash = clip_hash(hash);
 
     map->oom = false;
@@ -301,7 +300,7 @@ const void* hashmap_delete(struct HashMap* map, const void* key) {
 
         void* bitem = bucket_item(bucket);  // token
 
-        if (bucket->hash == hash && (compare(key, bitem) == false)) {
+        if (bucket->hash == hash && (map->compare_func(key, bitem) == false)) {
             memcpy(map->spare, bitem, map->element_size);
 
             bucket->dib = 0;

@@ -125,7 +125,8 @@ void bbpe_train_core(struct HashMap* vocab,
 
 void bbpe_train(char* text, const int vocab_size, char* vocab_file_name) {
     char* k = NULL;
-    struct HashMap* vocab = hashmap_new(vocab_size);
+    struct HashMap* vocab = hashmap_new(vocab_size, sizeof(struct Token),
+                                        token_hash, token_compare);
 
     for (int i = 0; i < 256; i++) {
         char key[2];

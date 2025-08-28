@@ -49,8 +49,9 @@ void bpe_encode_arena(struct Arena* arena,
         memcpy(token_str, start, len);
         token_str[len] = '\0';
 
-        const int rank = hashmap_get(vocab, &(struct Token){.key = token_str});
-        tokens[0] = rank;
+        const struct Token* found_token =
+            hashmap_get(vocab, &(struct Token){.key = token_str});
+        tokens[0] = (found_token != NULL) ? found_token->value : -1;
         return;
     }
 
@@ -186,9 +187,10 @@ void bpe_encode_arena(struct Arena* arena,
         memcpy(token_str, start, len);
         token_str[len] = '\0';
 
-        const int rank = hashmap_get(vocab, &(struct Token){.key = token_str});
-        log_debug("rank=%d", rank);
-        tokens[i] = rank;
+        const struct Token* found_token =
+            hashmap_get(vocab, &(struct Token){.key = token_str});
+        tokens[i] = (found_token != NULL) ? found_token->value : -1;
+        log_debug("rank=%d", tokens[i]);
     }
 }
 
@@ -542,6 +544,8 @@ static int get_pair_rank(const struct HashMap* vocab,
     memcpy(pair_str + left_len, token_boundaries[right_idx].start, right_len);
     pair_str[pair_len] = '\0';
 
-    return hashmap_get((struct HashMap*)vocab,
-                       &(struct Token){.key = pair_str});
+    const struct Token* found_token =
+        hashmap_get((struct HashMap*)vocab, &(struct Token){.key = pair_str});
+
+    return (found_token != NULL) ? found_token->value : -1;
 }

@@ -10,9 +10,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "hutoken/hash.h"
 #include "hutoken/hashmap.h"
 #include "hutoken/helper.h"
 #include "hutoken/parser.h"
+
+uint64_t token_hash(const void* item) {
+    const struct Token* token = item;
+    if (!token->key) {
+        return 0;
+    }
+    return hashmap_murmur(token->key, strlen(token->key));
+}
+
+int token_compare(const void* a, const void* b) {
+    const struct Token* ua = a;
+    const struct Token* ub = b;
+    return strcmp(ua->key, ub->key);
+}
 
 void create_words(char* text,
                   const char* pattern,
@@ -82,7 +97,8 @@ void bpe_train_core(struct HashMap* vocab,
     struct Token most_common_pair = {.key = NULL, .value = -1};
 
     while (vocab->count < vocab_size) {
-        struct HashMap* stats = hashmap_new(token_n);
+        struct HashMap* stats = hashmap_new(token_n, sizeof(struct Token),
+                                            token_hash, token_compare);
 
         // This check prevents undefined behavior. If the number of tokens is
         // reduced to < 2, the next loop iteration would attempt to declare
@@ -109,24 +125,24 @@ void bpe_train_core(struct HashMap* vocab,
             strncpy(pair + l1, s2, l2);
             pair[len] = '\0';
 
-            int freq = hashmap_get(stats, &(struct Token){.key = pair});
-            if (freq != 0) {
-                hashmap_set(stats, &(struct Token){.key = strdup(pair),
-                                                   .value = ++freq});
+            struct Token* found =
+                hashmap_get(stats, &(struct Token){.key = pair});
+            if (found != NULL) {
+                found->value++;
             } else {
-                int initial_freq = 1;
-                hashmap_set(stats, &(struct Token){.key = strdup(pair),
-                                                   .value = initial_freq});
+                hashmap_set(stats,
+                            &(struct Token){.key = strdup(pair), .value = 1});
             }
 
-            int rank = hashmap_get(stats, &(struct Token){.key = pair});
+            struct Token* current_pair =
+                hashmap_get(stats, &(struct Token){.key = pair});
 
-            if (most_common_pair.value < rank) {
+            if (current_pair && current_pair->value > most_common_pair.value) {
                 if (most_common_pair.key != NULL) {
                     free(most_common_pair.key);
                 }
-                most_common_pair.value = rank;
-                most_common_pair.key = strdup(pair);
+                most_common_pair.value = current_pair->value;
+                most_common_pair.key = strdup(current_pair->key);
             }
         }
 
@@ -202,7 +218,8 @@ void bpe_train(char* text,
                const char* pattern,
                char* vocab_file_name) {
     char* k = NULL;
-    struct HashMap* vocab = hashmap_new(vocab_size);
+    struct HashMap* vocab = hashmap_new(vocab_size, sizeof(struct Token),
+                                        token_hash, token_compare);
 
     // add tokens for each individual byte value
     for (int i = 0; i < 256; i++) {
