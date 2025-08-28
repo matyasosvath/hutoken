@@ -6,6 +6,15 @@ import pathlib
 import argparse
 from statistics import mean
 
+import hutoken
+hutoken.initialize("openai-community/gpt2")
+
+import tiktoken
+enc = tiktoken.get_encoding("gpt2")
+
+import transformers
+hf_enc = cast(Any, transformers).GPT2TokenizerFast.from_pretrained("gpt2")
+
 
 __doc__ = """Measure tokenizers speed and performance for a given document."""
 
@@ -42,21 +51,16 @@ def split_document(document: str, num_parts: int) -> list[str]:
 def benchmark(document, num_bytes, thread_number):
     document_batches = split_document(document, thread_number)
 
-    import hutoken
-
-    hutoken.initialize("openai-community/gpt2")
+    
     hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
-    ht_result = hutoken.encode(document, num_threads=thread_number) if thread_number == 1 else hutoken.batch_encode(document_batches, num_threads=thread_number)
+    ht_result = hutoken.encode(document) if thread_number == 1 else hutoken.batch_encode(document_batches, num_threads=thread_number)
     end = time.perf_counter_ns()
 
     ht_perf_result = num_bytes / (end - start) * 1e9
 
 
-    import tiktoken
-
-    enc = tiktoken.get_encoding("gpt2")
     enc.encode("bemelegítés")
 
     start = time.perf_counter_ns()
@@ -65,10 +69,7 @@ def benchmark(document, num_bytes, thread_number):
 
     tt_perf_result = num_bytes / (end - start) * 1e9
 
-
-    import transformers
-
-    hf_enc = cast(Any, transformers).GPT2TokenizerFast.from_pretrained("gpt2")
+    
     hf_enc.model_max_length = 1e30  # silence!
     hf_enc.encode("bemelegítés")
 
@@ -77,9 +78,6 @@ def benchmark(document, num_bytes, thread_number):
     end = time.perf_counter_ns()
 
     hf_perf_result = num_bytes / (end - start) * 1e9
-    
-    tt_result = flatten(tt_result) if isinstance(tt_result, list) else tt_result
-    hf_result = flatten(hf_result) if isinstance(hf_result, list) else hf_result
 
     if not ht_result == tt_result == hf_result:
 
@@ -119,9 +117,13 @@ def benchmark_test(document: str, iter: int, thread_number: int): # permutation 
         elif ht_result < hf_result: count_hf += 1
 
     print("\n=== sig results ===\n")
-    print(f"hutoken avg. result: {mean(ht_results)} bytes / s.")
-    print(f"tiktoken avg. result: {mean(tt_results)} bytes / s.")
-    print(f"transformers avg. result: {mean(hf_results)} bytes / s.")
+    print(f"{'Library':<15}{'Throughput (bytes/s)':>25}{'Throughput (MB/s)':>25}")
+    print("-" * 65)
+
+    print(f"{'hutoken':<15}{mean(ht_results):>25,.2f}{mean(ht_results)/1e6:>25,.2f}")
+    print(f"{'tiktoken':<15}{mean(tt_results):>25,.2f}{mean(tt_results)/1e6:>25,.2f}")
+    print(f"{'transformers':<15}{mean(hf_results):>25,.2f}{mean(hf_results)/1e6:>25,.2f}")
+    print('\n')
 
     print(f"hutoken vs tiktoken: {count_tt / iter} p-value")
     print(f"hutoken vs transformers: {count_hf / iter} p-value")
@@ -142,11 +144,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file-path", type=str, required=True, help="file path")
     parser.add_argument("--iter", type=int, default=1000, help="number of iterations to run the benchmark")
-    parser.add_argument("--chunk-size", type=int, default=1000, help="chunk size to test tokenizer on")
+    parser.add_argument("--chunk-size", type=int, default=None, help="chunk size to test tokenizer on")
     parser.add_argument("--thread-number", type=int, default=1, help="number of threads to use")
     args = parser.parse_args()
 
     document = read_file(args.file_path)
+
+    if args.chunk_size is None:
+        args.chunk_size = len(document)
 
     doc = document[:args.chunk_size]
 
