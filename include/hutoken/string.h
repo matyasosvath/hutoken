@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "hutoken/arena.h"
+
 #define STRING_SSO_MAX_LEN (sizeof(((struct String*)0)->data.small) - 1)
 
 struct String {
@@ -35,5 +37,19 @@ enum StringError string_append_n(struct String* str,
                                  const char* to_append,
                                  size_t n);
 enum StringError string_clear(struct String* str);
+enum StringError string_init_arena(struct String* str,
+                                   struct Arena* arena,
+                                   const char* init);
+enum StringError string_with_capacity_arena(struct String* str,
+                                            struct Arena* arena,
+                                            size_t capacity);
+
+enum StringError string_append_arena(struct String* str,
+                                     struct Arena* arena,
+                                     const char* to_append);
+enum StringError string_append_n_arena(struct String* str,
+                                       struct Arena* arena,
+                                       const char* to_append,
+                                       size_t n);
 
 #endif
