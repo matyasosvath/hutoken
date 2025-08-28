@@ -4,8 +4,6 @@
 #ifdef USE_FOMA
 #include "fomalib.h"
 #endif
-#include "listobject.h"
-#include "unicodeobject.h"
 
 #include <assert.h>
 #include <regex.h>
@@ -405,7 +403,8 @@ void encode(struct EncodeTask* task) {
         if (add_prefix_token && task->ctx->prefix) {
             log_debug("Adding encoded prefix to tokens");
             char* prefix_encoded = pretokenizer_encode_arena(
-                &arena, task->ctx->prefix, (const char**)task->ctx->special_chars, NULL,
+                &arena, task->ctx->prefix,
+                (const char**)task->ctx->special_chars, NULL,
                 task->ctx->is_byte_encoder);
 
             struct Boundary prefix_boundaries[strlen(prefix_encoded)];
@@ -419,8 +418,8 @@ void encode(struct EncodeTask* task) {
                 prefix_boundaries[pcount++] = b;
             }
 
-            bpe_encode_arena_string(&arena, task->ctx->vocab_encode, prefix_boundaries,
-                       prefix_tokens, &pcount);
+            bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
+                                    prefix_boundaries, prefix_tokens, &pcount);
 
             for (int i = 0; i < pcount; i++) {
                 task->tokens[*task->tokens_size + i] = prefix_tokens[i];

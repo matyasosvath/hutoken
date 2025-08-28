@@ -185,6 +185,8 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
 
     (void)printf("Vocab saved to: %s\n", file_path);
 
+    free(file_path);
+
     return EXIT_SUCCESS;
 }
 

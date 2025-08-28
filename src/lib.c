@@ -513,7 +513,9 @@ static PyObject* p_initialize(PyObject* self,
         if (!merges_file) {
             PyErr_SetString(PyExc_FileNotFoundError,
                             "Could not open merges file.");
-            (void)fclose(merges_file);
+            if (merges_file != NULL) {
+                (void)fclose(merges_file);
+            }
             return NULL;
         }
 
@@ -866,10 +868,12 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
+    const char* task_result = task->result;
+
     free(task);
     free(token_array);
 
-    return task->result ? PyUnicode_FromString(task->result) : Py_None;
+    return task_result ? PyUnicode_FromString(task_result) : Py_None;
 }
 
 static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
