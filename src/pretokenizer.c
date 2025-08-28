@@ -8,6 +8,7 @@
 #include "hutoken/arena.h"
 #include "hutoken/helper.h"
 #include "hutoken/string.h"
+#include "hutoken/taskqueue.h"
 
 int utf8_char_length(const unsigned char* c) {
     if ((c[0] & 0x80) == 0x00) {
@@ -192,22 +193,19 @@ uint32_t utf8_to_codepoint(const unsigned char* p, int* bytes_read) {
     return cp;
 }
 
-char* pretokenizer_decode(const char* text,
-                          const char** special_chars,
-                          const char* prefix,
-                          bool byte_level) {
+char* pretokenizer_decode(const char* text, const struct DecodeContext* ctx) {
     if (!text) {
         return NULL;
     }
     log_debug(
         "Starting pretokenize_decode function with text: %s and prefix: %s and "
         "byte_encode: %d",
-        text, prefix, byte_level);
+        text, ctx->prefix, ctx->is_byte_encoder);
 
     size_t text_len = strlen(text);
-    if (prefix) {
-        size_t prefix_len = strlen(prefix);
-        if (strncmp(text, prefix, prefix_len) == 0) {
+    if (ctx->prefix) {
+        size_t prefix_len = strlen(ctx->prefix);
+        if (strncmp(text, ctx->prefix, prefix_len) == 0) {
             text += prefix_len;
             text_len -= prefix_len;
         }
@@ -218,10 +216,10 @@ char* pretokenizer_decode(const char* text,
         return NULL;
     }
     char* dest = buffer;
-
     const char* p = text;
+    const char* end_of_text = text + text_len;
 
-    if (byte_level) {
+    if (ctx->is_byte_encoder) {
         const unsigned char* up = (const unsigned char*)p;
         while (*up != '\0') {
             int bytes_in_char = 0;
@@ -232,10 +230,10 @@ char* pretokenizer_decode(const char* text,
 
             bool matched = false;
             for (int i = 0; i < 256; i++) {
-                if (special_chars[i] &&
-                    strcmp(current_char_str, special_chars[i]) == 0) {
+                if (ctx->special_chars[i] &&
+                    strcmp(current_char_str, ctx->special_chars[i]) == 0) {
                     log_debug("Matched special char: %d, %s", i,
-                              special_chars[i]);
+                              ctx->special_chars[i]);
                     *dest++ = (unsigned char)i;
                     matched = true;
                     break;
@@ -252,19 +250,28 @@ char* pretokenizer_decode(const char* text,
             up += bytes_in_char;
         }
     } else {
-        while (*p != '\0') {
+        while (p < end_of_text) {
             bool matched = false;
-            for (int i = 0; i < 256; i++) {
-                if (special_chars[i]) {
-                    size_t tok_len = strlen(special_chars[i]);
-                    if (strncmp(p, special_chars[i], tok_len) == 0) {
-                        log_debug("Matched special char: %d, %s", i,
-                                  special_chars[i]);
-                        *dest++ = (unsigned char)i;
-                        p += tok_len;
-                        matched = true;
-                        break;
-                    }
+            size_t max_len = ctx->max_special_char_len;
+            if (p + max_len > end_of_text) {
+                max_len = end_of_text - p;
+            }
+
+            for (size_t len = max_len; len > 0; --len) {
+                char sub[len + 1];
+                memcpy(sub, p, len);
+                sub[len] = '\0';
+
+                const struct Token* found = hashmap_get(
+                    ctx->special_chars_map_decode, &(struct Token){.key = sub});
+
+                if (found) {
+                    log_debug("Matched special char: %d, %s", found->value,
+                              found->key);
+                    *dest++ = (unsigned char)found->value;
+                    p += len;
+                    matched = true;
+                    break;
                 }
             }
 

@@ -165,6 +165,17 @@ int initialize_context(void) {
     global_decode_context->prefix = NULL;
     global_decode_context->is_byte_encoder = false;
     global_decode_context->initialized_decode = false;
+    global_decode_context->max_special_char_len = 0;
+    global_decode_context->special_chars_map_decode =
+        hashmap_new(256, sizeof(struct Token), token_hash, token_compare);
+    if (!global_decode_context->special_chars_map_decode) {
+        log_debug(
+            "Error: Failed to create hashmap for special_chars_map_decode.");
+        PyErr_SetString(
+            PyExc_MemoryError,
+            "Failed to create hashmap for special_chars_map_decode.");
+        return -1;
+    }
 
     return 1;
 }
@@ -497,12 +508,19 @@ static PyObject* p_initialize(PyObject* self,
             return NULL;
         }
 
+        size_t len = strlen(value);
+        if (len > global_decode_context->max_special_char_len) {
+            global_decode_context->max_special_char_len = len;
+        }
+
         log_debug(
             "Loaded special character for pretokenization: key=%d, value='%s'",
             index, value);
 
         global_encode_context->special_chars[index] = strdup(value);
         global_decode_context->special_chars[index] = strdup(value);
+        hashmap_set(global_decode_context->special_chars_map_decode,
+                    &(struct Token){.key = strdup(value), .value = (int)index});
     }
 
     (void)fclose(special_chars_file);

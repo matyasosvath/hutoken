@@ -550,9 +550,7 @@ void decode(struct DecodeTask* task) {
     *write_ptr = '\0';
     log_debug("Final raw decoded string: '%s'", text);
 
-    char* decoded_text =
-        pretokenizer_decode(text, (const char**)task->ctx->special_chars,
-                            task->ctx->prefix, task->ctx->is_byte_encoder);
+    char* decoded_text = pretokenizer_decode(text, task->ctx);
     log_debug("Decoded_text: %s", decoded_text);
 
     task->result = strdup(decoded_text);

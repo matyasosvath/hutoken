@@ -9,6 +9,8 @@
 
 #include <stdbool.h>
 
+#include "hutoken/hashmap.h"
+
 struct EncodeContext {
     bool initialized_encode;
     struct HashMap* vocab_encode;
@@ -28,6 +30,8 @@ struct DecodeContext {
     char* special_chars[256];
     char* prefix;
     bool is_byte_encoder;
+    struct HashMap* special_chars_map_decode;
+    size_t max_special_char_len;
 };
 
 struct EncodeTask {
