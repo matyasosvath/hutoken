@@ -148,6 +148,9 @@ int initialize_context(void) {
     global_encode_context->is_byte_encoder = false;
     global_encode_context->initialized_encode = false;
     global_encode_context->pattern = pattern;
+    global_encode_context->merge_rules = NULL;
+    global_encode_context->num_merge_rules = 0;
+    global_encode_context->merges_map = NULL;
 
     global_encode_context->vocab_encode = hashmap_new(256);
     if (!global_encode_context->vocab_encode) {
@@ -168,11 +171,13 @@ int initialize_context(void) {
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {
-        "vocab_file_path",  "special_file_path", "prefix", "is_byte_encoder",
-        "special_token_id", "pattern",           NULL};
+    static char* kwlist[] = {"vocab_file_path",  "special_file_path",
+                             "prefix",           "is_byte_encoder",
+                             "special_token_id", "pattern",
+                             "merges_file_path", NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
+    char* merges_file_path = NULL;
     char* local_prefix = NULL;
     int local_is_byte_encoder = 0;
     int special_token_id = -1;  // Optional parameter for special token ID
@@ -180,17 +185,18 @@ static PyObject* p_initialize(PyObject* self,
 
     initialize_logging();
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|iz", kwlist,
-                                     &vocab_file_path, &special_file_path,
-                                     &local_prefix, &local_is_byte_encoder,
-                                     &special_token_id, &local_pattern)) {
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "ss|zpizz", kwlist, &vocab_file_path,
+            &special_file_path, &local_prefix, &local_is_byte_encoder,
+            &special_token_id, &local_pattern, &merges_file_path)) {
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(PyExc_TypeError,
                         "Invalid arguments. Expected a string "
                         "(vocab_file_path), a string (special_file_path), "
                         "a string or None (prefix) a bool an"
-                        "optional integer (special_token_id) and"
-                        " an optional string (regex_pattern)");
+                        "optional integer (special_token_id), "
+                        " an optional string (regex_pattern) and"
+                        "a string or None (merges_file_path)");
         return NULL;
     }
 
@@ -494,11 +500,93 @@ static PyObject* p_initialize(PyObject* self,
             index, value);
 
         global_encode_context->special_chars[index] = strdup(value);
-        ;
         global_decode_context->special_chars[index] = strdup(value);
     }
 
     (void)fclose(special_chars_file);
+
+    if (merges_file_path != NULL) {
+        log_debug("Loading merge rules from %s.", merges_file_path);
+        FILE* merges_file = fopen(merges_file_path, "r");
+        if (!merges_file) {
+            PyErr_SetString(PyExc_FileNotFoundError,
+                            "Could not open merges file.");
+            (void)fclose(merges_file);
+            return NULL;
+        }
+
+        size_t line_count = 0;
+        char line_buffer[MAX_LINE_LENGTH];
+        while (fgets(line_buffer, sizeof(line_buffer), merges_file)) {
+            if (line_buffer[0] != '#' && strchr(line_buffer, ' ') != NULL) {
+                line_count++;
+            }
+        }
+
+        if (line_count > 0) {
+            global_encode_context->merge_rules =
+                malloc(line_count * sizeof(struct MergeRule));
+            if (!global_encode_context->merge_rules) {
+                PyErr_SetString(PyExc_MemoryError,
+                                "Failed to allocate memory for merge rules.");
+                (void)fclose(merges_file);
+                return NULL;
+            }
+
+            (void)fseek(merges_file, 0L, SEEK_SET);
+            size_t current_rule_idx = 0;
+            int rank = 0;
+            while (fgets(line_buffer, sizeof(line_buffer), merges_file) &&
+                   current_rule_idx < line_count) {
+                if (line_buffer[0] == '#') {
+                    continue;
+                }
+                line_buffer[strcspn(line_buffer, "\r\n")] = 0;
+
+                char* left_str = strtok(line_buffer, " ");
+                char* right_str = strtok(NULL, " ");
+
+                if (!left_str || !right_str) {
+                    continue;
+                }
+
+                int left_id = hashmap_get(global_encode_context->vocab_encode,
+                                          &(struct Token){.key = left_str});
+                int right_id = hashmap_get(global_encode_context->vocab_encode,
+                                           &(struct Token){.key = right_str});
+
+                size_t merged_len = strlen(left_str) + strlen(right_str);
+                char merged_str[merged_len + 1];
+                strcpy(merged_str, left_str);
+                strcat(merged_str, right_str);
+                int merged_id = hashmap_get(global_encode_context->vocab_encode,
+                                            &(struct Token){.key = merged_str});
+
+                if (left_id == -1 || right_id == -1 || merged_id == -1) {
+                    log_debug(
+                        "Skipping merge rule with unknown token(s): '%s' + "
+                        "'%s' -> '%s'",
+                        left_str, right_str, merged_str);
+                    continue;
+                }
+
+                struct MergeRule* rule =
+                    &global_encode_context->merge_rules[current_rule_idx];
+                rule->rank = rank++;
+                rule->left_id = left_id;
+                rule->right_id = right_id;
+                rule->merge_id = merged_id;
+                current_rule_idx++;
+            }
+            global_encode_context->num_merge_rules = current_rule_idx;
+            log_debug("Succesfully loaded %zu merge rules.", current_rule_idx);
+        } else {
+            log_debug("Merges file is empty or contains no valid rules.");
+        }
+        (void)fclose(merges_file);
+    } else {
+        log_debug("No merge rules file passed. Skipping.");
+    }
 
     Py_RETURN_NONE;
 }

@@ -6,6 +6,13 @@ struct Token {
     int value;
 };
 
+struct MergeRule {
+    int rank;
+    int left_id;
+    int right_id;
+    int merge_id;
+};
+
 void bpe_train(char* text,
                const int vocab_size,
                const char* pattern,
