@@ -586,6 +586,8 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
         if (!item) {
             log_debug("Error: Failed to get item at index %zd", i);
             PyErr_SetString(PyExc_RuntimeError, "Failed to get item.");
+            free(threads);
+            free(tasks);
             return NULL;
         }
 
@@ -620,6 +622,8 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_RuntimeError, tasks[i].error_msg);
+            free(threads);
+            free(tasks);
             return NULL;
         }
     }
@@ -628,6 +632,8 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
     if (!result) {
         log_debug("Error: Failed to create result list");
         PyErr_NoMemory();
+        free(threads);
+        free(tasks);
         return NULL;
     }
 
@@ -639,6 +645,8 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
             Py_DECREF(result);
             log_debug("Error: Failed to create sublist for chunk %zd", i);
             PyErr_NoMemory();
+            free(threads);
+            free(tasks);
             return NULL;
         }
 
@@ -650,6 +658,8 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
                 Py_DECREF(sublist);
                 Py_DECREF(result);
                 PyErr_NoMemory();
+                free(threads);
+                free(tasks);
                 return NULL;
             }
             PyList_SetItem(sublist, j, item);
@@ -674,12 +684,13 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     struct DecodeContext* ctx = global_decode_context;
     PyObject* tokens = NULL;
     int tokens_size = 0;
-    struct DecodeTask* task = malloc(sizeof(struct DecodeTask));
+    struct DecodeTask* task = NULL;
 
     if (!ctx || !ctx->initialized_decode) {
         PyErr_SetString(PyExc_RuntimeError,
                         "Vocabulary is not initialized for decoding. "
                         "Call 'initialize_decode' function first.");
+
         return NULL;
     }
 
@@ -702,6 +713,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
+    task = malloc(sizeof(struct DecodeTask));
     tokens_size = PyList_Size(tokens);
     char* result = NULL;
     char* error_msg = NULL;
@@ -711,6 +723,8 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         PyObject* item = PyList_GetItem(tokens, i);
         if (!item) {
             PyErr_SetString(PyExc_RuntimeError, "Failed to get token item.");
+            free(task);
+            free(token_array);
             return NULL;
         }
 
@@ -727,10 +741,13 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
 
     if (task->error_msg) {
         PyErr_SetString(PyExc_ValueError, task->error_msg);
-        free(task->tokens);
         free(task);
+        free(token_array);
         return NULL;
     }
+
+    free(task);
+    free(token_array);
 
     return task->result ? PyUnicode_FromString(task->result) : Py_None;
 }
@@ -770,6 +787,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
         PyObject* item = PyList_GetItem(tokens, i);
         if (!item) {
             PyErr_SetString(PyExc_RuntimeError, "Failed to get token item.");
+            free(threads);
+            free(tasks);
             return NULL;
         }
 
@@ -777,6 +796,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
             log_debug("Error: item at index %zd is not a list", i);
             PyErr_SetString(PyExc_TypeError,
                             "Each item must be a list of integers.");
+            free(threads);
+            free(tasks);
             return NULL;
         }
 
@@ -786,6 +807,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
             log_debug("Error: Memory allocation failed for tokens");
             PyErr_SetString(PyExc_MemoryError,
                             "Failed to allocate memory for tokens");
+            free(threads);
+            free(tasks);
             return NULL;
         }
         for (Py_ssize_t j = 0; j < tokens_size; j++) {
@@ -802,6 +825,10 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
             log_debug("Error: Memory allocation failed for tokens_size");
             PyErr_SetString(PyExc_MemoryError,
                             "Failed to allocate memory for tokens_size");
+
+            free(tasks[i].tokens);
+            free(threads);
+            free(tasks);
             return NULL;
         }
         *tasks[i].tokens_size = PyList_Size(item);
@@ -830,6 +857,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_ValueError, tasks[i].error_msg);
+            free(threads);
+            free(tasks);
             return NULL;
         }
     }
@@ -838,6 +867,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
     if (!results_list) {
         PyErr_SetString(PyExc_MemoryError,
                         "Failed to allocate memory for result list");
+        free(threads);
+        free(tasks);
         return NULL;
     }
 
@@ -847,6 +878,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
             Py_DECREF(results_list);
             PyErr_SetString(PyExc_MemoryError,
                             "Failed to create Python string from decoded text");
+            free(threads);
+            free(tasks);
             return NULL;
         }
         PyList_SET_ITEM(results_list, i, string);
@@ -855,6 +888,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
         free(tasks[i].result);
         free(tasks[i].tokens);
     }
+    free(threads);
+    free(tasks);
 
     return results_list;
 }

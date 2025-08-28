@@ -25,8 +25,7 @@
 int hex_token_length(const char* ptr) {
     if (ptr[0] == '<' && ptr[1] == '0' && (ptr[2] == 'x' || ptr[2] == 'X')) {
         const char* p = ptr + 3;
-        while ((*p >= '0' && *p <= '9') ||
-               (*p >= 'a' && *p <= 'f') ||
+        while ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') ||
                (*p >= 'A' && *p <= 'F')) {
             p++;
         }
@@ -147,26 +146,26 @@ void encode(struct EncodeTask* task) {
         word[word_len] = '\0';
         log_debug("Matched word: start=%d, end=%d, length=%d, word='%s'",
                   word_start, word_end, word_len, word);
-        
-        if(add_prefix_token && task->ctx->prefix) {
+
+        if (add_prefix_token && task->ctx->prefix) {
             log_debug("Adding encoded prefix to tokens");
             char* prefix_encoded = pretokenizer_encode(
-            task->ctx->prefix, (const char**)task->ctx->special_chars, NULL,
-            task->ctx->is_byte_encoder);
+                task->ctx->prefix, (const char**)task->ctx->special_chars, NULL,
+                task->ctx->is_byte_encoder);
 
             struct Boundary prefix_boundaries[strlen(prefix_encoded)];
             int prefix_tokens[strlen(prefix_encoded)];
             int pcount = 0;
 
             for (char* ptr = prefix_encoded; *ptr != '\0';
-                ptr += utf8_char_length((unsigned char*)ptr)) {
+                 ptr += utf8_char_length((unsigned char*)ptr)) {
                 int clen = utf8_char_length((unsigned char*)ptr);
                 struct Boundary b = {.start = ptr, .end = ptr + clen - 1};
                 prefix_boundaries[pcount++] = b;
             }
 
             bpe_encode(task->ctx->vocab_encode, prefix_boundaries,
-                    prefix_tokens, &pcount);
+                       prefix_tokens, &pcount);
 
             for (int i = 0; i < pcount; i++) {
                 task->tokens[*task->tokens_size + i] = prefix_tokens[i];
@@ -177,7 +176,7 @@ void encode(struct EncodeTask* task) {
             free(prefix_encoded);
             add_prefix_token = false;
         }
-        
+
         char* encoded_word = pretokenizer_encode(
             word, (const char**)task->ctx->special_chars,
             add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
@@ -187,7 +186,7 @@ void encode(struct EncodeTask* task) {
         struct Boundary word_token_boundaries[strlen(encoded_word)];
 
         log_debug("Creating word token boundaries");
-        for (char* ptr = encoded_word; *ptr != '\0'; ) {
+        for (char* ptr = encoded_word; *ptr != '\0';) {
             int token_len = next_token_length(ptr);
 
             char* start = ptr;
