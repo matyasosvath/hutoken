@@ -7,6 +7,7 @@
 
 #include "hutoken/arena.h"
 #include "hutoken/helper.h"
+#include "hutoken/string.h"
 
 int utf8_char_length(const unsigned char* c) {
     if ((c[0] & 0x80) == 0x00) {
@@ -31,124 +32,69 @@ char* pretokenizer_encode(const char* text,
     if (!text) {
         return NULL;
     }
-    log_debug(
-        "Starting pretokenize_encode function with text: %s and prefix: %s",
-        text, prefix);
+    log_debug("Starting pretokenizer_encode with text: %s and prefix: %s", text,
+              prefix ? prefix : "NULL");
 
-    size_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0;
-    size_t new_len = prefix_len;
-    for (const char* p = text; *p != '\0'; p++) {
-        unsigned char current_char = (unsigned char)*p;
+    struct String result_str;
+    size_t text_len = strlen(text);
+    size_t initial_capacity = text_len * 1.5 + (prefix ? strlen(prefix) : 0);
+    if (string_with_capacity(&result_str, initial_capacity) != STRING_SUCCESS) {
+        return NULL;
+    }
 
-        if (special_chars[current_char] != NULL) {
-            new_len += strlen(special_chars[current_char]);
+    if (prefix) {
+        if (string_append(&result_str, prefix) != STRING_SUCCESS) {
+            string_release(&result_str);
+            return NULL;
+        }
+    }
+
+    const unsigned char* p = (const unsigned char*)text;
+    while (*p != '\0') {
+        const char* replacement = special_chars[*p];
+        int char_len = is_byte_encoder ? 1 : utf8_char_length(p);
+
+        if (replacement != NULL) {
+            if (string_append(&result_str, replacement) != STRING_SUCCESS) {
+                string_release(&result_str);
+                return NULL;
+            }
         } else {
-            new_len += 1;
-        }
-    }
-
-    char* result = (char*)malloc(new_len + 1);
-    char* is_special = (char*)malloc(new_len + 1);
-    if (!result || !is_special) {
-        free(result);
-        free(is_special);
-        return NULL;
-    }
-    memset(result, 0, new_len + 1);
-    memset(is_special, 0, new_len + 1);
-
-    log_debug("New result length: %zu", new_len);
-
-    char* dest = result;
-    char* is_special_dest = is_special;
-
-    if (prefix_len > 0) {
-        memcpy(dest, prefix, prefix_len);
-        memset(is_special_dest, 0, prefix_len);
-        dest += prefix_len;
-        is_special_dest += prefix_len;
-    }
-
-    if (!is_byte_encoder) {
-        for (const char* p = text; *p != '\0';) {
-            unsigned char current_char = (unsigned char)*p;
-            int char_len = utf8_char_length((unsigned char*)p);
-            const char* replacement = special_chars[current_char];
-
-            if (replacement != NULL) {
-                size_t repl_len = strlen(replacement);
-                memcpy(dest, replacement, repl_len);
-
-                dest += repl_len;
-                is_special_dest += repl_len;
+            if (is_byte_encoder && *p >= 0x80) {
+                char byte_pair[2];
+                byte_pair[0] = 0xC0 | (*p >> 6);
+                byte_pair[1] = 0x80 | (*p & 0x3F);
+                if (string_append_n(&result_str, byte_pair, 2) !=
+                    STRING_SUCCESS) {
+                    string_release(&result_str);
+                    return NULL;
+                }
             } else {
-                memcpy(dest, p, char_len);
-
-                dest += char_len;
+                if (string_append_n(&result_str, (const char*)p, char_len) !=
+                    STRING_SUCCESS) {
+                    string_release(&result_str);
+                    return NULL;
+                }
             }
-
-            p += char_len;
         }
-
-        *dest = '\0';
-        free(is_special);
-        return result;
-    } else {
-        const char* p = text;
-        while (*p != '\0') {
-            unsigned char current_char = (unsigned char)*p;
-            const char* replacement = special_chars[current_char];
-
-            if (replacement != NULL) {
-                size_t repl_len = strlen(replacement);
-
-                memcpy(dest, replacement, repl_len);
-                memset(is_special_dest, 's', repl_len);
-
-                dest += repl_len;
-                is_special_dest += repl_len;
-            } else {
-                *dest++ = *p;
-                *is_special_dest++ = 'n';
-            }
-            p++;
-        }
-
-        *dest = '\0';
-        *is_special_dest = '\0';
+        p += char_len;
     }
-    size_t result_len = strlen(result);
 
-    char* byte_text = malloc(result_len * 2 + 1);
-    if (!byte_text) {
-        free(is_special);
-        free(result);
+    const char* final_c_str = string_c_str(&result_str);
+    size_t final_len = string_len(&result_str);
+    char* final_result = (char*)malloc(final_len + 1);
+
+    if (!final_result) {
+        string_release(&result_str);
         return NULL;
     }
 
-    char* bdest = byte_text;
+    memcpy(final_result, final_c_str, final_len + 1);
 
-    if (dest != result) {
-        for (size_t i = 0; i < result_len; ++i) {
-            unsigned char current_char = (unsigned char)result[i];
+    string_release(&result_str);
 
-            if (is_special[i] == 'n' && current_char >= 0x80) {
-                unsigned char first_byte = 0xC0 | (current_char >> 6);
-                unsigned char second_byte = 0x80 | (current_char & 0x3F);
-                *bdest++ = first_byte;
-                *bdest++ = second_byte;
-            } else {
-                *bdest++ = current_char;
-            }
-        }
-    }
-    *bdest = '\0';
-
-    free(result);
-    free(is_special);
-    log_debug("finished pretokenize_encode function: %s", byte_text);
-
-    return byte_text;
+    log_debug("Finished pretokenizer_encode: %s", final_result);
+    return final_result;
 }
 
 char* pretokenizer_encode_arena(struct Arena* arena,
@@ -159,118 +105,64 @@ char* pretokenizer_encode_arena(struct Arena* arena,
     if (!text) {
         return NULL;
     }
-    log_debug(
-        "Starting pretokenize_encode function with text: %s and prefix: %s",
-        text, prefix);
+    log_debug("Starting pretokenizer_encode with text: %s and prefix: %s", text,
+              prefix ? prefix : "NULL");
 
-    size_t prefix_len = (prefix != NULL) ? strlen(prefix) : 0;
-    size_t new_len = prefix_len;
-    for (const char* p = text; *p != '\0'; p++) {
-        unsigned char current_char = (unsigned char)*p;
+    struct String result_str;
+    size_t text_len = strlen(text);
+    size_t initial_capacity = text_len * 1.5 + (prefix ? strlen(prefix) : 0);
+    if (string_with_capacity_arena(&result_str, arena, initial_capacity) !=
+        STRING_SUCCESS) {
+        return NULL;
+    }
 
-        if (special_chars[current_char] != NULL) {
-            new_len += strlen(special_chars[current_char]);
+    if (prefix) {
+        if (string_append_arena(&result_str, arena, prefix) != STRING_SUCCESS) {
+            return NULL;
+        }
+    }
+
+    const unsigned char* p = (const unsigned char*)text;
+    while (*p != '\0') {
+        const char* replacement = special_chars[*p];
+        int char_len = is_byte_encoder ? 1 : utf8_char_length(p);
+
+        if (replacement != NULL) {
+            if (string_append_arena(&result_str, arena, replacement) !=
+                STRING_SUCCESS) {
+                return NULL;
+            }
         } else {
-            new_len += 1;
-        }
-    }
-
-    char* result = (char*)arena_alloc(arena, new_len + 1);
-    char* is_special = (char*)arena_alloc(arena, new_len + 1);
-    if (!result || !is_special) {
-        log_debug("asd");
-        return NULL;
-    }
-    memset(result, 0, new_len + 1);
-    memset(is_special, 0, new_len + 1);
-
-    log_debug("New result length: %zu", new_len);
-
-    char* dest = result;
-    char* is_special_dest = is_special;
-
-    if (prefix_len > 0) {
-        memcpy(dest, prefix, prefix_len);
-        memset(is_special_dest, 0, prefix_len);
-        dest += prefix_len;
-        is_special_dest += prefix_len;
-    }
-
-    if (!is_byte_encoder) {
-        for (const char* p = text; *p != '\0';) {
-            unsigned char current_char = (unsigned char)*p;
-            int char_len = utf8_char_length((unsigned char*)p);
-            const char* replacement = special_chars[current_char];
-
-            if (replacement != NULL) {
-                size_t repl_len = strlen(replacement);
-                memcpy(dest, replacement, repl_len);
-
-                dest += repl_len;
-                is_special_dest += repl_len;
+            if (is_byte_encoder && *p >= 0x80) {
+                char byte_pair[2];
+                byte_pair[0] = 0xC0 | (*p >> 6);
+                byte_pair[1] = 0x80 | (*p & 0x3F);
+                if (string_append_n_arena(&result_str, arena, byte_pair, 2) !=
+                    STRING_SUCCESS) {
+                    return NULL;
+                }
             } else {
-                memcpy(dest, p, char_len);
-
-                dest += char_len;
+                if (string_append_n_arena(&result_str, arena, (const char*)p,
+                                          char_len) != STRING_SUCCESS) {
+                    return NULL;
+                }
             }
-
-            p += char_len;
         }
-
-        *dest = '\0';
-        return result;
-    } else {
-        const char* p = text;
-        while (*p != '\0') {
-            unsigned char current_char = (unsigned char)*p;
-            const char* replacement = special_chars[current_char];
-
-            if (replacement != NULL) {
-                size_t repl_len = strlen(replacement);
-
-                memcpy(dest, replacement, repl_len);
-                memset(is_special_dest, 's', repl_len);
-
-                dest += repl_len;
-                is_special_dest += repl_len;
-            } else {
-                *dest++ = *p;
-                *is_special_dest++ = 'n';
-            }
-            p++;
-        }
-
-        *dest = '\0';
-        *is_special_dest = '\0';
+        p += char_len;
     }
-    size_t result_len = strlen(result);
 
-    char* byte_text = arena_alloc(arena, result_len * 2 + 1);
-    if (!byte_text) {
+    const char* final_c_str = string_c_str(&result_str);
+    size_t final_len = string_len(&result_str);
+    char* final_result = (char*)malloc(final_len + 1);
+
+    if (!final_result) {
         return NULL;
     }
 
-    char* bdest = byte_text;
+    memcpy(final_result, final_c_str, final_len + 1);
 
-    if (dest != result) {
-        for (size_t i = 0; i < result_len; ++i) {
-            unsigned char current_char = (unsigned char)result[i];
-
-            if (is_special[i] == 'n' && current_char >= 0x80) {
-                unsigned char first_byte = 0xC0 | (current_char >> 6);
-                unsigned char second_byte = 0x80 | (current_char & 0x3F);
-                *bdest++ = first_byte;
-                *bdest++ = second_byte;
-            } else {
-                *bdest++ = current_char;
-            }
-        }
-    }
-    *bdest = '\0';
-
-    log_debug("finished pretokenize_encode function: %s", byte_text);
-
-    return byte_text;
+    log_debug("Finished pretokenizer_encode: %s", final_result);
+    return final_result;
 }
 
 /*
