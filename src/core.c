@@ -505,8 +505,22 @@ void decode(struct DecodeTask* task) {
     int token_num = *task->tokens_size;
     log_debug("Number of tokens to decode: %d", token_num);
 
-    size_t text_size = sizeof(char) * (token_num + 1);
-    char* text = (char*)malloc(text_size);
+    size_t total_size = 0;
+    for (int i = 0; i < token_num; ++i) {
+        int token_id = task->tokens[i];
+        if (token_id < 0 || token_id >= task->ctx->vocab_size_decode) {
+            log_debug("Token value %d is out of bounds (vocab size = %d).",
+                      token_id, task->ctx->vocab_size_decode);
+            task->error_msg =
+                "Element must be non-negative and less than vocab size.";
+            task->result = NULL;
+            return;
+        }
+        total_size += strlen(task->ctx->vocab_decode[token_id]);
+    }
+    log_debug("Calculated total size for decoded string: %zu", total_size);
+
+    char* text = (char*)malloc(total_size + 1);
 
     if (!text) {
         log_debug("Error: Memory allocation failed for text buffer");
@@ -516,80 +530,30 @@ void decode(struct DecodeTask* task) {
     }
 
     text[0] = '\0';
-    log_debug("Initialized text buffer to an empty string (size: %zu bytes)",
-              text_size);
+    log_debug("Allocated final buffer of size %zu bytes", total_size + 1);
+
+    char* write_ptr = text;
 
     for (int i = 0; i < token_num; i++) {
         log_debug("Processing token at index %d", i);
 
-        int* token = &task->tokens[i];
-        if (!token) {
-            log_debug("Error: Token at index %d is not an integer", i);
-            task->error_msg = "All elements of the list must be integers";
-            free(text);
-            task->result = NULL;
-            return;
-        }
-
-        int item = *token;
-        if (item < 0 || item >= task->ctx->vocab_size_decode) {
-            log_debug(
-                "Error: Token value %d is out of bounds (vocab_size = %d)",
-                item, task->ctx->vocab_size_decode);
-            task->error_msg =
-                "Element must be non-negative and less than vocab size.";
-            free(text);
-            task->result = NULL;
-            return;
-        }
-
+        int item = task->tokens[i];
         const char* word = task->ctx->vocab_decode[item];
+
         size_t word_len = strlen(word);
-        log_debug("Decoded token value %d to word '%s' (length: %zu)", item,
-                  word, word_len);
+        memcpy(write_ptr, word, word_len);
+        write_ptr += word_len;
 
-        size_t current_len = strlen(text);
-        if (current_len + word_len + 1 >= text_size) {
-            log_debug(
-                "Resizing text buffer: current length = %zu, word length = "
-                "%zu, current buffer size = %zu",
-                current_len, word_len, text_size);
-
-            size_t buffer_size =
-                current_len + TEXT_SIZE_INCREMENT + word_len + 1;
-            char* new_text = realloc(text, buffer_size);
-
-            if (new_text == NULL) {
-                log_debug("Error: Memory reallocation failed for text buffer");
-                free(text);
-                task->error_msg = "Failed to allocate memory for text buffer";
-                task->result = NULL;
-                return;
-            }
-            text = new_text;
-            text_size = buffer_size;
-
-            log_debug("Resized text buffer to new size: %zu bytes",
-                      buffer_size);
-        }
-
-        (void)strcat(text, word);
-        log_debug(
-            "Appended word '%s' to text buffer. Current text: '%s' (buffer "
-            "size: %zu bytes)",
-            word, text, text_size);
+        log_debug("Copied word '%s' to buffer.", word);
     }
+
+    *write_ptr = '\0';
+    log_debug("Final raw decoded string: '%s'", text);
 
     char* decoded_text =
         pretokenizer_decode(text, (const char**)task->ctx->special_chars,
                             task->ctx->prefix, task->ctx->is_byte_encoder);
     log_debug("Decoded_text: %s", decoded_text);
-
-    /*
-    log_debug(
-        "Successfully created Python string from decoded text (UTF-8 encoded, "
-        "might be wrong here): '%s'",
-        decoded_text);*/
 
     task->result = strdup(decoded_text);
     task->error_msg = NULL;
