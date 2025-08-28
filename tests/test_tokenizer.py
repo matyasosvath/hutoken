@@ -224,6 +224,24 @@ def test_multithreading_prefix():
     hf_tokens = hf_enc(sentence2_batch)["input_ids"]
 
     assert hu_tokens == hf_tokens, f"Encoded tokens differ: {hu_tokens} vs {hf_tokens}"
+    
+def test_special_char():
+    hutoken.initialize("NYTK/PULI-LlumiX-32K")
+    hf_enc = AutoTokenizer.from_pretrained("NYTK/PULI-LlumiX-32K")
+
+    special = "\n\nTest\n"
+    tokens = hutoken.encode(special)
+    hf_tokens = hf_enc(special)["input_ids"]
+
+    assert tokens == hf_tokens, f"Encoded tokens differ: {tokens} vs {hf_tokens}"
+    
+    hutoken.initialize("openai-community/gpt2")
+    hf_enc = AutoTokenizer.from_pretrained("openai-community/gpt2")
+    
+    tokens = hutoken.encode(special)
+    hf_tokens = hf_enc(special)["input_ids"]
+
+    assert tokens == hf_tokens, f"Encoded tokens differ: {tokens} vs {hf_tokens}"
 
 
 def test_multithreading_encode_decode():
