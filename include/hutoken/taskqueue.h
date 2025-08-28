@@ -26,6 +26,7 @@ struct EncodeContext {
 struct DecodeContext {
     bool initialized_decode;
     char** vocab_decode;
+    size_t* vocab_decode_lens;
     int vocab_size_decode;
     char* special_chars[256];
     char* prefix;

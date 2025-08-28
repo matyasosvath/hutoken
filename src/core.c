@@ -516,7 +516,7 @@ void decode(struct DecodeTask* task) {
             task->result = NULL;
             return;
         }
-        total_size += strlen(task->ctx->vocab_decode[token_id]);
+        total_size += task->ctx->vocab_decode_lens[token_id];
     }
     log_debug("Calculated total size for decoded string: %zu", total_size);
 

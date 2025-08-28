@@ -162,6 +162,7 @@ int initialize_context(void) {
     }
 
     global_decode_context->vocab_size_decode = 0;
+    global_decode_context->vocab_decode_lens = NULL;
     global_decode_context->prefix = NULL;
     global_decode_context->is_byte_encoder = false;
     global_decode_context->initialized_decode = false;
@@ -401,18 +402,39 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
+    global_decode_context->vocab_decode_lens =
+        malloc(global_decode_context->vocab_size_decode * sizeof(size_t));
+
+    if (!global_decode_context->vocab_decode_lens) {
+        (void)fclose(file);
+        hashmap_free(global_encode_context->vocab_encode);
+        string_release(&hex_buffer);
+        string_release(&line);
+        free((void*)global_decode_context->vocab_decode);
+        log_debug(
+            "Error: Memory allocation failed for vocab_decode_lens array.");
+        PyErr_SetString(
+            PyExc_MemoryError,
+            "Memory allocation failed for vocab_decode_lens array.");
+        return NULL;
+    }
+
     size_t iter = 0;
     void* item = NULL;
     while (hashmap_iter(global_encode_context->vocab_encode, &iter, &item)) {
         const struct Token* token = item;
 
         global_decode_context->vocab_decode[token->value] = token->key;
+        global_decode_context->vocab_decode_lens[token->value] =
+            strlen(token->key);
+
         if (!global_decode_context->vocab_decode[token->value]) {
             (void)fclose(file);
             hashmap_free(global_encode_context->vocab_encode);
             string_release(&hex_buffer);
             string_release(&line);
             free((void*)global_decode_context->vocab_decode);
+            free((void*)global_decode_context->vocab_decode_lens);
             log_debug(
                 "Error: Memory allocation failed for vocab entry at index %d.",
                 token->value);
@@ -429,7 +451,9 @@ static PyObject* p_initialize(PyObject* self,
 
     global_decode_context->initialized_decode = true;
 
+    log_debug("here???");
     (void)fclose(file);
+    log_debug("here.");
     string_release(&hex_buffer);
     string_release(&line);
 
