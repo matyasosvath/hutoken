@@ -29,6 +29,20 @@ int token_compare(const void* a, const void* b) {
     return strcmp(ua->key, ub->key);
 }
 
+uint64_t pair_hash(const void* item) {
+    const struct MergeRule* merge_item = item;
+    uint64_t key =
+        ((uint64_t)merge_item->left_id << 32) | (uint32_t)merge_item->right_id;
+    return hashmap_murmur(&key, sizeof(key));
+}
+
+int pair_compare(const void* lhs, const void* rhs) {
+    const struct MergeRule* item_a = lhs;
+    const struct MergeRule* item_b = rhs;
+    return !(item_a->left_id == item_b->left_id &&
+             item_a->right_id == item_b->right_id);
+}
+
 void create_words(char* text,
                   const char* pattern,
                   struct Boundary token_boundaries[],

@@ -15,6 +15,9 @@ struct MergeRule {
     int merge_id;
 };
 
+uint64_t pair_hash(const void* item);
+int pair_compare(const void* lhs, const void* rhs);
+
 uint64_t token_hash(const void* item);
 int token_compare(const void* a, const void* b);
 

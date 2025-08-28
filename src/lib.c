@@ -589,6 +589,26 @@ static PyObject* p_initialize(PyObject* self,
             log_debug("Merges file is empty or contains no valid rules.");
         }
         (void)fclose(merges_file);
+
+        if (global_encode_context->num_merge_rules > 0) {
+            global_encode_context->merges_map =
+                hashmap_new(global_encode_context->num_merge_rules,
+                            sizeof(struct MergeRule), pair_hash, pair_compare);
+            if (!global_encode_context->merges_map) {
+                PyErr_SetString(PyExc_MemoryError,
+                                "Failed to allocate memory for merges map.");
+                return NULL;
+            }
+
+            for (size_t i = 0; i < global_encode_context->num_merge_rules;
+                 ++i) {
+                struct MergeRule* rule = &global_encode_context->merge_rules[i];
+                hashmap_set(global_encode_context->merges_map, rule);
+            }
+
+            log_debug("Successfully populated merges hash map with %zu rules.",
+                      global_encode_context->num_merge_rules);
+        }
     } else {
         log_debug("No merge rules file passed. Skipping.");
     }
