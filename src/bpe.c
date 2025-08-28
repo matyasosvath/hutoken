@@ -31,9 +31,13 @@ int token_compare(const void* a, const void* b) {
 
 uint64_t pair_hash(const void* item) {
     const struct MergeRule* merge_item = item;
-    uint64_t key =
-        ((uint64_t)merge_item->left_id << 32) | (uint32_t)merge_item->right_id;
-    return hashmap_murmur(&key, sizeof(key));
+    uint64_t x =  ((uint64_t)merge_item->left_id << 32) | merge_item->right_id;
+
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
+    x = x ^ (x >> 31);
+
+    return x;
 }
 
 int pair_compare(const void* lhs, const void* rhs) {
