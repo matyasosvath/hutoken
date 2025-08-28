@@ -588,7 +588,9 @@ static PyObject* p_initialize(PyObject* self,
         } else {
             log_debug("Merges file is empty or contains no valid rules.");
         }
-        (void)fclose(merges_file);
+        if (merges_file != NULL) {
+            (void)fclose(merges_file);
+        }
 
         if (global_encode_context->num_merge_rules > 0) {
             global_encode_context->merges_map =

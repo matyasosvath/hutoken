@@ -30,28 +30,21 @@ struct TokenNode {
     int next;
 };
 
-static int get_pair_rank(const struct HashMap* vocab,
-                         const struct Boundary token_boundaries[],
-                         const int left_idx,
-                         const int right_idx);
+static int get_pair_rank_from_strings(const struct HashMap* vocab,
+                                      const struct Boundary token_boundaries[],
+                                      const int left_idx,
+                                      const int right_idx);
 
-void bpe_encode_arena(struct Arena* arena,
-                      struct HashMap* vocab,
-                      struct Boundary token_boundaries[],
-                      int tokens[],
-                      int* token_num) {
+static int get_pair_rank_from_ids(const struct HashMap* merges_map,
+                                  const int left_id,
+                                  const int right_id);
+
+void bpe_encode_arena_string(struct Arena* arena,
+                             struct HashMap* vocab,
+                             struct Boundary token_boundaries[],
+                             int tokens[],
+                             int* token_num) {
     if (*token_num < 2) {
-        const char* start = token_boundaries[0].start;
-        const char* end = token_boundaries[0].end;
-        const ptrdiff_t len = (end - start) + 1;
-
-        char token_str[len + 1];
-        memcpy(token_str, start, len);
-        token_str[len] = '\0';
-
-        const struct Token* found_token =
-            hashmap_get(vocab, &(struct Token){.key = token_str});
-        tokens[0] = (found_token != NULL) ? found_token->value : -1;
         return;
     }
 
@@ -81,7 +74,8 @@ void bpe_encode_arena(struct Arena* arena,
     nodes[*token_num - 1].next = -1;
 
     for (int i = 0; i < *token_num - 1; ++i) {
-        const int rank = get_pair_rank(vocab, token_boundaries, i, i + 1);
+        const int rank =
+            get_pair_rank_from_strings(vocab, token_boundaries, i, i + 1);
         if (rank != -1) {
             const struct MergeCandidate candidate = {
                 .rank = rank, .left_idx = i, .right_idx = i + 1};
@@ -110,8 +104,8 @@ void bpe_encode_arena(struct Arena* arena,
             continue;
         }
 
-        const int current_rank =
-            get_pair_rank(vocab, token_boundaries, left_idx, right_idx);
+        const int current_rank = get_pair_rank_from_strings(
+            vocab, token_boundaries, left_idx, right_idx);
 
         if (best_pair.rank != current_rank) {
             // It is possible that the right token has been modified, and the
@@ -133,7 +127,7 @@ void bpe_encode_arena(struct Arena* arena,
         }
 
         if (prev_idx != -1) {
-            const int rank = get_pair_rank(
+            const int rank = get_pair_rank_from_strings(
                 vocab, token_boundaries, prev_idx,
                 left_idx);  // NOLINT: readability-suspicious-call-argument
 
@@ -147,8 +141,8 @@ void bpe_encode_arena(struct Arena* arena,
         }
 
         if (next_idx != -1) {
-            const int rank =
-                get_pair_rank(vocab, token_boundaries, left_idx, next_idx);
+            const int rank = get_pair_rank_from_strings(vocab, token_boundaries,
+                                                        left_idx, next_idx);
 
             if (rank != -1) {
                 min_pq_push_arena(
@@ -192,6 +186,137 @@ void bpe_encode_arena(struct Arena* arena,
         tokens[i] = (found_token != NULL) ? found_token->value : -1;
         log_debug("rank=%d", tokens[i]);
     }
+}
+
+void bpe_encode_arena_ids(struct Arena* arena,
+                          struct HashMap* merges_map,
+                          int tokens[],
+                          int* token_num) {
+    if (*token_num < 2) {
+        return;
+    }
+
+    struct MinPQ pq;
+    if (min_pq_init_arena(arena, &pq, *token_num) != MIN_PQ_SUCCESS) {
+        log_debug("Failed to initialize priority queue.");
+        return;
+    }
+
+    // Before using the min-priority queue, we use a linked list to track the
+    // sequence of active tokens. This is because invalidating the tokens after
+    // a merge is inefficient, while tracking the active tokens with a linked
+    // list is not.
+    struct TokenNode* nodes =
+        arena_alloc(arena, *token_num * sizeof(struct TokenNode));
+    bool* consumed = arena_alloc(arena, *token_num * sizeof(bool));
+    memset(consumed, 0, *token_num * sizeof(bool));
+    if (!nodes || !consumed) {
+        log_debug("Failed to allocate memory for token nodes.");
+        return;
+    }
+
+    for (int i = 0; i < *token_num; ++i) {
+        nodes[i].prev = i - 1;
+        nodes[i].next = i + 1;
+    }
+    nodes[*token_num - 1].next = -1;
+
+    for (int i = 0; i < *token_num - 1; ++i) {
+        const int rank =
+            get_pair_rank_from_ids(merges_map, tokens[i], tokens[i + 1]);
+        if (rank != -1) {
+            const struct MergeCandidate candidate = {
+                .rank = rank, .left_idx = i, .right_idx = i + 1};
+
+            if (min_pq_push_arena(arena, &pq, candidate) != MIN_PQ_SUCCESS) {
+                log_debug("Failed to push to queue.");
+                return;
+            }
+        }
+    }
+
+    while (!min_pq_is_empty(&pq)) {
+        struct MergeCandidate best_pair = {0};
+
+        (void)min_pq_pop(&pq, &best_pair);
+
+        const int left_idx = best_pair.left_idx;
+        const int right_idx = best_pair.right_idx;
+
+        if (consumed[left_idx] || consumed[right_idx]) {
+            continue;
+        }
+
+        if (nodes[left_idx].next != right_idx) {
+            // The pair is stale.
+            continue;
+        }
+
+        const int current_rank = get_pair_rank_from_ids(
+            merges_map, tokens[left_idx], tokens[right_idx]);
+
+        if (best_pair.rank != current_rank) {
+            // It is possible that the right token has been modified, and the
+            // queue does not recognize that, which passes every other check.
+            // This way, if it has been modified, the rank is different as well,
+            // and the merge candidate is skipped.
+            continue;
+        }
+
+        struct MergeRule key = {.left_id = tokens[left_idx],
+                                .right_id = tokens[right_idx]};
+        const struct MergeRule* rule = hashmap_get(merges_map, &key);
+        if (rule) {
+            tokens[left_idx] = rule->merge_id;
+            consumed[right_idx] = true;
+        } else {
+            continue;
+        }
+
+        consumed[right_idx] = true;
+
+        const int prev_idx = nodes[left_idx].prev;
+        const int next_idx = nodes[right_idx].next;
+        nodes[left_idx].next = next_idx;
+        if (next_idx != -1) {
+            nodes[next_idx].prev = left_idx;
+        }
+
+        if (prev_idx != -1) {
+            const int rank = get_pair_rank_from_ids(
+                merges_map, tokens[prev_idx], tokens[left_idx]);
+
+            if (rank != -1) {
+                min_pq_push_arena(
+                    arena, &pq,
+                    (struct MergeCandidate){.rank = rank,
+                                            .left_idx = prev_idx,
+                                            .right_idx = left_idx});
+            }
+        }
+
+        if (next_idx != -1) {
+            const int rank = get_pair_rank_from_ids(
+                merges_map, tokens[left_idx], tokens[next_idx]);
+
+            if (rank != -1) {
+                min_pq_push_arena(
+                    arena, &pq,
+                    (struct MergeCandidate){.rank = rank,
+                                            .left_idx = left_idx,
+                                            .right_idx = next_idx});
+            }
+        }
+    }
+
+    int final_token_count = 0;
+    for (int i = 0; i < *token_num; ++i) {
+        if (!consumed[i]) {
+            tokens[final_token_count++] = tokens[i];
+        }
+    }
+
+    *token_num = final_token_count;
 }
 
 void encode(struct EncodeTask* task) {
@@ -266,36 +391,54 @@ void encode(struct EncodeTask* task) {
             add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
         add_prefix = false;
 
-        int i = 0;
         size_t encoded_len = strlen(encoded_word);
-        struct Boundary
-            word_token_boundaries[encoded_len > 0 ? encoded_len : 1];
         int word_tokens[encoded_len > 0 ? encoded_len : 1];
+        int word_tokens_num = 0;
 
-        for (char* ptr = encoded_word; *ptr != '\0';
-             ptr += utf8_char_length((unsigned char*)ptr)) {
-            int char_len = utf8_char_length((unsigned char*)ptr);
-            char* start = ptr;
-            char* end = ptr + char_len - 1;
+        if (task->ctx->merges_map != NULL) {
+            log_debug("Using ID-based BPE encoding path.");
 
-            struct Boundary word_token_boundary = {.start = start, .end = end};
+            for (char* ptr = encoded_word; *ptr != '\0';) {
+                int char_len = utf8_char_length((unsigned char*)ptr);
+                char temp_char[char_len + 1];
+                memcpy(temp_char, ptr, char_len);
+                temp_char[char_len] = '\0';
 
-            word_token_boundaries[i++] = word_token_boundary;
+                const struct Token* found = hashmap_get(
+                    task->ctx->vocab_encode, &(struct Token){.key = temp_char});
+                if (found) {
+                    word_tokens[word_tokens_num++] = found->value;
+                } else {
+                    word_tokens[word_tokens_num++] = -1;
+                }
+                ptr += char_len;
+            }
 
-            ptr += char_len - 1;
+            bpe_encode_arena_ids(&arena, task->ctx->merges_map, word_tokens,
+                                 &word_tokens_num);
+        } else {
+            log_debug("Using string-based BPE encoding path.");
+            struct Boundary
+                word_token_boundaries[encoded_len > 0 ? encoded_len : 1];
+
+            for (char* ptr = encoded_word; *ptr != '\0';) {
+                int char_len = utf8_char_length((unsigned char*)ptr);
+                word_token_boundaries[word_tokens_num++] =
+                    (struct Boundary){.start = ptr, .end = ptr + char_len - 1};
+                ptr += char_len;
+            }
+
+            bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
+                                    word_token_boundaries, word_tokens,
+                                    &word_tokens_num);
         }
 
-        int word_token_num = i;
-
-        bpe_encode_arena(&arena, task->ctx->vocab_encode, word_token_boundaries,
-                         word_tokens, &word_token_num);
-
-        for (int i = 0; i < word_token_num; i++) {
+        for (int i = 0; i < word_tokens_num; i++) {
             task->tokens[i + *task->tokens_size] = word_tokens[i];
             log_debug("Encoded token: %d", word_tokens[i]);
         }
 
-        *task->tokens_size += word_token_num;
+        *task->tokens_size += word_tokens_num;
 
         if (use_regex) {
             cursor = word_slice.start + word_slice.length;
@@ -528,10 +671,10 @@ PyObject* look_up_word(struct apply_handle* handle,
 
 #endif
 
-static int get_pair_rank(const struct HashMap* vocab,
-                         const struct Boundary token_boundaries[],
-                         const int left_idx,
-                         const int right_idx) {
+static int get_pair_rank_from_strings(const struct HashMap* vocab,
+                                      const struct Boundary token_boundaries[],
+                                      const int left_idx,
+                                      const int right_idx) {
     const ptrdiff_t left_len =
         (token_boundaries[left_idx].end - token_boundaries[left_idx].start) + 1;
     const ptrdiff_t right_len =
@@ -548,4 +691,20 @@ static int get_pair_rank(const struct HashMap* vocab,
         hashmap_get((struct HashMap*)vocab, &(struct Token){.key = pair_str});
 
     return (found_token != NULL) ? found_token->value : -1;
+}
+
+static int get_pair_rank_from_ids(const struct HashMap* merges_map,
+                                  const int left_id,
+                                  const int right_id) {
+    struct MergeRule key = {.left_id = left_id, .right_id = right_id};
+    const struct MergeRule* found_item =
+        hashmap_get((struct HashMap*)merges_map, &key);
+
+    if (found_item == NULL) {
+        return -1;
+    }
+
+    log_debug("found_item->merge_id=%d", found_item->merge_id);
+
+    return (found_item != NULL) ? found_item->rank : -1;
 }

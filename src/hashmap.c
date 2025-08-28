@@ -44,12 +44,6 @@ static uint64_t clip_hash(uint64_t hash) {
     return hash & 0xFFFFFFFFFFFF;
 }
 
-static uint64_t get_hash(struct HashMap* map, const void* item) {
-    const struct Token* token = item;
-    uint64_t hash = hashmap_murmur(token->key, strlen(token->key));
-    return clip_hash(hash);
-}
-
 struct HashMap* hashmap_new(size_t capacity,
                             size_t element_size,
                             uint64_t (*hash_func)(const void* item),
@@ -236,7 +230,7 @@ const void* hashmap_set(struct HashMap* map, const void* item) {
 
 // return item based on key. If item is not found, NULL is returned.
 void* hashmap_get(struct HashMap* map, const void* key) {
-    uint64_t hash = get_hash(map, key);
+    uint64_t hash = map->hash_func(key);
 
     hash = clip_hash(hash);
 
