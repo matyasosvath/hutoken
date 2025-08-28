@@ -156,12 +156,14 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
     if (!file_path) {
         PyErr_SetString(PyExc_MemoryError,
                         "Cannot allocate memory for file path");
+        return EXIT_FAILURE;
     }
 
     (void)snprintf(file_path, file_path_len, "%s/%s", dir_path, file_name);
 
     FILE* file = fopen(file_path, "w");
     if (file == NULL) {
+        free(file_path);
         perror("Error creating file.\n");
         return EXIT_FAILURE;
     }

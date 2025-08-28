@@ -30,6 +30,28 @@ struct TokenNode {
     int next;
 };
 
+int hex_token_length(const char* ptr) {
+    if (ptr[0] == '<' && ptr[1] == '0' && (ptr[2] == 'x' || ptr[2] == 'X')) {
+        const char* p = ptr + 3;
+        while ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') ||
+               (*p >= 'A' && *p <= 'F')) {
+            p++;
+        }
+        if (*p == '>') {
+            return (p - ptr) + 1;
+        }
+    }
+    return -1;
+}
+
+int next_token_length(const char* ptr) {
+    int hex_len = hex_token_length(ptr);
+    if (hex_len > 0) {
+        return hex_len;
+    }
+    return utf8_char_length((const unsigned char*)ptr);
+}
+
 static int get_pair_rank_from_strings(const struct HashMap* vocab,
                                       const struct Boundary token_boundaries[],
                                       const int left_idx,
@@ -44,10 +66,6 @@ void bpe_encode_arena_string(struct Arena* arena,
                              struct Boundary token_boundaries[],
                              int tokens[],
                              int* token_num) {
-    if (*token_num < 2) {
-        return;
-    }
-
     struct MinPQ pq;
     if (min_pq_init_arena(arena, &pq, *token_num) != MIN_PQ_SUCCESS) {
         log_debug("Failed to initialize priority queue.");
@@ -192,10 +210,6 @@ void bpe_encode_arena_ids(struct Arena* arena,
                           struct HashMap* merges_map,
                           int tokens[],
                           int* token_num) {
-    if (*token_num < 2) {
-        return;
-    }
-
     struct MinPQ pq;
     if (min_pq_init_arena(arena, &pq, *token_num) != MIN_PQ_SUCCESS) {
         log_debug("Failed to initialize priority queue.");
@@ -346,7 +360,8 @@ void encode(struct EncodeTask* task) {
     }
 
     const char* cursor = task->text;
-    bool add_prefix = true;
+    bool add_prefix = cursor[0] != ' ';
+    bool add_prefix_token = !add_prefix;
     while (true) {
         struct TokenSlice word_slice;
         bool has_token = false;
@@ -386,6 +401,36 @@ void encode(struct EncodeTask* task) {
         word[word_slice.length] = '\0';
         log_debug("Matched word: length=%zu, word='%s'", word_slice.length,
                   word);
+
+        if (add_prefix_token && task->ctx->prefix) {
+            log_debug("Adding encoded prefix to tokens");
+            char* prefix_encoded = pretokenizer_encode_arena(
+                &arena, task->ctx->prefix, (const char**)task->ctx->special_chars, NULL,
+                task->ctx->is_byte_encoder);
+
+            struct Boundary prefix_boundaries[strlen(prefix_encoded)];
+            int prefix_tokens[strlen(prefix_encoded)];
+            int pcount = 0;
+
+            for (char* ptr = prefix_encoded; *ptr != '\0';
+                 ptr += utf8_char_length((unsigned char*)ptr)) {
+                int clen = utf8_char_length((unsigned char*)ptr);
+                struct Boundary b = {.start = ptr, .end = ptr + clen - 1};
+                prefix_boundaries[pcount++] = b;
+            }
+
+            bpe_encode_arena_string(&arena, task->ctx->vocab_encode, prefix_boundaries,
+                       prefix_tokens, &pcount);
+
+            for (int i = 0; i < pcount; i++) {
+                task->tokens[*task->tokens_size + i] = prefix_tokens[i];
+                log_debug("Encoded prefix token: %d", prefix_tokens[i]);
+            }
+            *task->tokens_size += pcount;
+
+            add_prefix_token = false;
+        }
+
         char* encoded_word = pretokenizer_encode_arena(
             &arena, word, (const char**)task->ctx->special_chars,
             add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
@@ -422,10 +467,10 @@ void encode(struct EncodeTask* task) {
                 word_token_boundaries[encoded_len > 0 ? encoded_len : 1];
 
             for (char* ptr = encoded_word; *ptr != '\0';) {
-                int char_len = utf8_char_length((unsigned char*)ptr);
+                int token_len = next_token_length(ptr);
                 word_token_boundaries[word_tokens_num++] =
-                    (struct Boundary){.start = ptr, .end = ptr + char_len - 1};
-                ptr += char_len;
+                    (struct Boundary){.start = ptr, .end = ptr + token_len - 1};
+                ptr += token_len;
             }
 
             bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
@@ -689,6 +734,8 @@ static int get_pair_rank_from_strings(const struct HashMap* vocab,
 
     const struct Token* found_token =
         hashmap_get((struct HashMap*)vocab, &(struct Token){.key = pair_str});
+
+    log_debug("pair_str='%s'", pair_str);
 
     return (found_token != NULL) ? found_token->value : -1;
 }
