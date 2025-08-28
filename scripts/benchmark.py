@@ -59,9 +59,9 @@ def benchmark(document, num_bytes, thread_number):
 
     ht_enc_perf = num_bytes / (end - start) * 1e9
 
-    hutoken.decode(ht_result)
+    hutoken.decode(ht_result) if thread_number == 1 else hutoken.batch_decode(ht_result, num_threads=thread_number)
     start = time.perf_counter_ns()
-    hutoken.decode(ht_result)
+    hutoken.decode(ht_result) if thread_number == 1 else hutoken.batch_decode(ht_result, num_threads=thread_number)
     end = time.perf_counter_ns()
     ht_dec_perf = num_bytes / (end - start) * 1e9
 
@@ -73,9 +73,9 @@ def benchmark(document, num_bytes, thread_number):
     end = time.perf_counter_ns()
     tt_enc_perf = num_bytes / (end - start) * 1e9
 
-    enc.decode(tt_result)
+    enc.decode(tt_result) if thread_number == 1 else enc.decode_batch(tt_result)
     start = time.perf_counter_ns()
-    enc.decode(tt_result)
+    enc.decode(tt_result) if thread_number == 1 else enc.decode_batch(tt_result)
     end = time.perf_counter_ns()
     tt_dec_perf = num_bytes / (end - start) * 1e9
 
@@ -87,9 +87,9 @@ def benchmark(document, num_bytes, thread_number):
     end = time.perf_counter_ns()
     hf_enc_perf = num_bytes / (end - start) * 1e9
 
-    hf_enc.decode(hf_result)
+    hf_enc.decode(hf_result) if thread_number == 1 else hf_enc.batch_decode(hf_result)
     start = time.perf_counter_ns()
-    hf_enc.decode(hf_result)
+    hf_enc.decode(hf_result) if thread_number == 1 else hf_enc.batch_decode(hf_result)
     end = time.perf_counter_ns()
     hf_dec_perf = num_bytes / (end - start) * 1e9
 
