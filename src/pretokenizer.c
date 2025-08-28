@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "hutoken/ac.h"
 #include "hutoken/arena.h"
 #include "hutoken/helper.h"
 #include "hutoken/string.h"
@@ -218,64 +219,67 @@ char* pretokenizer_decode(const char* text, const struct DecodeContext* ctx) {
     char* dest = buffer;
     const char* p = text;
     const char* end_of_text = text + text_len;
+    const struct ACAutomaton* automaton = ctx->ac;
 
     if (ctx->is_byte_encoder) {
-        const unsigned char* up = (const unsigned char*)p;
-        while (*up != '\0') {
-            int bytes_in_char = 0;
-            uint32_t codepoint = utf8_to_codepoint(up, &bytes_in_char);
+        while (p < end_of_text) {
+            const struct ACNode* longest_match_node = NULL;
+            size_t longest_match_len = 0;
 
-            char current_char_str[5] = {0};
-            strncpy(current_char_str, (const char*)up, bytes_in_char);
-
-            bool matched = false;
-            for (int i = 0; i < 256; i++) {
-                if (ctx->special_chars[i] &&
-                    strcmp(current_char_str, ctx->special_chars[i]) == 0) {
-                    log_debug("Matched special char: %d, %s", i,
-                              ctx->special_chars[i]);
-                    *dest++ = (unsigned char)i;
-                    matched = true;
+            struct ACNode* current_node = automaton->root;
+            for (const char* q = p; q < end_of_text; ++q) {
+                unsigned char index = (unsigned char)*q;
+                if (current_node->children[index]) {
+                    current_node = current_node->children[index];
+                    if (current_node->output_value != -1) {
+                        longest_match_node = current_node;
+                        longest_match_len = current_node->pattern_len;
+                    }
+                } else {
                     break;
                 }
             }
 
-            if (!matched) {
+            if (longest_match_node) {
+                *dest++ = (unsigned char)longest_match_node->output_value;
+                p += longest_match_len;
+            } else {
+                int bytes_in_char = 0;
+                uint32_t codepoint =
+                    utf8_to_codepoint((const unsigned char*)p, &bytes_in_char);
                 if (codepoint < 256) {
                     *dest++ = (unsigned char)codepoint;
                 } else {
                     *dest++ = '?';
                 }
+                p += (bytes_in_char > 0) ? bytes_in_char : 1;
             }
-            up += bytes_in_char;
         }
     } else {
         while (p < end_of_text) {
-            bool matched = false;
-            size_t max_len = ctx->max_special_char_len;
-            if (p + max_len > end_of_text) {
-                max_len = end_of_text - p;
-            }
+            const struct ACNode* longest_match_node = NULL;
+            size_t longest_match_len = 0;
 
-            for (size_t len = max_len; len > 0; --len) {
-                char sub[len + 1];
-                memcpy(sub, p, len);
-                sub[len] = '\0';
-
-                const struct Token* found = hashmap_get(
-                    ctx->special_chars_map_decode, &(struct Token){.key = sub});
-
-                if (found) {
-                    log_debug("Matched special char: %d, %s", found->value,
-                              found->key);
-                    *dest++ = (unsigned char)found->value;
-                    p += len;
-                    matched = true;
+            struct ACNode* current_node = automaton->root;
+            for (const char* q = p; q < end_of_text; ++q) {
+                unsigned char index = (unsigned char)*q;
+                if (current_node->children[index]) {
+                    current_node = current_node->children[index];
+                    if (current_node->output_value != -1) {
+                        longest_match_node = current_node;
+                        longest_match_len = current_node->pattern_len;
+                    }
+                } else {
                     break;
                 }
             }
 
-            if (!matched) {
+            if (longest_match_node) {
+                *dest++ = (unsigned char)longest_match_node->output_value;
+                p += longest_match_len;
+                log_debug("Matched special token of length %zu",
+                          longest_match_len);
+            } else {
                 int char_len = utf8_char_length((const unsigned char*)p);
                 memcpy(dest, p, char_len);
                 dest += char_len;

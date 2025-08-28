@@ -1,6 +1,7 @@
 #ifndef HUTOKEN_TASKQUEUE_H
 #define HUTOKEN_TASKQUEUE_H
 
+#include "hutoken/ac.h"
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #else
@@ -33,6 +34,7 @@ struct DecodeContext {
     bool is_byte_encoder;
     struct HashMap* special_chars_map_decode;
     size_t max_special_char_len;
+    struct ACAutomaton* ac;
 };
 
 struct EncodeTask {

@@ -178,6 +178,8 @@ int initialize_context(void) {
         return -1;
     }
 
+    global_decode_context->ac = NULL;
+
     return 1;
 }
 
@@ -470,6 +472,16 @@ static PyObject* p_initialize(PyObject* self,
 
     log_debug("Successfully opened special character file.");
 
+    global_decode_context->ac = ac_automaton_create();
+    if (!global_decode_context->ac) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to create AC automaton.");
+        (void)fclose(special_chars_file);
+        hashmap_free(global_encode_context->vocab_encode);
+        free((void*)global_decode_context->vocab_decode);
+        log_debug("Error: Failed to create AC automaton.");
+        return NULL;
+    }
+
     char special_file_line[32];
 
     while (fgets(special_file_line, sizeof(special_file_line),
@@ -543,9 +555,20 @@ static PyObject* p_initialize(PyObject* self,
 
         global_encode_context->special_chars[index] = strdup(value);
         global_decode_context->special_chars[index] = strdup(value);
-        hashmap_set(global_decode_context->special_chars_map_decode,
-                    &(struct Token){.key = strdup(value), .value = (int)index});
+        if (!ac_automaton_add_string(global_decode_context->ac, value,
+                                     (int)index)) {
+            PyErr_SetString(PyExc_MemoryError,
+                            "Failed to add string to AC automaton.");
+            free(value);
+            (void)fclose(special_chars_file);
+            hashmap_free(global_encode_context->vocab_encode);
+            free((void*)global_decode_context->vocab_decode);
+            return NULL;
+        }
     }
+
+    ac_automaton_build_failure_links(global_decode_context->ac);
+    log_debug("Built AC automaton failure links.");
 
     (void)fclose(special_chars_file);
 
