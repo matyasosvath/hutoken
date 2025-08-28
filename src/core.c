@@ -22,6 +22,29 @@
 #include "hutoken/pretokenizer.h"
 #include "hutoken/taskqueue.h"
 
+int hex_token_length(const char* ptr) {
+    if (ptr[0] == '<' && ptr[1] == '0' && (ptr[2] == 'x' || ptr[2] == 'X')) {
+        const char* p = ptr + 3;
+        while ((*p >= '0' && *p <= '9') ||
+               (*p >= 'a' && *p <= 'f') ||
+               (*p >= 'A' && *p <= 'F')) {
+            p++;
+        }
+        if (*p == '>') {
+            return (p - ptr) + 1;
+        }
+    }
+    return -1;
+}
+
+int next_token_length(const char* ptr) {
+    int hex_len = hex_token_length(ptr);
+    if (hex_len > 0) {
+        return hex_len;
+    }
+    return utf8_char_length((const unsigned char*)ptr);
+}
+
 void bpe_encode(struct HashMap* vocab,
                 struct Boundary token_boundaries[],
                 int tokens[],
@@ -126,6 +149,7 @@ void encode(struct EncodeTask* task) {
                   word_start, word_end, word_len, word);
         
         if(add_prefix_token && task->ctx->prefix) {
+            log_debug("Adding encoded prefix to tokens");
             char* prefix_encoded = pretokenizer_encode(
             task->ctx->prefix, (const char**)task->ctx->special_chars, NULL,
             task->ctx->is_byte_encoder);
@@ -160,23 +184,23 @@ void encode(struct EncodeTask* task) {
         add_prefix = false;
 
         int i = 0;
-        struct Boundary word_token_boundaries[word_len];
+        struct Boundary word_token_boundaries[strlen(encoded_word)];
 
-        for (char* ptr = encoded_word; *ptr != '\0';
-             ptr += utf8_char_length((unsigned char*)ptr)) {
-            int char_len = utf8_char_length((unsigned char*)ptr);
+        log_debug("Creating word token boundaries");
+        for (char* ptr = encoded_word; *ptr != '\0'; ) {
+            int token_len = next_token_length(ptr);
+
             char* start = ptr;
-            char* end = ptr + char_len - 1;
+            char* end = ptr + token_len - 1;
 
             struct Boundary word_token_boundary = {.start = start, .end = end};
-
             word_token_boundaries[i++] = word_token_boundary;
 
-            ptr += char_len - 1;
+            ptr += token_len;
         }
 
         int word_token_num = i;
-        int word_tokens[word_len];
+        int word_tokens[i];
 
         bpe_encode(task->ctx->vocab_encode, word_token_boundaries, word_tokens,
                    &word_token_num);
