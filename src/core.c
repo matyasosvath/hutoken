@@ -80,11 +80,12 @@ void bpe_encode_arena_string(struct Arena* arena,
     struct TokenNode* nodes =
         arena_alloc(arena, *token_num * sizeof(struct TokenNode));
     bool* consumed = arena_alloc(arena, *token_num * sizeof(bool));
-    memset(consumed, 0, *token_num * sizeof(bool));
     if (!nodes || !consumed) {
         log_debug("Failed to allocate memory for token nodes.");
         return;
     }
+
+    memset(consumed, 0, *token_num * sizeof(bool));
 
     for (int i = 0; i < *token_num; ++i) {
         nodes[i].prev = i - 1;
@@ -223,11 +224,12 @@ void bpe_encode_arena_ids(struct Arena* arena,
     struct TokenNode* nodes =
         arena_alloc(arena, *token_num * sizeof(struct TokenNode));
     bool* consumed = arena_alloc(arena, *token_num * sizeof(bool));
-    memset(consumed, 0, *token_num * sizeof(bool));
     if (!nodes || !consumed) {
         log_debug("Failed to allocate memory for token nodes.");
         return;
     }
+
+    memset(consumed, 0, *token_num * sizeof(bool));
 
     for (int i = 0; i < *token_num; ++i) {
         nodes[i].prev = i - 1;
