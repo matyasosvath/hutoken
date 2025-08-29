@@ -561,14 +561,23 @@ void decode(struct DecodeTask* task) {
     *write_ptr = '\0';
     log_debug("Final raw decoded string: '%s'", text);
 
-    char* decoded_text = pretokenizer_decode(text, task->ctx);
-    log_debug("Decoded_text: %s", decoded_text);
+    char* decoded_text = (char*)malloc(total_size + 1);
+    if (!decoded_text) {
+        log_debug(
+            "Error: Memory allocation failed for final decoded_text buffer");
+        task->error_msg = "Failed to allocate memory for final text buffer";
+        task->result = NULL;
+        free(text);
+        return;
+    }
 
-    task->result = strdup(decoded_text);
-    task->error_msg = NULL;
+    size_t final_len = pretokenizer_decode(text, task->ctx, decoded_text);
+    log_debug("Final decoded text: %s, Length: %zu", decoded_text, final_len);
 
     free(text);
-    free(decoded_text);
+
+    task->result = decoded_text;
+    task->error_msg = NULL;
 }
 
 #ifdef USE_FOMA

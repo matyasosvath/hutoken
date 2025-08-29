@@ -194,9 +194,11 @@ uint32_t utf8_to_codepoint(const unsigned char* p, int* bytes_read) {
     return cp;
 }
 
-char* pretokenizer_decode(const char* text, const struct DecodeContext* ctx) {
-    if (!text) {
-        return NULL;
+size_t pretokenizer_decode(const char* text,
+                           const struct DecodeContext* ctx,
+                           char* buffer) {
+    if (!text || !buffer) {
+        return 0;
     }
     log_debug(
         "Starting pretokenize_decode function with text: %s and prefix: %s and "
@@ -212,10 +214,6 @@ char* pretokenizer_decode(const char* text, const struct DecodeContext* ctx) {
         }
     }
 
-    char* buffer = (char*)malloc(text_len + 1);
-    if (!buffer) {
-        return NULL;
-    }
     char* dest = buffer;
     const char* p = text;
     const char* end_of_text = text + text_len;
@@ -291,15 +289,8 @@ char* pretokenizer_decode(const char* text, const struct DecodeContext* ctx) {
     *dest = '\0';
 
     size_t final_len = dest - buffer;
-    char* result = (char*)malloc(final_len + 1);
-    if (!result) {
-        free(buffer);
-        return NULL;
-    }
-    memcpy(result, buffer, final_len);
-    result[final_len] = '\0';
-    free(buffer);
-    log_debug("Finished pretokenize_decode function: %s", result);
+    log_debug("Finished pretokenize_decode function. Final length: %zu",
+              final_len);
 
-    return result;
+    return final_len;
 }

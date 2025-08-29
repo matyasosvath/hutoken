@@ -941,10 +941,14 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
 
     const char* task_result = task->result;
 
+    PyObject* py_string =
+        task_result ? PyUnicode_FromString(task_result) : Py_None;
+
+    free(task->result);
     free(task);
     free(token_array);
 
-    return task_result ? PyUnicode_FromString(task_result) : Py_None;
+    return py_string;
 }
 
 static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
