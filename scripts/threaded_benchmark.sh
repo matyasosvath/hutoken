@@ -1,7 +1,7 @@
 #!/bin/bash
 
-FILE_PATHS=("benchmark.txt" "./1_MB.txt" "./10_MB.txt" "./100_MB.txt" "./1000_MB.txt")
-THREADS=(1 2 4 8 16 32 64)
+FILE_PATHS=("benchmark.txt")
+THREADS=(1 2 4 8 16 32)
 OUTPUT_FILE="benchmark_results.txt"
 
 # Clear the file before writing

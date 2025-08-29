@@ -23,6 +23,9 @@
 #include "hutoken/queue.h"
 #include "hutoken/taskqueue.h"
 
+static const size_t FIXED_ARENA_SIZE = (size_t)16 * 1024 * 1024;
+static const size_t BPE_ARENA_MULTIPLIER = 64;
+
 struct TokenNode {
     int prev;
     int next;
@@ -333,9 +336,7 @@ void bpe_encode_arena_ids(struct Arena* arena,
 
 void encode(struct EncodeTask* task) {
     struct Arena arena;
-    const size_t text_len = strlen(task->text);
-    const size_t arena_size = text_len * 64 > 8192 ? text_len * 64 : 8192;
-    if (!arena_create(&arena, arena_size)) {
+    if (!arena_create(&arena, FIXED_ARENA_SIZE)) {
         log_debug("Error: Failed to create arena for encoding.");
         task->error_msg = "Memory allocation failed for arena.";
         return;
@@ -351,6 +352,7 @@ void encode(struct EncodeTask* task) {
         if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
             log_debug("Error: Regex could not be compiled.");
             task->error_msg = "Regex could not be compiled.";
+            arena_destroy(&arena);
             return;
         }
     } else {
@@ -360,6 +362,7 @@ void encode(struct EncodeTask* task) {
     const char* cursor = task->text;
     bool add_prefix = cursor[0] != ' ';
     bool add_prefix_token = !add_prefix;
+
     while (true) {
         struct TokenSlice word_slice;
         bool has_token = false;
@@ -392,6 +395,19 @@ void encode(struct EncodeTask* task) {
                 cursor = word_slice.start + 1;
             }
             continue;
+        }
+
+        size_t estimated_needed = word_slice.length * BPE_ARENA_MULTIPLIER;
+        if (estimated_needed > arena.total_size) {
+            task->error_msg =
+                "A single word in the input text is too large to be processed.";
+            break;
+        }
+
+        if (arena.current_offset + estimated_needed > arena.total_size) {
+            log_debug("Resetting arena before processing word of length %zu",
+                      word_slice.length);
+            arena_reset(&arena);
         }
 
         char* word = arena_alloc(&arena, word_slice.length + 1);
