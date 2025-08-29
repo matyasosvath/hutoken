@@ -155,7 +155,7 @@ char* pretokenizer_encode_arena(struct Arena* arena,
 
     const char* final_c_str = string_c_str(&result_str);
     size_t final_len = string_len(&result_str);
-    char* final_result = (char*)malloc(final_len + 1);
+    char* final_result = (char*)arena_alloc(arena, final_len + 1);
 
     if (!final_result) {
         return NULL;
