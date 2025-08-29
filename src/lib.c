@@ -598,6 +598,7 @@ static PyObject* p_initialize(PyObject* self,
             if (!global_encode_context->merges_map) {
                 PyErr_SetString(PyExc_MemoryError,
                                 "Failed to allocate memory for merges map.");
+                (void)fclose(merges_file);
                 return NULL;
             }
 
@@ -687,7 +688,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     }
 
     int tokens_size = 0;
-    int tokens[strlen(text)];
+    int* tokens = malloc(strlen(text) * sizeof(int));
 
     encode(&(struct EncodeTask){
         .text = text,
@@ -700,6 +701,7 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     PyObject* list = PyList_New(tokens_size);
     if (!list) {
         PyErr_NoMemory();
+        free(tokens);
         return NULL;
     }
 
@@ -712,6 +714,9 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
         }
         PyList_SetItem(list, i, item);
     }
+
+    free(tokens);
+
     return list;
 }
 
