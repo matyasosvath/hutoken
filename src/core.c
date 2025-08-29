@@ -22,6 +22,7 @@
 #include "hutoken/pretokenizer.h"
 #include "hutoken/queue.h"
 #include "hutoken/taskqueue.h"
+#include "hutoken/vector.h"
 
 static const size_t FIXED_ARENA_SIZE = (size_t)16 * 1024 * 1024;
 static const size_t BPE_ARENA_MULTIPLIER = 64;
@@ -438,11 +439,8 @@ void encode(struct EncodeTask* task) {
             bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
                                     prefix_boundaries, prefix_tokens, &pcount);
 
-            for (int i = 0; i < pcount; i++) {
-                task->tokens[*task->tokens_size + i] = prefix_tokens[i];
-                log_debug("Encoded prefix token: %d", prefix_tokens[i]);
-            }
-            *task->tokens_size += pcount;
+            vector_append_array(task->tokens, prefix_tokens, pcount);
+            log_debug("Encoded %d prefix tokens.", pcount);
 
             add_prefix_token = false;
         }
@@ -494,12 +492,8 @@ void encode(struct EncodeTask* task) {
                                     &word_tokens_num);
         }
 
-        for (int i = 0; i < word_tokens_num; i++) {
-            task->tokens[i + *task->tokens_size] = word_tokens[i];
-            log_debug("Encoded token: %d", word_tokens[i]);
-        }
-
-        *task->tokens_size += word_tokens_num;
+        vector_append_array(task->tokens, word_tokens, word_tokens_num);
+        log_debug("Appended %d word tokens.", word_tokens_num);
 
         if (use_regex) {
             cursor = word_slice.start + word_slice.length;
@@ -511,8 +505,8 @@ void encode(struct EncodeTask* task) {
     if (use_regex) {
         regfree(&regex);
     }
-    log_debug("Completed encode function. Total tokens: %d",
-              *task->tokens_size);
+    log_debug("Completed encode function. Total tokens: %lu",
+              task->tokens->size);
     arena_destroy(&arena);
 }
 

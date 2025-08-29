@@ -38,7 +38,8 @@ sources = [
     "src/queue.c",
     "src/parser.c",
     "src/arena.c",
-    "src/ac.c"
+    "src/ac.c",
+    "src/vector.c"
 ]
 
 include_dirs = ["include"]

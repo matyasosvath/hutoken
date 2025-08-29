@@ -1,7 +1,6 @@
 #ifndef HUTOKEN_TASKQUEUE_H
 #define HUTOKEN_TASKQUEUE_H
 
-#include "hutoken/ac.h"
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #else
@@ -10,7 +9,9 @@
 
 #include <stdbool.h>
 
+#include "hutoken/ac.h"
 #include "hutoken/hashmap.h"
+#include "hutoken/vector.h"
 
 struct EncodeContext {
     bool initialized_encode;
@@ -39,8 +40,7 @@ struct DecodeContext {
 struct EncodeTask {
     char* text;
     struct EncodeContext* ctx;
-    int* tokens;
-    int* tokens_size;
+    struct IntVector* tokens;
     char* error_msg;
 };
 
