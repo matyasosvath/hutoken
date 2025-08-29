@@ -203,7 +203,6 @@ void bpe_encode_arena_string(struct Arena* arena,
         const struct Token* found_token =
             hashmap_get(vocab, &(struct Token){.key = token_str});
         tokens[i] = (found_token != NULL) ? found_token->value : -1;
-        log_debug("rank=%d", tokens[i]);
     }
 }
 
@@ -727,8 +726,6 @@ static int get_pair_rank_from_ids(const struct HashMap* merges_map,
     if (found_item == NULL) {
         return -1;
     }
-
-    log_debug("found_item->merge_id=%d", found_item->merge_id);
 
     return (found_item != NULL) ? found_item->rank : -1;
 }

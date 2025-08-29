@@ -367,7 +367,6 @@ static PyObject* p_initialize(PyObject* self,
             return NULL;
         }
 
-        log_debug("asdasdasdasdsadsad");
         hashmap_set(
             global_encode_context->vocab_encode,
             &(struct Token){.key = durable_ascii_str, .value = (int)value});
