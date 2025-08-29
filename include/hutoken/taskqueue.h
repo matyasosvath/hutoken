@@ -15,7 +15,6 @@
 struct EncodeContext {
     bool initialized_encode;
     struct HashMap* vocab_encode;
-    struct MergeRule* merge_rules;
     size_t num_merge_rules;
     struct HashMap* merges_map;
     char* pattern;

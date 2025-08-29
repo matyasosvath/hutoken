@@ -148,7 +148,6 @@ int initialize_context(void) {
     global_encode_context->is_byte_encoder = false;
     global_encode_context->initialized_encode = false;
     global_encode_context->pattern = pattern;
-    global_encode_context->merge_rules = NULL;
     global_encode_context->num_merge_rules = 0;
     global_encode_context->merges_map = NULL;
 
@@ -593,12 +592,12 @@ static PyObject* p_initialize(PyObject* self,
         }
 
         if (line_count > 0) {
-            global_encode_context->merge_rules =
-                malloc(line_count * sizeof(struct MergeRule));
-            if (!global_encode_context->merge_rules) {
+            global_encode_context->merges_map =
+                hashmap_new(global_encode_context->num_merge_rules,
+                            sizeof(struct MergeRule), pair_hash, pair_compare);
+            if (!global_encode_context->merges_map) {
                 PyErr_SetString(PyExc_MemoryError,
-                                "Failed to allocate memory for merge rules.");
-                (void)fclose(merges_file);
+                                "Failed to allocate memory for merges map.");
                 return NULL;
             }
 
@@ -643,40 +642,21 @@ static PyObject* p_initialize(PyObject* self,
                 }
 
                 struct MergeRule* rule =
-                    &global_encode_context->merge_rules[current_rule_idx];
-                rule->rank = rank++;
-                rule->left_id = left->value;
-                rule->right_id = right->value;
-                rule->merge_id = merged->value;
+                    &(struct MergeRule){.rank = rank++,
+                                        .left_id = left->value,
+                                        .right_id = right->value,
+                                        .merge_id = merged->value};
                 current_rule_idx++;
+                hashmap_set(global_encode_context->merges_map, rule);
             }
             global_encode_context->num_merge_rules = current_rule_idx;
-            log_debug("Succesfully loaded %zu merge rules.", current_rule_idx);
+            log_debug("Successfully populated merges hash map with %zu rules.",
+                      global_encode_context->num_merge_rules);
         } else {
             log_debug("Merges file is empty or contains no valid rules.");
         }
         if (merges_file != NULL) {
             (void)fclose(merges_file);
-        }
-
-        if (global_encode_context->num_merge_rules > 0) {
-            global_encode_context->merges_map =
-                hashmap_new(global_encode_context->num_merge_rules,
-                            sizeof(struct MergeRule), pair_hash, pair_compare);
-            if (!global_encode_context->merges_map) {
-                PyErr_SetString(PyExc_MemoryError,
-                                "Failed to allocate memory for merges map.");
-                return NULL;
-            }
-
-            for (size_t i = 0; i < global_encode_context->num_merge_rules;
-                 ++i) {
-                struct MergeRule* rule = &global_encode_context->merge_rules[i];
-                hashmap_set(global_encode_context->merges_map, rule);
-            }
-
-            log_debug("Successfully populated merges hash map with %zu rules.",
-                      global_encode_context->num_merge_rules);
         }
     } else {
         log_debug("No merge rules file passed. Skipping.");
