@@ -43,15 +43,14 @@ def split_document(document: str, num_parts: int) -> list[str]:
 
         if start < end:
             chunks.append(document[start:end])
-            
+
         start = next_start
 
     return chunks
 
 def benchmark(document, num_bytes, thread_number):
     document_batches = split_document(document, thread_number)
-
-    # hutoken.encode("bemelegítés")
+    hutoken.encode("bemelegítés")
 
     start = time.perf_counter_ns()
     ht_result = hutoken.encode(document) if thread_number == 1 else hutoken.batch_encode(document_batches, num_threads=thread_number)
