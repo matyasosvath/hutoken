@@ -16,11 +16,21 @@
 
 #define VISUALIZE 1
 
-void log_debug(const char* format, ...) {
-    const char* debug_env = getenv("DEBUG");  // NOLINT: concurrency-mt-unsafe
-    struct tm* local_time = NULL;
+static bool debug_enabled = false;
+
+// It is inefficient to call `getenv` syscall before every log.
+// This function takes care of that.
+void initialize_logging(void) {
+    const char* debug_env = getenv("DEBUG");
 
     if (debug_env && strcmp(debug_env, "1") == 0) {
+        debug_enabled = true;
+    }
+}
+
+void log_debug(const char* format, ...) {
+    if (debug_enabled) {
+        struct tm* local_time = NULL;
         time_t now = time(NULL);
         local_time = localtime(&now);  // NOLINT: concurrency-mt-unsafe
         char timestamp[20];
@@ -174,6 +184,8 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
     (void)fclose(file);
 
     (void)printf("Vocab saved to: %s\n", file_path);
+
+    free(file_path);
 
     return EXIT_SUCCESS;
 }

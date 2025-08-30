@@ -53,3 +53,7 @@ target/
 bin/hu.foma.bin
 
 vocabs/
+
+# uv package manager creates a lockfile for all dependencies,
+# but since not all the maintainers use it, we'll ignore it.
+uv.lock

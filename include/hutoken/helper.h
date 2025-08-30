@@ -14,6 +14,7 @@ struct Boundary {
     char* end;
 };
 
+void initialize_logging(void);
 void log_debug(const char* format, ...);
 void visualize(int arr[], char* text, int n);
 void visualize_bbpe_train(struct TokenPair current_token, size_t value);

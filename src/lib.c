@@ -31,6 +31,11 @@ typedef LPVOID thread_arg_t;
     *(thr) = CreateThread(NULL, 0, func, arg, 0, NULL)
 #define THREAD_JOIN(thr) WaitForSingleObject(thr, INFINITE)
 
+// Wrapper for POSIX-style function
+DWORD WINAPI encode_wrapper(LPVOID arg) {
+    encode(arg);
+    return 0;
+}
 #else
 #include <pthread.h>
 typedef pthread_t thread_t;
@@ -62,9 +67,7 @@ thread_return_t decode_wrapper(thread_arg_t arg) {
     return 0;
 }
 
-static char* pattern =
-    "[ ]?[A-Za-záéíóúőűüöÁÉÍÓÚŐÜŰÖ]+|[ ]?[0-9]+|[ "
-    "]?[^[:space:][:alpha:][:digit:]]+|[ ]+|[\n\t\r\v]";
+static char* pattern = NULL;
 #define MAX_LINE_LENGTH 10000
 
 struct EncodeContext* global_encode_context;
@@ -145,8 +148,11 @@ int initialize_context(void) {
     global_encode_context->is_byte_encoder = false;
     global_encode_context->initialized_encode = false;
     global_encode_context->pattern = pattern;
+    global_encode_context->num_merge_rules = 0;
+    global_encode_context->merges_map = NULL;
 
-    global_encode_context->vocab_encode = hashmap_new(256);
+    global_encode_context->vocab_encode =
+        hashmap_new(256, sizeof(struct Token), token_hash, token_compare);
     if (!global_encode_context->vocab_encode) {
         log_debug("Error: Failed to create hashmap for vocab_encode.");
         PyErr_SetString(PyExc_MemoryError,
@@ -155,9 +161,23 @@ int initialize_context(void) {
     }
 
     global_decode_context->vocab_size_decode = 0;
+    global_decode_context->vocab_decode_lens = NULL;
     global_decode_context->prefix = NULL;
     global_decode_context->is_byte_encoder = false;
     global_decode_context->initialized_decode = false;
+    global_decode_context->max_special_char_len = 0;
+    global_decode_context->special_chars_map_decode =
+        hashmap_new(256, sizeof(struct Token), token_hash, token_compare);
+    if (!global_decode_context->special_chars_map_decode) {
+        log_debug(
+            "Error: Failed to create hashmap for special_chars_map_decode.");
+        PyErr_SetString(
+            PyExc_MemoryError,
+            "Failed to create hashmap for special_chars_map_decode.");
+        return -1;
+    }
+
+    global_decode_context->ac = NULL;
 
     return 1;
 }
@@ -165,27 +185,32 @@ int initialize_context(void) {
 static PyObject* p_initialize(PyObject* self,
                               PyObject* args,
                               PyObject* kwargs) {
-    static char* kwlist[] = {
-        "vocab_file_path",  "special_file_path", "prefix", "is_byte_encoder",
-        "special_token_id", "pattern",           NULL};
+    static char* kwlist[] = {"vocab_file_path",  "special_file_path",
+                             "prefix",           "is_byte_encoder",
+                             "special_token_id", "pattern",
+                             "merges_file_path", NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
+    char* merges_file_path = NULL;
     char* local_prefix = NULL;
     int local_is_byte_encoder = 0;
     int special_token_id = -1;  // Optional parameter for special token ID
     char* local_pattern = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sszp|iz", kwlist,
-                                     &vocab_file_path, &special_file_path,
-                                     &local_prefix, &local_is_byte_encoder,
-                                     &special_token_id, &local_pattern)) {
+    initialize_logging();
+
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "ss|zpizz", kwlist, &vocab_file_path,
+            &special_file_path, &local_prefix, &local_is_byte_encoder,
+            &special_token_id, &local_pattern, &merges_file_path)) {
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(PyExc_TypeError,
                         "Invalid arguments. Expected a string "
                         "(vocab_file_path), a string (special_file_path), "
                         "a string or None (prefix) a bool an"
-                        "optional integer (special_token_id) and"
-                        " an optional string (regex_pattern)");
+                        "optional integer (special_token_id), "
+                        " an optional string (regex_pattern) and"
+                        "a string or None (merges_file_path)");
         return NULL;
     }
 
@@ -377,18 +402,39 @@ static PyObject* p_initialize(PyObject* self,
         return NULL;
     }
 
+    global_decode_context->vocab_decode_lens =
+        malloc(global_decode_context->vocab_size_decode * sizeof(size_t));
+
+    if (!global_decode_context->vocab_decode_lens) {
+        (void)fclose(file);
+        hashmap_free(global_encode_context->vocab_encode);
+        string_release(&hex_buffer);
+        string_release(&line);
+        free((void*)global_decode_context->vocab_decode);
+        log_debug(
+            "Error: Memory allocation failed for vocab_decode_lens array.");
+        PyErr_SetString(
+            PyExc_MemoryError,
+            "Memory allocation failed for vocab_decode_lens array.");
+        return NULL;
+    }
+
     size_t iter = 0;
     void* item = NULL;
     while (hashmap_iter(global_encode_context->vocab_encode, &iter, &item)) {
         const struct Token* token = item;
 
         global_decode_context->vocab_decode[token->value] = token->key;
+        global_decode_context->vocab_decode_lens[token->value] =
+            strlen(token->key);
+
         if (!global_decode_context->vocab_decode[token->value]) {
             (void)fclose(file);
             hashmap_free(global_encode_context->vocab_encode);
             string_release(&hex_buffer);
             string_release(&line);
             free((void*)global_decode_context->vocab_decode);
+            free((void*)global_decode_context->vocab_decode_lens);
             log_debug(
                 "Error: Memory allocation failed for vocab entry at index %d.",
                 token->value);
@@ -405,7 +451,9 @@ static PyObject* p_initialize(PyObject* self,
 
     global_decode_context->initialized_decode = true;
 
+    log_debug("here???");
     (void)fclose(file);
+    log_debug("here.");
     string_release(&hex_buffer);
     string_release(&line);
 
@@ -421,6 +469,16 @@ static PyObject* p_initialize(PyObject* self,
     }
 
     log_debug("Successfully opened special character file.");
+
+    global_decode_context->ac = ac_automaton_create();
+    if (!global_decode_context->ac) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to create AC automaton.");
+        (void)fclose(special_chars_file);
+        hashmap_free(global_encode_context->vocab_encode);
+        free((void*)global_decode_context->vocab_decode);
+        log_debug("Error: Failed to create AC automaton.");
+        return NULL;
+    }
 
     char special_file_line[32];
 
@@ -484,16 +542,125 @@ static PyObject* p_initialize(PyObject* self,
             return NULL;
         }
 
+        size_t len = strlen(value);
+        if (len > global_decode_context->max_special_char_len) {
+            global_decode_context->max_special_char_len = len;
+        }
+
         log_debug(
             "Loaded special character for pretokenization: key=%d, value='%s'",
             index, value);
 
         global_encode_context->special_chars[index] = strdup(value);
-        ;
         global_decode_context->special_chars[index] = strdup(value);
+        if (!ac_automaton_add_string(global_decode_context->ac, value,
+                                     (int)index)) {
+            PyErr_SetString(PyExc_MemoryError,
+                            "Failed to add string to AC automaton.");
+            free(value);
+            (void)fclose(special_chars_file);
+            hashmap_free(global_encode_context->vocab_encode);
+            free((void*)global_decode_context->vocab_decode);
+            return NULL;
+        }
     }
 
+    ac_automaton_build_failure_links(global_decode_context->ac);
+    log_debug("Built AC automaton failure links.");
+
     (void)fclose(special_chars_file);
+
+    if (merges_file_path != NULL) {
+        log_debug("Loading merge rules from %s.", merges_file_path);
+        FILE* merges_file = fopen(merges_file_path, "r");
+        if (!merges_file) {
+            PyErr_SetString(PyExc_FileNotFoundError,
+                            "Could not open merges file.");
+            if (merges_file != NULL) {
+                (void)fclose(merges_file);
+            }
+            return NULL;
+        }
+
+        size_t line_count = 0;
+        char line_buffer[MAX_LINE_LENGTH];
+        while (fgets(line_buffer, sizeof(line_buffer), merges_file)) {
+            if (line_buffer[0] != '#' && strchr(line_buffer, ' ') != NULL) {
+                line_count++;
+            }
+        }
+
+        if (line_count > 0) {
+            global_encode_context->merges_map =
+                hashmap_new(global_encode_context->num_merge_rules,
+                            sizeof(struct MergeRule), pair_hash, pair_compare);
+            if (!global_encode_context->merges_map) {
+                PyErr_SetString(PyExc_MemoryError,
+                                "Failed to allocate memory for merges map.");
+                (void)fclose(merges_file);
+                return NULL;
+            }
+
+            (void)fseek(merges_file, 0L, SEEK_SET);
+            size_t current_rule_idx = 0;
+            int rank = 0;
+            while (fgets(line_buffer, sizeof(line_buffer), merges_file) &&
+                   current_rule_idx < line_count) {
+                if (line_buffer[0] == '#') {
+                    continue;
+                }
+                line_buffer[strcspn(line_buffer, "\r\n")] = 0;
+
+                char* left_str = strtok(line_buffer, " ");
+                char* right_str = strtok(NULL, " ");
+
+                if (!left_str || !right_str) {
+                    continue;
+                }
+
+                const struct Token* left =
+                    hashmap_get(global_encode_context->vocab_encode,
+                                &(struct Token){.key = left_str});
+                const struct Token* right =
+                    hashmap_get(global_encode_context->vocab_encode,
+                                &(struct Token){.key = right_str});
+
+                size_t merged_len = strlen(left_str) + strlen(right_str);
+                char merged_str[merged_len + 1];
+                strcpy(merged_str, left_str);
+                strcat(merged_str, right_str);
+                const struct Token* merged =
+                    hashmap_get(global_encode_context->vocab_encode,
+                                &(struct Token){.key = merged_str});
+
+                if (left == NULL || right == NULL || merged == NULL) {
+                    log_debug(
+                        "Skipping merge rule with unknown token(s): '%s' + "
+                        "'%s' -> '%s'",
+                        left_str, right_str, merged_str);
+                    continue;
+                }
+
+                struct MergeRule* rule =
+                    &(struct MergeRule){.rank = rank++,
+                                        .left_id = left->value,
+                                        .right_id = right->value,
+                                        .merge_id = merged->value};
+                current_rule_idx++;
+                hashmap_set(global_encode_context->merges_map, rule);
+            }
+            global_encode_context->num_merge_rules = current_rule_idx;
+            log_debug("Successfully populated merges hash map with %zu rules.",
+                      global_encode_context->num_merge_rules);
+        } else {
+            log_debug("Merges file is empty or contains no valid rules.");
+        }
+        if (merges_file != NULL) {
+            (void)fclose(merges_file);
+        }
+    } else {
+        log_debug("No merge rules file passed. Skipping.");
+    }
 
     Py_RETURN_NONE;
 }
@@ -519,32 +686,36 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    int tokens_size = 0;
-    int tokens[strlen(text)];
+    struct IntVector tokens_vec;
+    vector_init(&tokens_vec, 256);
 
     encode(&(struct EncodeTask){
         .text = text,
         .ctx = ctx,
-        .tokens = tokens,
-        .tokens_size = &tokens_size,
+        .tokens = &tokens_vec,
         .error_msg = NULL,
     });
 
-    PyObject* list = PyList_New(tokens_size);
+    PyObject* list = PyList_New(tokens_vec.size);
     if (!list) {
         PyErr_NoMemory();
+        vector_free(&tokens_vec);
         return NULL;
     }
 
-    for (int i = 0; i < tokens_size; i++) {
-        PyObject* item = PyLong_FromLong(tokens[i]);
+    for (size_t i = 0; i < tokens_vec.size; i++) {
+        PyObject* item = PyLong_FromLong(tokens_vec.data[i]);
         if (!item) {
+            vector_free(&tokens_vec);
             Py_DECREF(list);  // cleanup in case of error
             PyErr_NoMemory();
             return NULL;
         }
         PyList_SetItem(list, i, item);
     }
+
+    vector_free(&tokens_vec);
+
     return list;
 }
 
@@ -580,12 +751,17 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
     threads = malloc(num_threads * sizeof(thread_t));
     num_texts = PyList_Size(texts);
     tasks = malloc(num_texts * sizeof(struct EncodeTask));
+    struct IntVector* token_vecs = malloc(num_texts * sizeof(struct IntVector));
 
     for (Py_ssize_t i = 0; i < num_texts; i++) {
         PyObject* item = PyList_GetItem(texts, i);
         if (!item) {
             log_debug("Error: Failed to get item at index %zd", i);
             PyErr_SetString(PyExc_RuntimeError, "Failed to get item.");
+            for (int i = 0; i < num_texts; ++i) {
+                vector_free(&token_vecs[i]);
+            }
+            free(token_vecs);
             free(threads);
             free(tasks);
             return NULL;
@@ -595,9 +771,8 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
 
         tasks[i].text = strdup(text_chunk);
         tasks[i].ctx = ctx;
-        tasks[i].tokens = malloc(sizeof(int) * strlen(text_chunk) * 4 + 10);
-        tasks[i].tokens_size = malloc(sizeof(int));
-        *tasks[i].tokens_size = 0;
+        vector_init(&token_vecs[i], 256);
+        tasks[i].tokens = &token_vecs[i];
         tasks[i].error_msg = NULL;
     }
 
@@ -622,6 +797,10 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_RuntimeError, tasks[i].error_msg);
+            for (int i = 0; i < num_texts; ++i) {
+                vector_free(&token_vecs[i]);
+            }
+            free(token_vecs);
             free(threads);
             free(tasks);
             return NULL;
@@ -632,19 +811,27 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
     if (!result) {
         log_debug("Error: Failed to create result list");
         PyErr_NoMemory();
+        for (int i = 0; i < num_texts; ++i) {
+            vector_free(&token_vecs[i]);
+        }
+        free(token_vecs);
         free(threads);
         free(tasks);
         return NULL;
     }
 
     for (Py_ssize_t i = 0; i < num_texts; i++) {
-        int size = *tasks[i].tokens_size;
+        int size = tasks[i].tokens->size;
 
         PyObject* sublist = PyList_New(size);
         if (!sublist) {
             Py_DECREF(result);
             log_debug("Error: Failed to create sublist for chunk %zd", i);
             PyErr_NoMemory();
+            for (int i = 0; i < num_texts; ++i) {
+                vector_free(&token_vecs[i]);
+            }
+            free(token_vecs);
             free(threads);
             free(tasks);
             return NULL;
@@ -653,11 +840,15 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
         log_debug("Inserting tokens for chunk %zd, size: %d", i, size);
 
         for (int j = 0; j < size; j++) {
-            PyObject* item = PyLong_FromLong(tasks[i].tokens[j]);
+            PyObject* item = PyLong_FromLong(tasks[i].tokens->data[j]);
             if (!item) {
                 Py_DECREF(sublist);
                 Py_DECREF(result);
                 PyErr_NoMemory();
+                for (int i = 0; i < num_texts; ++i) {
+                    vector_free(&token_vecs[i]);
+                }
+                free(token_vecs);
                 free(threads);
                 free(tasks);
                 return NULL;
@@ -670,10 +861,12 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
 
     for (Py_ssize_t i = 0; i < num_texts; i++) {
         free(tasks[i].text);
-        free(tasks[i].tokens);
-        free(tasks[i].tokens_size);
+        vector_free(tasks[i].tokens);
     }
-
+    for (int i = 0; i < num_texts; ++i) {
+        vector_free(&token_vecs[i]);
+    }
+    free(token_vecs);
     free(threads);
     free(tasks);
 
@@ -746,9 +939,16 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
         return NULL;
     }
 
+    const char* task_result = task->result;
+
+    PyObject* py_string =
+        task_result ? PyUnicode_FromString(task_result) : Py_None;
+
+    free(task->result);
     free(task);
     free(token_array);
-    return task->result ? PyUnicode_FromString(task->result) : Py_None;
+
+    return py_string;
 }
 
 static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
@@ -824,6 +1024,7 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
             log_debug("Error: Memory allocation failed for tokens_size");
             PyErr_SetString(PyExc_MemoryError,
                             "Failed to allocate memory for tokens_size");
+
             free(tasks[i].tokens);
             free(threads);
             free(tasks);

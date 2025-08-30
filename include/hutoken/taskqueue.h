@@ -9,9 +9,15 @@
 
 #include <stdbool.h>
 
+#include "hutoken/ac.h"
+#include "hutoken/hashmap.h"
+#include "hutoken/vector.h"
+
 struct EncodeContext {
     bool initialized_encode;
     struct HashMap* vocab_encode;
+    size_t num_merge_rules;
+    struct HashMap* merges_map;
     char* pattern;
     char* special_chars[256];
     char* prefix;
@@ -21,17 +27,20 @@ struct EncodeContext {
 struct DecodeContext {
     bool initialized_decode;
     char** vocab_decode;
+    size_t* vocab_decode_lens;
     int vocab_size_decode;
     char* special_chars[256];
     char* prefix;
     bool is_byte_encoder;
+    struct HashMap* special_chars_map_decode;
+    size_t max_special_char_len;
+    struct ACAutomaton* ac;
 };
 
 struct EncodeTask {
     char* text;
     struct EncodeContext* ctx;
-    int* tokens;
-    int* tokens_size;
+    struct IntVector* tokens;
     char* error_msg;
 };
 

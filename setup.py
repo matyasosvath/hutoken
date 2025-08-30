@@ -35,11 +35,16 @@ sources = [
     "src/taskqueue.c",
     "src/pretokenizer.c",
     "src/bbpe.c",
+    "src/queue.c",
+    "src/parser.c",
+    "src/arena.c",
+    "src/ac.c",
+    "src/vector.c"
 ]
 
 include_dirs = ["include"]
-extra_compile_args = ["-O3", "-march=native", "-funroll-loops", "-Iinclude"]
-extra_link_args = ["-flto"]
+extra_compile_args = ["-O3", "-march=native", "-funroll-loops", "-Iinclude", "-DNDEBUG", "-fprofile-use", "-fomit-frame-pointer", "-ffunction-sections", "-fdata-sections"]
+extra_link_args = ["-flto", "-fprofile-use", "-Wl,--gc-sections"]
 
 if is_foma_installed():
     extra_compile_args.append("-DUSE_FOMA")

@@ -27,8 +27,12 @@ def initialize(model_or_path, *args, **kwargs):
         if _hutoken is None:
             raise RuntimeError("hutoken: Native C extension '_hutoken' is not installed or failed to import.")
         special_chars_file = args[0] if args else None
+        merges_file = args[6] if len(args) > 6 else None
         if special_chars_file and not os.path.isfile(special_chars_file):
             raise ValueError(f"Special characters file '{special_chars_file}' does not exist.")
+
+        if merges_file and not os.path.isfile(merges_file):
+            raise ValueError(f"The provided merges file '{merges_file}' does not exist.")
 
         prefix = kwargs.get('prefix', None)
         is_byte_encoder = kwargs.get('is_byte_encoder', False)
@@ -51,9 +55,11 @@ def initialize(model_or_path, *args, **kwargs):
         cache_dir = os.getenv("XDG_CACHE_HOME",
                               os.path.join(os.path.expanduser("~"), ".cache"))
         org_name, model_name = model_or_path.split("/")
-        vocab_dir = os.path.join(cache_dir, f"hutoken/{org_name}")
+        vocab_dir = os.path.join(cache_dir, f"hutoken/{org_name}/{model_name}")
         os.makedirs(vocab_dir, exist_ok=True)
         vocab_file = os.path.join(vocab_dir, f"{model_name}.txt")
+
+        hf_tokenizer.save_pretrained(vocab_dir)
 
         try:
             with open(vocab_file, "w", encoding="utf-8") as f:
@@ -94,12 +100,18 @@ def initialize(model_or_path, *args, **kwargs):
             raise IOError("Could not write special characters file to "
                           f"'{special_chars_file}': {e}")
 
+
+        merges_file_path = os.path.join(vocab_dir, "merges.txt")
+        if not os.path.isfile(merges_file_path):
+            merges_file_path = None
+            sys.stderr.write(f"No merges.txt found for '{model_or_path}'. Continuing without merge rules.\n")
+
         is_byte_encoder = kwargs.get("is_byte_encoder", 0)
         if hasattr(hf_tokenizer, 'byte_encoder') and hf_tokenizer.byte_encoder is not None:
             is_byte_encoder = 1
 
         try:
-            result = _hutoken.initialize(vocab_file, special_chars_file, prefix, is_byte_encoder, *args, **kwargs)
+            result = _hutoken.initialize(vocab_file, special_chars_file, prefix, is_byte_encoder, merges_file_path=merges_file_path, *args, **kwargs)
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError("An unexpected error occured during "

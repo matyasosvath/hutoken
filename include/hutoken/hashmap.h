@@ -22,11 +22,17 @@ struct HashMap {
     void* buckets;
     void* spare;
     void* edata;  // temp data for a bucket
+    uint64_t (*hash_func)(const void* item);
+    int (*compare_func)(const void* lhs, const void* rhs);
 };
 
-struct HashMap* hashmap_new(size_t capacity);
+struct HashMap* hashmap_new(size_t capacity,
+                            size_t element_size,
+                            uint64_t (*hash_func)(const void* item),
+                            int (*compare_func)(const void* lhs,
+                                                const void* rhs));
 const void* hashmap_set(struct HashMap* map, const void* item);
-int hashmap_get(struct HashMap* map, const void* key);
+void* hashmap_get(struct HashMap* map, const void* key);
 char* hashmap_get_key(struct HashMap* map, int value);
 const void* hashmap_delete(struct HashMap* map, const void* key);
 void hashmap_clear(struct HashMap* map, bool update_cap);

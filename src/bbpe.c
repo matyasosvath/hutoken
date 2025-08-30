@@ -21,6 +21,10 @@ int find_pair(struct TokenPair* pairs, size_t pair_count, int id1, int id2) {
 void find_most_common_pair(size_t token_n,
                            const int* token_ids,
                            struct TokenPair* most_common_pair) {
+    if (token_n <= 1) {
+        return;
+    }
+
     struct TokenPair* pairs = malloc((token_n - 1) * sizeof(struct TokenPair));
     size_t pair_count = 0;
 
@@ -121,7 +125,8 @@ void bbpe_train_core(struct HashMap* vocab,
 
 void bbpe_train(char* text, const int vocab_size, char* vocab_file_name) {
     char* k = NULL;
-    struct HashMap* vocab = hashmap_new(vocab_size);
+    struct HashMap* vocab = hashmap_new(vocab_size, sizeof(struct Token),
+                                        token_hash, token_compare);
 
     for (int i = 0; i < 256; i++) {
         char key[2];
