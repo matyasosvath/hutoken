@@ -18,10 +18,11 @@
 
 void log_debug(const char* format, ...) {
     const char* debug_env = getenv("DEBUG");  // NOLINT: concurrency-mt-unsafe
+    struct tm* local_time = NULL;
+
     if (debug_env && strcmp(debug_env, "1") == 0) {
         time_t now = time(NULL);
-        struct tm* local_time =
-            localtime(&now);  // NOLINT: concurrency-mt-unsafe
+        local_time = localtime(&now);  // NOLINT: concurrency-mt-unsafe
         char timestamp[20];
         (void)strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S",
                        local_time);
@@ -51,8 +52,7 @@ void visualize(int arr[], char* text, int n) {
     }
 }
 
-void visualize_bpe_train(struct Token current_token,
-                         size_t value) {
+void visualize_bpe_train(struct Token current_token, size_t value) {
     if (VISUALIZE) {
         (void)printf("Most common pair: '%s', rank: %d\n", current_token.key,
                      current_token.value);
@@ -141,8 +141,14 @@ int save_vocab(struct HashMap* vocab, char* file_name) {
         (void)printf("Directory already exists: %s\n", dir_path);
     }
 
-    char file_path[1024];
-    (void)snprintf(file_path, sizeof(file_path), "%s/%s", dir_path, file_name);
+    size_t file_path_len = strlen(dir_path) + 1 + strlen(file_name) + 1;
+    char* file_path = malloc(file_path_len);
+    if (!file_path) {
+        PyErr_SetString(PyExc_MemoryError,
+                        "Cannot allocate memory for file path");
+    }
+
+    (void)snprintf(file_path, file_path_len, "%s/%s", dir_path, file_name);
 
     FILE* file = fopen(file_path, "w");
     if (file == NULL) {

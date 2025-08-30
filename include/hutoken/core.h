@@ -5,21 +5,11 @@
 #include "fomalib.h"
 
 #include "hutoken/hashmap.h"
+#include "hutoken/lib.h"
+#include "hutoken/taskqueue.h"
 
-void encode(char* text,
-            struct HashMap* vocab,
-            char* pattern,
-            int tokens[],
-            int* tokens_size,
-            const char** special_chars,
-            const char* prefix,
-            bool is_byte_encoder);
-PyObject* decode(PyObject* tokens,
-                 char** vocab_decode,
-                 int vocab_size,
-                 const char** special_chars,
-                 const char* prefix,
-                 bool is_byte_encoder);
+void encode(struct EncodeTask* task);
+void decode(struct DecodeTask* task);
 PyObject* initialize_foma(void);
 PyObject* look_up_word(struct apply_handle* handle,
                        char* word,

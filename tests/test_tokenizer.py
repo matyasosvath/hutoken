@@ -7,7 +7,9 @@ import hutoken
 
 
 sentence1 = "How can the net amount of entropy of the universe be massively decreased?"
+sentence1_batch = ["How can the net", " amount of entropy of", " the universe be massively decreased?"]
 sentence2 = "What I cannot create, I do not understand."
+sentence2_batch = ["What I cannot", " create, I do",  " not understand."]
 paragraph1 = (
     "Gorcsev Iván, a Rangoon teherhajó matróza még huszonegy éves sem volt, midőn elnyerte a fizikai Nobel-díjat."
     "Ilyen nagy jelentőségű tudományos jutalmat e poétikusan ifjú korban megszerezni példátlan nagyszerű teljesítmény,"
@@ -190,6 +192,57 @@ def test_decode_with_hugginface_using_hutoken_encdoe():
 
     assert ht_decoded == hf_decoded, f"Decoded text differs: {ht_decoded} vs {hf_decoded}"
 
+def test_multithreading_encode():
+    hutoken.initialize("openai-community/gpt2")
+    hf_enc = AutoTokenizer.from_pretrained("openai-community/gpt2")
+
+    assert hutoken.batch_encode(sentence2_batch, num_threads=3) \
+        == hf_enc(sentence2_batch)["input_ids"]
+
+def test_multithreading_encode_with_tiktoken():
+
+    tt_enc = tiktoken.get_encoding("gpt2")
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.batch_encode(sentence2_batch, num_threads=3) \
+        == tt_enc.encode_ordinary_batch(sentence2_batch, num_threads=3)
+
+
+def test_decode_with_multithreading_encode():
+
+    hutoken.initialize("openai-community/gpt2")
+    tokens_batch= hutoken.batch_encode(sentence1_batch, num_threads=3)
+    tokens = sum(tokens_batch, [])
+
+    assert hutoken.decode(tokens) == sentence1
+
+def test_multithreading_prefix():
+    hutoken.initialize('NYTK/PULI-LlumiX-32K')
+    hf_enc = AutoTokenizer.from_pretrained("NYTK/PULI-LlumiX-32K")
+
+    hu_tokens = hutoken.batch_encode(sentence2_batch, num_threads=4)
+    hf_tokens = hf_enc(sentence2_batch)["input_ids"]
+
+    assert hu_tokens == hf_tokens, f"Encoded tokens differ: {hu_tokens} vs {hf_tokens}"
+
+
+def test_multithreading_encode_decode():
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.batch_decode(hutoken.batch_encode(sentence1_batch, num_threads=3), num_threads=3) == sentence1_batch
+    assert hutoken.batch_decode(hutoken.batch_encode(sentence2_batch, num_threads=3), num_threads=3) == sentence2_batch
+    
+def test_multithreading_more_task_than_thread():
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.batch_decode(hutoken.batch_encode(sentence1_batch, num_threads=1), num_threads=1) == sentence1_batch
+    assert hutoken.batch_decode(hutoken.batch_encode(sentence2_batch, num_threads=1), num_threads=1) == sentence2_batch
+    
+def test_multithreading_more_thread_than_task():
+    hutoken.initialize("openai-community/gpt2")
+
+    assert hutoken.batch_decode(hutoken.batch_encode(sentence1_batch, num_threads=8), num_threads=8) == sentence1_batch
+    assert hutoken.batch_decode(hutoken.batch_encode(sentence2_batch, num_threads=8), num_threads=8) == sentence2_batch
 
 def test_morphological_analyzer():
     handle = hutoken.initialize_foma()
