@@ -40,17 +40,16 @@ def split_document(document: str, num_parts: int) -> list[str]:
             while end < text_len and document[end] not in (' ', '\n', '\t'):
                 end += 1
         next_start = end
-
+        
         if start < end:
             chunks.append(document[start:end])
             
         start = next_start
-
+        
     return chunks
 
 def benchmark(document, num_bytes, thread_number):
     document_batches = split_document(document, thread_number)
-
     
     hutoken.encode("bemelegítés")
 
@@ -78,6 +77,9 @@ def benchmark(document, num_bytes, thread_number):
     end = time.perf_counter_ns()
 
     hf_perf_result = num_bytes / (end - start) * 1e9
+    
+    tt_result = flatten(tt_result) if isinstance(tt_result, list) else tt_result
+    hf_result = flatten(hf_result) if isinstance(hf_result, list) else hf_result
 
     if not ht_result == tt_result == hf_result:
 

@@ -748,7 +748,6 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
 
     free(task);
     free(token_array);
-
     return task->result ? PyUnicode_FromString(task->result) : Py_None;
 }
 
@@ -825,7 +824,6 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
             log_debug("Error: Memory allocation failed for tokens_size");
             PyErr_SetString(PyExc_MemoryError,
                             "Failed to allocate memory for tokens_size");
-
             free(tasks[i].tokens);
             free(threads);
             free(tasks);

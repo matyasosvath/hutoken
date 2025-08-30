@@ -124,7 +124,7 @@ void encode(struct EncodeTask* task) {
     char* cursor = task->text;
     bool add_prefix = cursor[0] != ' ';
     bool add_prefix_token = !add_prefix;
-
+  
     while (regexec(&regex, cursor, 1, &match, 0) == 0) {
         int word_start = match.rm_so;
         int word_end = match.rm_eo;
