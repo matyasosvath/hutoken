@@ -24,7 +24,7 @@
 #include "hutoken/taskqueue.h"
 #include "hutoken/vector.h"
 
-static const size_t FIXED_ARENA_SIZE = (size_t)16 * 1024 * 1024;
+static const size_t FIXED_ARENA_SIZE = (size_t)256 * 1024;
 static const size_t BPE_ARENA_MULTIPLIER = 64;
 
 struct TokenNode {
