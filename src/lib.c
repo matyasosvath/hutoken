@@ -753,13 +753,21 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
     tasks = malloc(num_texts * sizeof(struct EncodeTask));
     struct IntVector* token_vecs = malloc(num_texts * sizeof(struct IntVector));
 
+    if (!threads || !tasks || !token_vecs) {
+        PyErr_NoMemory();
+        free(threads);
+        free(tasks);
+        free(token_vecs);
+        return NULL;
+    }
+
     for (Py_ssize_t i = 0; i < num_texts; i++) {
         PyObject* item = PyList_GetItem(texts, i);
         if (!item) {
             log_debug("Error: Failed to get item at index %zd", i);
             PyErr_SetString(PyExc_RuntimeError, "Failed to get item.");
-            for (int i = 0; i < num_texts; ++i) {
-                vector_free(&token_vecs[i]);
+            for (int j = 0; j < i; ++j) {
+                vector_free(&token_vecs[j]);
             }
             free(token_vecs);
             free(threads);
@@ -769,9 +777,12 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
 
         char* text_chunk = (char*)PyUnicode_AsUTF8(item);
 
-        tasks[i].text = strdup(text_chunk);
+        tasks[i].text = text_chunk;
         tasks[i].ctx = ctx;
-        vector_init(&token_vecs[i], 256);
+
+        size_t estimated_tokens = strlen(text_chunk) / 2 + 16;
+        vector_init(&token_vecs[i], estimated_tokens);
+
         tasks[i].tokens = &token_vecs[i];
         tasks[i].error_msg = NULL;
     }
@@ -780,25 +791,20 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
     taskqueue_init(&q, tasks, num_texts);
 
     Py_BEGIN_ALLOW_THREADS
-
-        for (int i = 0; i < num_threads; i++) {
-        log_debug("Starting thread number %d", i);
+    for (int i = 0; i < num_threads; i++) {
         THREAD_CREATE(&threads[i], encode_wrapper, &q);
     }
-
     for (int i = 0; i < num_threads; i++) {
         THREAD_JOIN(threads[i]);
     }
-    log_debug("All threads joined");
-
     Py_END_ALLOW_THREADS
 
-        for (Py_ssize_t i = 0; i < num_texts; i++) {
+    for (Py_ssize_t i = 0; i < num_texts; i++) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_RuntimeError, tasks[i].error_msg);
-            for (int i = 0; i < num_texts; ++i) {
-                vector_free(&token_vecs[i]);
+            for (int k = 0; k < num_texts; ++k) {
+                vector_free(&token_vecs[k]);
             }
             free(token_vecs);
             free(threads);
@@ -822,14 +828,13 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
 
     for (Py_ssize_t i = 0; i < num_texts; i++) {
         int size = tasks[i].tokens->size;
-
         PyObject* sublist = PyList_New(size);
         if (!sublist) {
             Py_DECREF(result);
             log_debug("Error: Failed to create sublist for chunk %zd", i);
             PyErr_NoMemory();
-            for (int i = 0; i < num_texts; ++i) {
-                vector_free(&token_vecs[i]);
+            for (int k = 0; k < num_texts; ++k) {
+                vector_free(&token_vecs[k]);
             }
             free(token_vecs);
             free(threads);
@@ -837,32 +842,13 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
             return NULL;
         }
 
-        log_debug("Inserting tokens for chunk %zd, size: %d", i, size);
-
         for (int j = 0; j < size; j++) {
-            PyObject* item = PyLong_FromLong(tasks[i].tokens->data[j]);
-            if (!item) {
-                Py_DECREF(sublist);
-                Py_DECREF(result);
-                PyErr_NoMemory();
-                for (int i = 0; i < num_texts; ++i) {
-                    vector_free(&token_vecs[i]);
-                }
-                free(token_vecs);
-                free(threads);
-                free(tasks);
-                return NULL;
-            }
-            PyList_SetItem(sublist, j, item);
+            log_debug("Inserting tokens for chunk %zd, size: %d", i, size);
+            PyList_SetItem(sublist, j, PyLong_FromLong(tasks[i].tokens->data[j]));
         }
-
         PyList_SetItem(result, i, sublist);
     }
 
-    for (Py_ssize_t i = 0; i < num_texts; i++) {
-        free(tasks[i].text);
-        vector_free(tasks[i].tokens);
-    }
     for (int i = 0; i < num_texts; ++i) {
         vector_free(&token_vecs[i]);
     }
