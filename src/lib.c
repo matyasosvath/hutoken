@@ -150,6 +150,9 @@ int initialize_context(void) {
     global_encode_context->pattern = pattern;
     global_encode_context->num_merge_rules = 0;
     global_encode_context->merges_map = NULL;
+    global_encode_context->use_arena = true;
+    global_encode_context->use_pretokenizer = true;
+    global_encode_context->use_bpe_optimized = true;
 
     global_encode_context->vocab_encode =
         hashmap_new(256, sizeof(struct Token), token_hash, token_compare);
@@ -166,6 +169,7 @@ int initialize_context(void) {
     global_decode_context->is_byte_encoder = false;
     global_decode_context->initialized_decode = false;
     global_decode_context->max_special_char_len = 0;
+    global_decode_context->use_aho_corasick = true;
     global_decode_context->special_chars_map_decode =
         hashmap_new(256, sizeof(struct Token), token_hash, token_compare);
     if (!global_decode_context->special_chars_map_decode) {
@@ -188,7 +192,9 @@ static PyObject* p_initialize(PyObject* self,
     static char* kwlist[] = {"vocab_file_path",  "special_file_path",
                              "prefix",           "is_byte_encoder",
                              "special_token_id", "pattern",
-                             "merges_file_path", NULL};
+                             "merges_file_path", "use_arena",
+                             "use_aho_corasick", "use_pretokenizer",
+                             "use_bpe_optimized", NULL};
     char* vocab_file_path = NULL;
     char* special_file_path = NULL;
     char* merges_file_path = NULL;
@@ -196,21 +202,28 @@ static PyObject* p_initialize(PyObject* self,
     int local_is_byte_encoder = 0;
     int special_token_id = -1;  // Optional parameter for special token ID
     char* local_pattern = NULL;
+    int use_arena = 1;
+    int use_aho_corasick = 1;
+    int use_pretokenizer = 1;
+    int use_bpe_optimized = 1;
 
     initialize_logging();
 
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "ss|zpizz", kwlist, &vocab_file_path,
+            args, kwargs, "ss|zpizzbbbb", kwlist, &vocab_file_path,
             &special_file_path, &local_prefix, &local_is_byte_encoder,
-            &special_token_id, &local_pattern, &merges_file_path)) {
+            &special_token_id, &local_pattern, &merges_file_path,
+            &use_arena, &use_aho_corasick, &use_pretokenizer,
+            &use_bpe_optimized)) {
         log_debug("Error: Invalid arguments passed to initialize.");
         PyErr_SetString(PyExc_TypeError,
                         "Invalid arguments. Expected a string "
                         "(vocab_file_path), a string (special_file_path), "
-                        "a string or None (prefix) a bool an"
+                        "a string or None (prefix), a bool, an "
                         "optional integer (special_token_id), "
-                        " an optional string (regex_pattern) and"
-                        "a string or None (merges_file_path)");
+                        "an optional string (regex_pattern), "
+                        "an optional string or None (merges_file_path), "
+                        "and optional booleans for ablation flags.");
         return NULL;
     }
 
@@ -226,6 +239,10 @@ static PyObject* p_initialize(PyObject* self,
 
     global_encode_context->is_byte_encoder = local_is_byte_encoder;
     global_decode_context->is_byte_encoder = local_is_byte_encoder;
+    global_encode_context->use_arena = use_arena;
+    global_encode_context->use_pretokenizer = use_pretokenizer;
+    global_encode_context->use_bpe_optimized = use_bpe_optimized;
+    global_decode_context->use_aho_corasick = use_aho_corasick;
 
     if (local_pattern) {
         global_encode_context->pattern = strdup(local_pattern);
@@ -929,11 +946,15 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     task->result = result;
     task->ctx = ctx;
     task->error_msg = error_msg;
+    task->error_msg_owned = false;
 
     decode(task);
 
     if (task->error_msg) {
         PyErr_SetString(PyExc_ValueError, task->error_msg);
+        if (task->error_msg_owned) {
+            free(task->error_msg);
+        }
         free(task);
         free(token_array);
         return NULL;
@@ -981,6 +1002,9 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
 
     threads = malloc(num_threads * sizeof(thread_t));
     tasks = malloc(num_tokens * sizeof(struct DecodeTask));
+    if (tasks) {
+        memset(tasks, 0, num_tokens * sizeof(struct DecodeTask));
+    }
 
     for (Py_ssize_t i = 0; i < num_tokens; i++) {
         PyObject* item = PyList_GetItem(tokens, i);
@@ -1033,6 +1057,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
         *tasks[i].tokens_size = PyList_Size(item);
         tasks[i].result = NULL;
         tasks[i].ctx = ctx;
+        tasks[i].error_msg = NULL;
+        tasks[i].error_msg_owned = false;
     }
 
     DecodeQueue q;
@@ -1056,6 +1082,17 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
         if (tasks[i].error_msg) {
             log_debug("Error occurred in chunk %zd: %s", i, tasks[i].error_msg);
             PyErr_SetString(PyExc_ValueError, tasks[i].error_msg);
+            if (tasks[i].error_msg_owned) {
+                free(tasks[i].error_msg);
+            }
+            for (Py_ssize_t j = 0; j < num_tokens; j++) {
+                free(tasks[j].tokens);
+                free(tasks[j].tokens_size);
+                free(tasks[j].result);
+                if (tasks[j].error_msg && tasks[j].error_msg_owned && j != i) {
+                    free(tasks[j].error_msg);
+                }
+            }
             free(threads);
             free(tasks);
             return NULL;

@@ -22,6 +22,9 @@ struct EncodeContext {
     char* special_chars[256];
     char* prefix;
     bool is_byte_encoder;
+    bool use_arena;
+    bool use_pretokenizer;
+    bool use_bpe_optimized;
 };
 
 struct DecodeContext {
@@ -32,6 +35,7 @@ struct DecodeContext {
     char* special_chars[256];
     char* prefix;
     bool is_byte_encoder;
+    bool use_aho_corasick;
     struct HashMap* special_chars_map_decode;
     size_t max_special_char_len;
     struct ACAutomaton* ac;
@@ -50,6 +54,7 @@ struct DecodeTask {
     struct DecodeContext* ctx;
     char* result;
     char* error_msg;
+    bool error_msg_owned;
 };
 
 typedef struct {

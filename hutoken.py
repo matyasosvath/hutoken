@@ -38,8 +38,25 @@ def initialize(model_or_path, *args, **kwargs):
         is_byte_encoder = kwargs.get('is_byte_encoder', False)
         token_id = kwargs.get('token_id', -1)
         regex_pattern = kwargs.get('pattern', None)
+        merges_file_path = kwargs.get('merges_file_path', None)
+        use_arena = kwargs.get('use_arena', True)
+        use_aho_corasick = kwargs.get('use_aho_corasick', True)
+        use_pretokenizer = kwargs.get('use_pretokenizer', True)
+        use_bpe_optimized = kwargs.get('use_bpe_optimized', True)
 
-        result = _hutoken.initialize(model_or_path, special_chars_file, prefix, is_byte_encoder, token_id, regex_pattern)
+        result = _hutoken.initialize(
+            model_or_path,
+            special_chars_file,
+            prefix,
+            is_byte_encoder,
+            token_id,
+            regex_pattern,
+            merges_file_path,
+            use_arena,
+            use_aho_corasick,
+            use_pretokenizer,
+            use_bpe_optimized,
+        )
         return result
     else:
         try:
@@ -82,7 +99,7 @@ def initialize(model_or_path, *args, **kwargs):
         hu_tokenized = hf_tokenizer.tokenize("hu")[0]
         prefix = hu_tokenized[0] if hu_tokenized != "hu" else None
 
-        hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, use_fast=False, add_prefix_space=False if prefix is not None else None)
+        hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, use_fast=False, add_prefix_space=False if prefix is not None else True)
         special_chars_file = os.path.join(vocab_dir, f"{model_name}_special_chars.txt")
 
         try:
@@ -106,12 +123,31 @@ def initialize(model_or_path, *args, **kwargs):
             merges_file_path = None
             sys.stderr.write(f"No merges.txt found for '{model_or_path}'. Continuing without merge rules.\n")
 
+        prefix = kwargs.get("prefix", prefix)
+        regex_pattern = kwargs.get("pattern", None)
+        token_id = kwargs.get("token_id", -1)
         is_byte_encoder = kwargs.get("is_byte_encoder", 0)
+        use_arena = kwargs.get('use_arena', True)
+        use_aho_corasick = kwargs.get('use_aho_corasick', True)
+        use_pretokenizer = kwargs.get('use_pretokenizer', True)
+        use_bpe_optimized = kwargs.get('use_bpe_optimized', True)
         if hasattr(hf_tokenizer, 'byte_encoder') and hf_tokenizer.byte_encoder is not None:
             is_byte_encoder = 1
 
         try:
-            result = _hutoken.initialize(vocab_file, special_chars_file, prefix, is_byte_encoder, merges_file_path=merges_file_path, *args, **kwargs)
+            result = _hutoken.initialize(
+                vocab_file,
+                special_chars_file,
+                prefix,
+                is_byte_encoder,
+                token_id,
+                regex_pattern,
+                merges_file_path,
+                use_arena,
+                use_aho_corasick,
+                use_pretokenizer,
+                use_bpe_optimized,
+            )
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError("An unexpected error occured during "
@@ -146,10 +182,10 @@ def decode(tokens):
         return text
     except ValueError as e:
         traceback.print_exc(file=sys.stderr)
-        raise ValueError(f"hutoken: Error decoding tokens {tokens}: {e}")
+        raise ValueError(f"hutoken: Error decoding token: {e}") from e
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
-        raise RuntimeError(f"hutoken: Error decoding tokens: {e}")
+        raise RuntimeError(f"hutoken: Error decoding tokens: {e}") from e
 
 def batch_decode(tokens, num_threads=1):
     if _hutoken is None:

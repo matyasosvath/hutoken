@@ -63,135 +63,260 @@ static int get_pair_rank_from_ids(const struct HashMap* merges_map,
                                   const int left_id,
                                   const int right_id);
 
-void bpe_encode_arena_string(struct Arena* arena,
-                             struct HashMap* vocab,
-                             struct Boundary token_boundaries[],
-                             int tokens[],
-                             int* token_num) {
-    struct MinPQ pq;
-    if (min_pq_init_arena(arena, &pq, *token_num) != MIN_PQ_SUCCESS) {
-        log_debug("Failed to initialize priority queue.");
-        return;
+static void* allocate_buffer(struct Arena* arena, bool use_arena,
+                             size_t size) {
+    if (!use_arena) {
+        return malloc(size);
     }
+    return arena_alloc(arena, size);
+}
 
-    // Before using the min-priority queue, we use a linked list to track the
-    // sequence of active tokens. This is because invalidating the tokens after
-    // a merge is inefficient, while tracking the active tokens with a linked
-    // list is not.
-    struct TokenNode* nodes =
-        arena_alloc(arena, *token_num * sizeof(struct TokenNode));
-    bool* consumed = arena_alloc(arena, *token_num * sizeof(bool));
-    if (!nodes || !consumed) {
-        log_debug("Failed to allocate memory for token nodes.");
-        return;
+static void free_buffer(void* ptr, bool use_arena) {
+    if (!use_arena && ptr) {
+        free(ptr);
     }
+}
 
-    memset(consumed, 0, *token_num * sizeof(bool));
+static enum MinPQError init_pq_for_bpe(struct Arena* arena,
+                                       struct MinPQ* pq,
+                                       const size_t capacity,
+                                       bool use_arena) {
+    return use_arena ? min_pq_init_arena(arena, pq, capacity)
+                     : min_pq_init(pq, capacity);
+}
 
-    for (int i = 0; i < *token_num; ++i) {
-        nodes[i].prev = i - 1;
-        nodes[i].next = i + 1;
-    }
-    nodes[*token_num - 1].next = -1;
+static enum MinPQError push_pq_for_bpe(struct Arena* arena,
+                                       struct MinPQ* pq,
+                                       const struct MergeCandidate candidate,
+                                       bool use_arena) {
+    return use_arena ? min_pq_push_arena(arena, pq, candidate)
+                     : min_pq_push(pq, candidate);
+}
 
-    for (int i = 0; i < *token_num - 1; ++i) {
-        const int rank =
-            get_pair_rank_from_strings(vocab, token_boundaries, i, i + 1);
-        if (rank != -1) {
-            const struct MergeCandidate candidate = {
-                .rank = rank, .left_idx = i, .right_idx = i + 1};
+static void bpe_encode_string(struct Arena* arena,
+                              bool use_arena,
+                              bool use_optimized,
+                              struct HashMap* vocab,
+                              struct Boundary token_boundaries[],
+                              int tokens[],
+                              int* token_num) {
+    if (use_optimized) {
+        struct MinPQ pq;
+        if (init_pq_for_bpe(arena, &pq, *token_num, use_arena) !=
+            MIN_PQ_SUCCESS) {
+            log_debug("Failed to initialize priority queue.");
+            return;
+        }
 
-            if (min_pq_push_arena(arena, &pq, candidate) != MIN_PQ_SUCCESS) {
-                log_debug("Failed to push to queue.");
-                return;
+        struct TokenNode* nodes =
+            allocate_buffer(arena, use_arena, *token_num * sizeof(struct TokenNode));
+        bool* consumed = allocate_buffer(arena, use_arena,
+                                        *token_num * sizeof(bool));
+        if (!nodes || !consumed) {
+            log_debug("Failed to allocate memory for token nodes.");
+            free_buffer(nodes, use_arena);
+            free_buffer(consumed, use_arena);
+            if (!use_arena) {
+                min_pq_release(&pq);
             }
-        }
-    }
-
-    while (!min_pq_is_empty(&pq)) {
-        struct MergeCandidate best_pair = {0};
-
-        (void)min_pq_pop(&pq, &best_pair);
-
-        const int left_idx = best_pair.left_idx;
-        const int right_idx = best_pair.right_idx;
-
-        if (consumed[left_idx] || consumed[right_idx]) {
-            continue;
+            return;
         }
 
-        if (nodes[left_idx].next != right_idx) {
-            // The pair is stale.
-            continue;
+        memset(consumed, 0, *token_num * sizeof(bool));
+
+        for (int i = 0; i < *token_num; ++i) {
+            nodes[i].prev = i - 1;
+            nodes[i].next = i + 1;
         }
+        nodes[*token_num - 1].next = -1;
 
-        const int current_rank = get_pair_rank_from_strings(
-            vocab, token_boundaries, left_idx, right_idx);
-
-        if (best_pair.rank != current_rank) {
-            // It is possible that the right token has been modified, and the
-            // queue does not recognize that, which passes every other check.
-            // This way, if it has been modified, the rank is different as well,
-            // and the merge candidate is skipped.
-            continue;
-        }
-
-        token_boundaries[left_idx].end = token_boundaries[right_idx].end;
-
-        consumed[right_idx] = true;
-
-        const int prev_idx = nodes[left_idx].prev;
-        const int next_idx = nodes[right_idx].next;
-        nodes[left_idx].next = next_idx;
-        if (next_idx != -1) {
-            nodes[next_idx].prev = left_idx;
-        }
-
-        if (prev_idx != -1) {
-            const int rank = get_pair_rank_from_strings(
-                vocab, token_boundaries, prev_idx,
-                left_idx);  // NOLINT: readability-suspicious-call-argument
-
-            if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = prev_idx,
-                                            .right_idx = left_idx});
-            }
-        }
-
-        if (next_idx != -1) {
+        for (int i = 0; i < *token_num - 1; ++i) {
             const int rank = get_pair_rank_from_strings(vocab, token_boundaries,
-                                                        left_idx, next_idx);
-
+                                                       i, i + 1);
             if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = left_idx,
-                                            .right_idx = next_idx});
+                const struct MergeCandidate candidate = {
+                    .rank = rank, .left_idx = i, .right_idx = i + 1};
+
+                if (push_pq_for_bpe(arena, &pq, candidate, use_arena) !=
+                    MIN_PQ_SUCCESS) {
+                    log_debug("Failed to push to queue.");
+                    free_buffer(nodes, use_arena);
+                    free_buffer(consumed, use_arena);
+                    if (!use_arena) {
+                        min_pq_release(&pq);
+                    }
+                    return;
+                }
             }
         }
-    }
 
-    struct Boundary* final_boundaries =
-        arena_alloc(arena, *token_num * sizeof(struct Boundary));
-    if (!final_boundaries) {
-        log_debug("Failed to allocate memory for final boundaries.");
-        return;
-    }
+        while (!min_pq_is_empty(&pq)) {
+            struct MergeCandidate best_pair = {0};
+            (void)min_pq_pop(&pq, &best_pair);
 
-    int final_token_count = 0;
-    for (int i = 0; i < *token_num; ++i) {
-        if (!consumed[i]) {
-            final_boundaries[final_token_count++] = token_boundaries[i];
+            const int left_idx = best_pair.left_idx;
+            const int right_idx = best_pair.right_idx;
+
+            if (consumed[left_idx] || consumed[right_idx]) {
+                continue;
+            }
+
+            if (nodes[left_idx].next != right_idx) {
+                continue;
+            }
+
+            const int current_rank = get_pair_rank_from_strings(
+                vocab, token_boundaries, left_idx, right_idx);
+            if (best_pair.rank != current_rank) {
+                continue;
+            }
+
+            token_boundaries[left_idx].end = token_boundaries[right_idx].end;
+            consumed[right_idx] = true;
+
+            const int prev_idx = nodes[left_idx].prev;
+            const int next_idx = nodes[right_idx].next;
+            nodes[left_idx].next = next_idx;
+            if (next_idx != -1) {
+                nodes[next_idx].prev = left_idx;
+            }
+
+            if (prev_idx != -1) {
+                const int rank = get_pair_rank_from_strings(
+                    vocab, token_boundaries, prev_idx, left_idx);
+                if (rank != -1) {
+                    if (push_pq_for_bpe(
+                            arena, &pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = prev_idx,
+                                                    .right_idx = left_idx},
+                            use_arena) != MIN_PQ_SUCCESS) {
+                        log_debug("Failed to push to queue.");
+                        free_buffer(nodes, use_arena);
+                        free_buffer(consumed, use_arena);
+                        if (!use_arena) {
+                            min_pq_release(&pq);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            if (next_idx != -1) {
+                const int rank = get_pair_rank_from_strings(
+                    vocab, token_boundaries, left_idx, next_idx);
+                if (rank != -1) {
+                    if (push_pq_for_bpe(
+                            arena, &pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = left_idx,
+                                                    .right_idx = next_idx},
+                            use_arena) != MIN_PQ_SUCCESS) {
+                        log_debug("Failed to push to queue.");
+                        free_buffer(nodes, use_arena);
+                        free_buffer(consumed, use_arena);
+                        if (!use_arena) {
+                            min_pq_release(&pq);
+                        }
+                        return;
+                    }
+                }
+            }
         }
-    }
 
-    memcpy(token_boundaries, final_boundaries,
-           final_token_count * sizeof(struct Boundary));
-    *token_num = final_token_count;
+        if (!use_arena) {
+            min_pq_release(&pq);
+        }
+
+        struct Boundary* final_boundaries =
+            allocate_buffer(arena, use_arena, *token_num * sizeof(struct Boundary));
+        if (!final_boundaries) {
+            log_debug("Failed to allocate memory for final boundaries.");
+            free_buffer(nodes, use_arena);
+            free_buffer(consumed, use_arena);
+            return;
+        }
+
+        int final_token_count = 0;
+        for (int i = 0; i < *token_num; ++i) {
+            if (!consumed[i]) {
+                final_boundaries[final_token_count++] = token_boundaries[i];
+            }
+        }
+
+        memcpy(token_boundaries, final_boundaries,
+               final_token_count * sizeof(struct Boundary));
+        *token_num = final_token_count;
+
+        if (!use_arena) {
+            free_buffer(final_boundaries, use_arena);
+        }
+        free_buffer(nodes, use_arena);
+        free_buffer(consumed, use_arena);
+    } else {
+        bool* consumed = allocate_buffer(arena, use_arena,
+                                        *token_num * sizeof(bool));
+        if (!consumed) {
+            log_debug("Failed to allocate memory for token consumed flags.");
+            return;
+        }
+
+        memset(consumed, 0, *token_num * sizeof(bool));
+
+        while (true) {
+            int best_rank = -1;
+            int best_left = -1;
+            int best_right = -1;
+            int prev_active = -1;
+
+            for (int i = 0; i < *token_num; ++i) {
+                if (consumed[i]) {
+                    continue;
+                }
+                if (prev_active != -1) {
+                    const int rank = get_pair_rank_from_strings(
+                        vocab, token_boundaries, prev_active, i);
+                    if (rank != -1 && rank > best_rank) {
+                        best_rank = rank;
+                        best_left = prev_active;
+                        best_right = i;
+                    }
+                }
+                prev_active = i;
+            }
+
+            if (best_left == -1) {
+                break;
+            }
+
+            token_boundaries[best_left].end = token_boundaries[best_right].end;
+            consumed[best_right] = true;
+        }
+
+        struct Boundary* final_boundaries =
+            allocate_buffer(arena, use_arena, *token_num * sizeof(struct Boundary));
+        if (!final_boundaries) {
+            log_debug("Failed to allocate memory for final boundaries.");
+            free_buffer(consumed, use_arena);
+            return;
+        }
+
+        int final_token_count = 0;
+        for (int i = 0; i < *token_num; ++i) {
+            if (!consumed[i]) {
+                final_boundaries[final_token_count++] = token_boundaries[i];
+            }
+        }
+
+        memcpy(token_boundaries, final_boundaries,
+               final_token_count * sizeof(struct Boundary));
+        *token_num = final_token_count;
+
+        if (!use_arena) {
+            free_buffer(final_boundaries, use_arena);
+        }
+        free_buffer(consumed, use_arena);
+    }
 
     for (int i = 0; i < *token_num; ++i) {
         const char* start = token_boundaries[i].start;
@@ -208,132 +333,213 @@ void bpe_encode_arena_string(struct Arena* arena,
     }
 }
 
-void bpe_encode_arena_ids(struct Arena* arena,
-                          struct HashMap* merges_map,
-                          int tokens[],
-                          int* token_num) {
-    struct MinPQ pq;
-    if (min_pq_init_arena(arena, &pq, *token_num) != MIN_PQ_SUCCESS) {
-        log_debug("Failed to initialize priority queue.");
-        return;
-    }
+static void bpe_encode_ids(struct Arena* arena,
+                           bool use_arena,
+                           bool use_optimized,
+                           struct HashMap* merges_map,
+                           int tokens[],
+                           int* token_num) {
+    if (use_optimized) {
+        struct MinPQ pq;
+        if (init_pq_for_bpe(arena, &pq, *token_num, use_arena) !=
+            MIN_PQ_SUCCESS) {
+            log_debug("Failed to initialize priority queue.");
+            return;
+        }
 
-    // Before using the min-priority queue, we use a linked list to track the
-    // sequence of active tokens. This is because invalidating the tokens after
-    // a merge is inefficient, while tracking the active tokens with a linked
-    // list is not.
-    struct TokenNode* nodes =
-        arena_alloc(arena, *token_num * sizeof(struct TokenNode));
-    bool* consumed = arena_alloc(arena, *token_num * sizeof(bool));
-    if (!nodes || !consumed) {
-        log_debug("Failed to allocate memory for token nodes.");
-        return;
-    }
+        struct TokenNode* nodes =
+            allocate_buffer(arena, use_arena, *token_num * sizeof(struct TokenNode));
+        bool* consumed = allocate_buffer(arena, use_arena,
+                                        *token_num * sizeof(bool));
+        if (!nodes || !consumed) {
+            log_debug("Failed to allocate memory for token nodes.");
+            free_buffer(nodes, use_arena);
+            free_buffer(consumed, use_arena);
+            if (!use_arena) {
+                min_pq_release(&pq);
+            }
+            return;
+        }
 
-    memset(consumed, 0, *token_num * sizeof(bool));
+        memset(consumed, 0, *token_num * sizeof(bool));
 
-    for (int i = 0; i < *token_num; ++i) {
-        nodes[i].prev = i - 1;
-        nodes[i].next = i + 1;
-    }
-    nodes[*token_num - 1].next = -1;
+        for (int i = 0; i < *token_num; ++i) {
+            nodes[i].prev = i - 1;
+            nodes[i].next = i + 1;
+        }
+        nodes[*token_num - 1].next = -1;
 
-    for (int i = 0; i < *token_num - 1; ++i) {
-        const int rank =
-            get_pair_rank_from_ids(merges_map, tokens[i], tokens[i + 1]);
-        if (rank != -1) {
-            const struct MergeCandidate candidate = {
-                .rank = rank, .left_idx = i, .right_idx = i + 1};
+        for (int i = 0; i < *token_num - 1; ++i) {
+            const int rank = get_pair_rank_from_ids(merges_map, tokens[i],
+                                                    tokens[i + 1]);
+            if (rank != -1) {
+                const struct MergeCandidate candidate = {
+                    .rank = rank, .left_idx = i, .right_idx = i + 1};
 
-            if (min_pq_push_arena(arena, &pq, candidate) != MIN_PQ_SUCCESS) {
-                log_debug("Failed to push to queue.");
-                return;
+                if (push_pq_for_bpe(arena, &pq, candidate, use_arena) !=
+                    MIN_PQ_SUCCESS) {
+                    log_debug("Failed to push to queue.");
+                    free_buffer(nodes, use_arena);
+                    free_buffer(consumed, use_arena);
+                    if (!use_arena) {
+                        min_pq_release(&pq);
+                    }
+                    return;
+                }
             }
         }
-    }
 
-    while (!min_pq_is_empty(&pq)) {
-        struct MergeCandidate best_pair = {0};
+        while (!min_pq_is_empty(&pq)) {
+            struct MergeCandidate best_pair = {0};
+            (void)min_pq_pop(&pq, &best_pair);
 
-        (void)min_pq_pop(&pq, &best_pair);
+            const int left_idx = best_pair.left_idx;
+            const int right_idx = best_pair.right_idx;
 
-        const int left_idx = best_pair.left_idx;
-        const int right_idx = best_pair.right_idx;
+            if (consumed[left_idx] || consumed[right_idx]) {
+                continue;
+            }
 
-        if (consumed[left_idx] || consumed[right_idx]) {
-            continue;
-        }
+            if (nodes[left_idx].next != right_idx) {
+                continue;
+            }
 
-        if (nodes[left_idx].next != right_idx) {
-            // The pair is stale.
-            continue;
-        }
+            const int current_rank = get_pair_rank_from_ids(
+                merges_map, tokens[left_idx], tokens[right_idx]);
+            if (best_pair.rank != current_rank) {
+                continue;
+            }
 
-        const int current_rank = get_pair_rank_from_ids(
-            merges_map, tokens[left_idx], tokens[right_idx]);
+            struct MergeRule key = {.left_id = tokens[left_idx],
+                                    .right_id = tokens[right_idx]};
+            const struct MergeRule* rule = hashmap_get(merges_map, &key);
+            if (!rule) {
+                continue;
+            }
 
-        if (best_pair.rank != current_rank) {
-            // It is possible that the right token has been modified, and the
-            // queue does not recognize that, which passes every other check.
-            // This way, if it has been modified, the rank is different as well,
-            // and the merge candidate is skipped.
-            continue;
-        }
-
-        struct MergeRule key = {.left_id = tokens[left_idx],
-                                .right_id = tokens[right_idx]};
-        const struct MergeRule* rule = hashmap_get(merges_map, &key);
-        if (rule) {
             tokens[left_idx] = rule->merge_id;
             consumed[right_idx] = true;
-        } else {
-            continue;
-        }
 
-        consumed[right_idx] = true;
+            const int prev_idx = nodes[left_idx].prev;
+            const int next_idx = nodes[right_idx].next;
+            nodes[left_idx].next = next_idx;
+            if (next_idx != -1) {
+                nodes[next_idx].prev = left_idx;
+            }
 
-        const int prev_idx = nodes[left_idx].prev;
-        const int next_idx = nodes[right_idx].next;
-        nodes[left_idx].next = next_idx;
-        if (next_idx != -1) {
-            nodes[next_idx].prev = left_idx;
-        }
+            if (prev_idx != -1) {
+                const int rank = get_pair_rank_from_ids(
+                    merges_map, tokens[prev_idx], tokens[left_idx]);
+                if (rank != -1) {
+                    if (push_pq_for_bpe(
+                            arena, &pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = prev_idx,
+                                                    .right_idx = left_idx},
+                            use_arena) != MIN_PQ_SUCCESS) {
+                        log_debug("Failed to push to queue.");
+                        free_buffer(nodes, use_arena);
+                        free_buffer(consumed, use_arena);
+                        if (!use_arena) {
+                            min_pq_release(&pq);
+                        }
+                        return;
+                    }
+                }
+            }
 
-        if (prev_idx != -1) {
-            const int rank = get_pair_rank_from_ids(
-                merges_map, tokens[prev_idx], tokens[left_idx]);
-
-            if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = prev_idx,
-                                            .right_idx = left_idx});
+            if (next_idx != -1) {
+                const int rank = get_pair_rank_from_ids(
+                    merges_map, tokens[left_idx], tokens[next_idx]);
+                if (rank != -1) {
+                    if (push_pq_for_bpe(
+                            arena, &pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = left_idx,
+                                                    .right_idx = next_idx},
+                            use_arena) != MIN_PQ_SUCCESS) {
+                        log_debug("Failed to push to queue.");
+                        free_buffer(nodes, use_arena);
+                        free_buffer(consumed, use_arena);
+                        if (!use_arena) {
+                            min_pq_release(&pq);
+                        }
+                        return;
+                    }
+                }
             }
         }
 
-        if (next_idx != -1) {
-            const int rank = get_pair_rank_from_ids(
-                merges_map, tokens[left_idx], tokens[next_idx]);
+        if (!use_arena) {
+            min_pq_release(&pq);
+        }
 
-            if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = left_idx,
-                                            .right_idx = next_idx});
+        int final_token_count = 0;
+        for (int i = 0; i < *token_num; ++i) {
+            if (!consumed[i]) {
+                tokens[final_token_count++] = tokens[i];
             }
         }
-    }
 
-    int final_token_count = 0;
-    for (int i = 0; i < *token_num; ++i) {
-        if (!consumed[i]) {
-            tokens[final_token_count++] = tokens[i];
+        *token_num = final_token_count;
+        free_buffer(nodes, use_arena);
+        free_buffer(consumed, use_arena);
+    } else {
+        bool* consumed = allocate_buffer(arena, use_arena,
+                                        *token_num * sizeof(bool));
+        if (!consumed) {
+            log_debug("Failed to allocate memory for token consumed flags.");
+            return;
         }
-    }
 
-    *token_num = final_token_count;
+        memset(consumed, 0, *token_num * sizeof(bool));
+
+        while (true) {
+            int best_rank = -1;
+            int best_left = -1;
+            int best_right = -1;
+            int prev_active = -1;
+
+            for (int i = 0; i < *token_num; ++i) {
+                if (consumed[i]) {
+                    continue;
+                }
+                if (prev_active != -1) {
+                    const int rank = get_pair_rank_from_ids(
+                        merges_map, tokens[prev_active], tokens[i]);
+                    if (rank != -1 && rank > best_rank) {
+                        best_rank = rank;
+                        best_left = prev_active;
+                        best_right = i;
+                    }
+                }
+                prev_active = i;
+            }
+
+            if (best_left == -1) {
+                break;
+            }
+
+            struct MergeRule lookup_key = {.left_id = tokens[best_left],
+                                            .right_id = tokens[best_right]};
+            const struct MergeRule* rule = hashmap_get(merges_map, &lookup_key);
+            if (!rule) {
+                continue;
+            }
+            tokens[best_left] = rule->merge_id;
+            consumed[best_right] = true;
+        }
+
+        int final_token_count = 0;
+        for (int i = 0; i < *token_num; ++i) {
+            if (!consumed[i]) {
+                tokens[final_token_count++] = tokens[i];
+            }
+        }
+
+        *token_num = final_token_count;
+        free_buffer(consumed, use_arena);
+    }
 }
 
 void encode(struct EncodeTask* task) {
@@ -420,10 +626,25 @@ void encode(struct EncodeTask* task) {
 
         if (add_prefix_token && task->ctx->prefix) {
             log_debug("Adding encoded prefix to tokens");
-            char* prefix_encoded = pretokenizer_encode_arena(
-                &arena, task->ctx->prefix,
-                (const char**)task->ctx->special_chars, NULL,
-                task->ctx->is_byte_encoder);
+            bool prefix_in_arena = task->ctx->use_pretokenizer &&
+                                   task->ctx->use_arena;
+            char* prefix_encoded = prefix_in_arena
+                ? pretokenizer_encode_arena(
+                      &arena, task->ctx->prefix,
+                      (const char**)task->ctx->special_chars, NULL,
+                      task->ctx->is_byte_encoder)
+                : pretokenizer_encode(
+                      task->ctx->prefix,
+                      (const char**)task->ctx->special_chars, NULL,
+                      task->ctx->is_byte_encoder);
+
+            if (!prefix_encoded) {
+                task->error_msg = "Failed to encode prefix.";
+                if (!prefix_in_arena) {
+                    free(prefix_encoded);
+                }
+                break;
+            }
 
             struct Boundary prefix_boundaries[strlen(prefix_encoded)];
             int prefix_tokens[strlen(prefix_encoded)];
@@ -436,19 +657,37 @@ void encode(struct EncodeTask* task) {
                 prefix_boundaries[pcount++] = b;
             }
 
-            bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
-                                    prefix_boundaries, prefix_tokens, &pcount);
+            bpe_encode_string(&arena, task->ctx->use_arena,
+                              task->ctx->use_bpe_optimized,
+                              task->ctx->vocab_encode, prefix_boundaries,
+                              prefix_tokens, &pcount);
 
             vector_append_array(task->tokens, prefix_tokens, pcount);
             log_debug("Encoded %d prefix tokens.", pcount);
 
+            if (!prefix_in_arena) {
+                free(prefix_encoded);
+            }
             add_prefix_token = false;
         }
 
-        char* encoded_word = pretokenizer_encode_arena(
-            &arena, word, (const char**)task->ctx->special_chars,
-            add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
+        bool encoded_in_arena = task->ctx->use_pretokenizer &&
+                                task->ctx->use_arena;
+        char* encoded_word = encoded_in_arena
+            ? pretokenizer_encode_arena(
+                  &arena, word, (const char**)task->ctx->special_chars,
+                  add_prefix ? task->ctx->prefix : NULL,
+                  task->ctx->is_byte_encoder)
+            : pretokenizer_encode(
+                  word, (const char**)task->ctx->special_chars,
+                  add_prefix ? task->ctx->prefix : NULL,
+                  task->ctx->is_byte_encoder);
         add_prefix = false;
+
+        if (!encoded_word) {
+            task->error_msg = "Failed to encode word.";
+            break;
+        }
 
         size_t encoded_len = strlen(encoded_word);
         int word_tokens[encoded_len > 0 ? encoded_len : 1];
@@ -473,8 +712,10 @@ void encode(struct EncodeTask* task) {
                 ptr += char_len;
             }
 
-            bpe_encode_arena_ids(&arena, task->ctx->merges_map, word_tokens,
-                                 &word_tokens_num);
+            bpe_encode_ids(&arena, task->ctx->use_arena,
+                           task->ctx->use_bpe_optimized,
+                           task->ctx->merges_map, word_tokens,
+                           &word_tokens_num);
         } else {
             log_debug("Using string-based BPE encoding path.");
             struct Boundary
@@ -487,9 +728,15 @@ void encode(struct EncodeTask* task) {
                 ptr += token_len;
             }
 
-            bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
-                                    word_token_boundaries, word_tokens,
-                                    &word_tokens_num);
+            bpe_encode_string(&arena, task->ctx->use_arena,
+                              task->ctx->use_bpe_optimized,
+                              task->ctx->vocab_encode,
+                              word_token_boundaries, word_tokens,
+                              &word_tokens_num);
+        }
+
+        if (!encoded_in_arena) {
+            free(encoded_word);
         }
 
         vector_append_array(task->tokens, word_tokens, word_tokens_num);
@@ -522,8 +769,27 @@ void decode(struct DecodeTask* task) {
         if (token_id < 0 || token_id >= task->ctx->vocab_size_decode) {
             log_debug("Token value %d is out of bounds (vocab size = %d).",
                       token_id, task->ctx->vocab_size_decode);
-            task->error_msg =
-                "Element must be non-negative and less than vocab size.";
+            int msg_len = snprintf(
+                NULL,
+                0,
+                "Invalid token at index %d: %d. Element must be non-negative and less than vocab size.",
+                i,
+                token_id);
+            char* msg = malloc((size_t)msg_len + 1);
+            if (msg) {
+                snprintf(
+                    msg,
+                    (size_t)msg_len + 1,
+                    "Invalid token at index %d: %d. Element must be non-negative and less than vocab size.",
+                    i,
+                    token_id);
+                task->error_msg = msg;
+                task->error_msg_owned = true;
+            } else {
+                task->error_msg = 
+                    "Invalid token. Element must be non-negative and less than vocab size.";
+                task->error_msg_owned = false;
+            }
             task->result = NULL;
             return;
         }

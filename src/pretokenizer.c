@@ -194,6 +194,39 @@ uint32_t utf8_to_codepoint(const unsigned char* p, int* bytes_read) {
     return cp;
 }
 
+static int find_longest_special_match(const struct DecodeContext* ctx,
+                                      const char* p,
+                                      int* out_value) {
+    int best_len = 0;
+    int best_value = -1;
+
+    if (!ctx) {
+        return 0;
+    }
+
+    for (int i = 0; i < 256; ++i) {
+        const char* special = ctx->special_chars[i];
+        if (!special) {
+            continue;
+        }
+
+        size_t len = strlen(special);
+        if (len == 0) {
+            continue;
+        }
+
+        if (strncmp(p, special, len) == 0 && (int)len > best_len) {
+            best_len = (int)len;
+            best_value = i;
+        }
+    }
+
+    if (best_len > 0) {
+        *out_value = best_value;
+    }
+    return best_len;
+}
+
 size_t pretokenizer_decode(const char* text,
                            const struct DecodeContext* ctx,
                            char* buffer) {
@@ -253,7 +286,7 @@ size_t pretokenizer_decode(const char* text,
                 p += (bytes_in_char > 0) ? bytes_in_char : 1;
             }
         }
-    } else {
+    } else if (ctx->use_aho_corasick) {
         while (p < end_of_text) {
             const struct ACNode* longest_match_node = NULL;
             size_t longest_match_len = 0;
@@ -283,6 +316,21 @@ size_t pretokenizer_decode(const char* text,
                 dest += char_len;
                 p += char_len;
             }
+        }
+    } else {
+        while (p < end_of_text) {
+            int replacement_value = -1;
+            int match_len = find_longest_special_match(ctx, p, &replacement_value);
+            if (match_len > 0) {
+                *dest++ = (unsigned char)replacement_value;
+                p += match_len;
+                continue;
+            }
+
+            int char_len = utf8_char_length((const unsigned char*)p);
+            memcpy(dest, p, char_len);
+            dest += char_len;
+            p += char_len;
         }
     }
 
