@@ -1,3 +1,4 @@
+#define PY_SSIZE_T_CLEAN
 #include "hutoken/lib.h"
 
 #include "Python.h"
@@ -676,8 +677,9 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     }
 
     char* text = NULL;
+    Py_ssize_t text_len = 0;
 
-    if (!PyArg_ParseTuple(args, "s", &text)) {
+    if (!PyArg_ParseTuple(args, "s#", &text, &text_len)) {
         return NULL;
     }
 
@@ -689,12 +691,20 @@ PyObject* p_encode(PyObject* self, PyObject* args) {
     struct IntVector tokens_vec;
     vector_init(&tokens_vec, 256);
 
-    encode(&(struct EncodeTask){
+    struct EncodeTask task = {
         .text = text,
+        .text_len = (size_t)text_len,
         .ctx = ctx,
         .tokens = &tokens_vec,
         .error_msg = NULL,
-    });
+    };
+    encode(&task);
+
+    if (task.error_msg) {
+        PyErr_SetString(PyExc_RuntimeError, task.error_msg);
+        vector_free(&tokens_vec);
+        return NULL;
+    }
 
     PyObject* list = PyList_New(tokens_vec.size);
     if (!list) {
@@ -767,9 +777,34 @@ PyObject* p_batch_encode(PyObject* self, PyObject* args) {
             return NULL;
         }
 
-        char* text_chunk = (char*)PyUnicode_AsUTF8(item);
+        Py_ssize_t text_len = 0;
+        const char* text_chunk = PyUnicode_AsUTF8AndSize(item, &text_len);
+        if (!text_chunk) {
+            for (Py_ssize_t j = 0; j < i; ++j) {
+                free(tasks[j].text);
+                vector_free(&token_vecs[j]);
+            }
+            free(token_vecs);
+            free(threads);
+            free(tasks);
+            return NULL;
+        }
 
-        tasks[i].text = strdup(text_chunk);
+        tasks[i].text = malloc((size_t)text_len + 1);
+        if (!tasks[i].text) {
+            PyErr_NoMemory();
+            for (Py_ssize_t j = 0; j < i; ++j) {
+                free(tasks[j].text);
+                vector_free(&token_vecs[j]);
+            }
+            free(token_vecs);
+            free(threads);
+            free(tasks);
+            return NULL;
+        }
+        memcpy(tasks[i].text, text_chunk, (size_t)text_len);
+        tasks[i].text[text_len] = '\0';
+        tasks[i].text_len = (size_t)text_len;
         tasks[i].ctx = ctx;
         vector_init(&token_vecs[i], 256);
         tasks[i].tokens = &token_vecs[i];
@@ -927,6 +962,7 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     task->tokens = token_array;
     task->tokens_size = &tokens_size;
     task->result = result;
+    task->result_len = 0;
     task->ctx = ctx;
     task->error_msg = error_msg;
 
@@ -942,7 +978,9 @@ static PyObject* p_decode(PyObject* self, PyObject* args) {
     const char* task_result = task->result;
 
     PyObject* py_string =
-        task_result ? PyUnicode_FromString(task_result) : Py_None;
+        task_result ? PyUnicode_DecodeUTF8(
+                          task_result, (Py_ssize_t)task->result_len, "strict")
+                    : Py_None;
 
     free(task->result);
     free(task);
@@ -1032,7 +1070,9 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
         }
         *tasks[i].tokens_size = PyList_Size(item);
         tasks[i].result = NULL;
+        tasks[i].result_len = 0;
         tasks[i].ctx = ctx;
+        tasks[i].error_msg = NULL;
     }
 
     DecodeQueue q;
@@ -1072,7 +1112,8 @@ static PyObject* p_batch_decode(PyObject* self, PyObject* args) {
     }
 
     for (Py_ssize_t i = 0; i < num_tokens; i++) {
-        PyObject* string = PyUnicode_FromString(tasks[i].result);
+        PyObject* string = PyUnicode_DecodeUTF8(
+            tasks[i].result, (Py_ssize_t)tasks[i].result_len, "strict");
         if (!string) {
             Py_DECREF(results_list);
             PyErr_SetString(PyExc_MemoryError,

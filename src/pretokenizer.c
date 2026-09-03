@@ -104,6 +104,16 @@ char* pretokenizer_encode_arena(struct Arena* arena,
                                 const char** special_chars,
                                 const char* prefix,
                                 bool is_byte_encoder) {
+    return pretokenizer_encode_arena_n(arena, text, text ? strlen(text) : 0,
+                                       special_chars, prefix, is_byte_encoder);
+}
+
+char* pretokenizer_encode_arena_n(struct Arena* arena,
+                                  const char* text,
+                                  size_t text_len,
+                                  const char** special_chars,
+                                  const char* prefix,
+                                  bool is_byte_encoder) {
     if (!text) {
         return NULL;
     }
@@ -111,7 +121,6 @@ char* pretokenizer_encode_arena(struct Arena* arena,
               prefix ? prefix : "NULL");
 
     struct String result_str;
-    size_t text_len = strlen(text);
     size_t initial_capacity = text_len * 1.5 + (prefix ? strlen(prefix) : 0);
     if (string_with_capacity_arena(&result_str, arena, initial_capacity) !=
         STRING_SUCCESS) {
@@ -125,7 +134,8 @@ char* pretokenizer_encode_arena(struct Arena* arena,
     }
 
     const unsigned char* p = (const unsigned char*)text;
-    while (*p != '\0') {
+    const unsigned char* end = p + text_len;
+    while (p < end) {
         const char* replacement = special_chars[*p];
         int char_len = is_byte_encoder ? 1 : utf8_char_length(p);
 

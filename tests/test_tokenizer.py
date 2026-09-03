@@ -101,6 +101,25 @@ def test_encode_many_small_pretokens_with_tiktoken():
     assert hutoken.encode(text) == tt_enc.encode(text)
 
 
+def test_embedded_null_with_tiktoken():
+    tt_enc = tiktoken.get_encoding("gpt2")
+    hutoken.initialize("openai-community/gpt2")
+    text = "before\0middle.\0! after"
+
+    tokens = hutoken.encode(text)
+    assert tokens == tt_enc.encode(text)
+    assert hutoken.decode(tokens) == text
+    assert hutoken.batch_encode([text], num_threads=1) == [tokens]
+    assert hutoken.batch_decode([tokens], num_threads=1) == [text]
+
+
+def test_embedded_null_with_custom_pattern_is_rejected():
+    hutoken.initialize("openai-community/gpt2", pattern="[[:alpha:]]+")
+
+    with pytest.raises(RuntimeError, match="Embedded NUL"):
+        hutoken.encode("before\0after")
+
+
 def test_decode_basic_with_tiktoken():
 
     hutoken.initialize("openai-community/gpt2")

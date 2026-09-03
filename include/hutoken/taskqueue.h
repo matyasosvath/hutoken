@@ -39,6 +39,7 @@ struct DecodeContext {
 
 struct EncodeTask {
     char* text;
+    size_t text_len;
     struct EncodeContext* ctx;
     struct IntVector* tokens;
     char* error_msg;
@@ -49,6 +50,7 @@ struct DecodeTask {
     int* tokens_size;
     struct DecodeContext* ctx;
     char* result;
+    size_t result_len;
     char* error_msg;
 };
 
