@@ -1,4 +1,5 @@
 import math
+from itertools import zip_longest
 from typing import Any, cast
 
 import time
@@ -93,13 +94,20 @@ def benchmark(document, num_bytes, thread_number):
     hf_dec_perf = num_bytes / (end - start) * 1e9
 
 
-    if not ht_result == tt_result and not tt_result == (hf_result if thread_number == 1 else flatten(hf_result)):
-        print("\n=== iter results tokens ===\n")
-        print(f"hutoken result tokens: {ht_result} \ndecoded text hutoken: {hutoken.decode(ht_result)} \ndecode text from correct: {hutoken.decode(tt_result)}\n")
-        print(f"tiktoken result tokens: {tt_result}\n")
-        print(f"huggingface result tokens: {hf_result}\n")
-
-        raise AssertionError("Tokenizer results are not equal. Check tokenizers.")
+    normalized_ht = ht_result if thread_number == 1 else flatten(ht_result)
+    normalized_tt = tt_result if thread_number == 1 else flatten(tt_result)
+    normalized_hf = hf_result if thread_number == 1 else flatten(hf_result)
+    if not normalized_ht == normalized_tt == normalized_hf:
+        first_difference = next(
+            i for i, values in enumerate(
+                zip_longest(normalized_ht, normalized_tt, normalized_hf)
+            ) if len(set(values)) > 1
+        )
+        raise AssertionError(
+            "Tokenizer results differ at token index "
+            f"{first_difference}; lengths: hutoken={len(normalized_ht)}, "
+            f"tiktoken={len(normalized_tt)}, transformers={len(normalized_hf)}."
+        )
 
     return ht_enc_perf, tt_enc_perf, hf_enc_perf, ht_dec_perf, tt_dec_perf, hf_dec_perf
 
