@@ -406,11 +406,10 @@ void encode(struct EncodeTask* task) {
             break;
         }
 
-        if (arena.current_offset + estimated_needed > arena.total_size) {
-            log_debug("Resetting arena before processing word of length %zu",
-                      word_slice.length);
-            arena_reset(&arena);
-        }
+        // Everything allocated below is temporary state for this pre-token.
+        // Reuse the arena on every iteration so alignment overhead from many
+        // small tokens cannot accumulate and exhaust the fixed-size buffer.
+        arena_reset(&arena);
 
         char* word = arena_alloc(&arena, word_slice.length + 1);
         memcpy(word, word_slice.start, word_slice.length);

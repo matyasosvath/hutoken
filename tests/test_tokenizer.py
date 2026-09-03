@@ -93,6 +93,14 @@ def test_encode_basic_with_tiktoken():
     assert hutoken.encode(paragraph2) == tt_enc.encode(paragraph2)
 
 
+def test_encode_many_small_pretokens_with_tiktoken():
+    tt_enc = tiktoken.get_encoding("gpt2")
+    hutoken.initialize("openai-community/gpt2")
+    text = "Pearcey," * 200_000
+
+    assert hutoken.encode(text) == tt_enc.encode(text)
+
+
 def test_decode_basic_with_tiktoken():
 
     hutoken.initialize("openai-community/gpt2")
