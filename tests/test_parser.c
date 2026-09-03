@@ -7,9 +7,10 @@
 
 #include "hutoken/parser.h"
 
+#include <ctype.h>
 const char* BPE_REGEX_PATTERN =
-    "[ ]?[A-Za-záéíóúőűüöÁÉÍÓÚŐÜŰÖ]+|[ ]?[0-9]+|[ "
-    "]?[^[:space:][:alpha:][:digit:]]+|[ ]+";
+    "'(s|t|re|ve|m|ll|d)|[ ]?[[:alpha:]]+|[ ]?[[:digit:]]+|[ "
+    "]?[^[:space:][:alpha:][:digit:]]+|[[:space:]]+";
 
 void run_comparison_test(const char* text, regex_t* compiled_regex) {
     printf("Comparing on text: \"%.40s%s\"\n", text,
@@ -33,6 +34,15 @@ void run_comparison_test(const char* text, regex_t* compiled_regex) {
 
         if (regex_found_match && regex_match[0].rm_so == 0) {
             oracle_token_len = regex_match[0].rm_eo - regex_match[0].rm_so;
+
+            bool only_whitespace = oracle_token_len > 1;
+            for (size_t i = 0; i < oracle_token_len && only_whitespace; ++i) {
+                only_whitespace = isspace((unsigned char)regex_cursor[i]);
+            }
+            if (only_whitespace && regex_cursor[oracle_token_len] != '\0' &&
+                !isspace((unsigned char)regex_cursor[oracle_token_len])) {
+                oracle_token_len--;
+            }
         } else if (*regex_cursor != '\0') {
             oracle_token_len = 1;
         }
@@ -57,6 +67,61 @@ void run_comparison_test(const char* text, regex_t* compiled_regex) {
     printf("... OK\n");
 }
 
+void test_unicode_whitespace(void) {
+    const char text[] = "\xC2\xA0\xC2\xA0word";
+    struct ParserState state = parser_init(text);
+    struct TokenSlice token;
+
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 2);
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 2);
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 4);
+    assert(!parser_next_token(&state, &token));
+}
+
+void test_embedded_null(void) {
+    const char text[] = {'a', '\0', 'b'};
+    struct ParserState state = parser_init_n(text, sizeof(text));
+    struct TokenSlice token;
+
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 1 && token.start[0] == 'a');
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 1 && token.start[0] == '\0');
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 1 && token.start[0] == 'b');
+    assert(!parser_next_token(&state, &token));
+}
+
+void test_malformed_utf8_makes_progress(void) {
+    const char text[] = {(char)0xE2, '(', (char)0xA1, (char)0xC3};
+    struct ParserState state = parser_init_n(text, sizeof(text));
+    struct TokenSlice token;
+    size_t consumed = 0;
+
+    while (parser_next_token(&state, &token)) {
+        assert(token.length > 0);
+        consumed += token.length;
+        assert(consumed <= sizeof(text));
+    }
+    assert(consumed == sizeof(text));
+}
+
+void test_unicode_categories_in_c_locale(void) {
+    assert(setlocale(LC_ALL, "C") != NULL);
+    const char text[] = "\xC3\xA9\xD9\xA2";  // é followed by Arabic-Indic ٢
+    struct ParserState state = parser_init_n(text, sizeof(text) - 1);
+    struct TokenSlice token;
+
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 2);
+    assert(parser_next_token(&state, &token));
+    assert(token.length == 2);
+    assert(!parser_next_token(&state, &token));
+}
+
 int main(void) {
     if (setlocale(LC_ALL, "en_US.UTF-8") == NULL) {
         (void)fprintf(stderr,
@@ -77,9 +142,13 @@ int main(void) {
     const char* test_cases[] = {"",
                                 "Hello",
                                 " Hello",
+                                "    word",
+                                "    store(store.product.id > 0)",
+                                "there's we'd I'll they've can't",
                                 "árvíztűrő",
                                 " árvíztűrő",
                                 "ÁrvíztűrőTükör",
+                                "caractère français",
                                 "12345",
                                 " 123",
                                 "!!!@#$",
@@ -115,6 +184,11 @@ int main(void) {
     }
 
     regfree(&bpe_regex);
+
+    test_unicode_whitespace();
+    test_embedded_null();
+    test_malformed_utf8_makes_progress();
+    test_unicode_categories_in_c_locale();
 
     puts("\nAll parser tests passed successfully!");
     return EXIT_SUCCESS;
