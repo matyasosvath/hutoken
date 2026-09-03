@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import traceback
@@ -18,6 +19,42 @@ _SPECIAL_CHARS = [
     132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146,
     147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 173
 ]
+
+
+def _byte_to_unicode():
+    visible_bytes = (
+        list(range(ord("!"), ord("~") + 1))
+        + list(range(0xA1, 0xAD))
+        + list(range(0xAE, 0x100))
+    )
+    byte_values = list(visible_bytes)
+    codepoints = list(visible_bytes)
+    extra_codepoint = 256
+    for byte in range(256):
+        if byte not in visible_bytes:
+            byte_values.append(byte)
+            codepoints.append(extra_codepoint)
+            extra_codepoint += 1
+    return dict(zip(byte_values, map(chr, codepoints)))
+
+
+def _uses_byte_level(tokenizer_json_path):
+    try:
+        with open(tokenizer_json_path, encoding="utf-8") as tokenizer_file:
+            pre_tokenizer = json.load(tokenizer_file).get("pre_tokenizer", {})
+    except (OSError, ValueError):
+        return False
+
+    def contains_byte_level(value):
+        if isinstance(value, dict):
+            return value.get("type") == "ByteLevel" or any(
+                contains_byte_level(item) for item in value.values()
+            )
+        if isinstance(value, list):
+            return any(contains_byte_level(item) for item in value)
+        return False
+
+    return contains_byte_level(pre_tokenizer)
 
 def initialize(model_or_path, *args, **kwargs):
     """
@@ -89,14 +126,22 @@ def initialize(model_or_path, *args, **kwargs):
         hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, **hf_kwargs)
         special_chars_file = os.path.join(vocab_dir, f"{model_name}_special_chars.txt")
 
+        detected_byte_encoder = _uses_byte_level(
+            os.path.join(vocab_dir, "tokenizer.json")
+        )
+        is_byte_encoder = kwargs.pop(
+            "is_byte_encoder", detected_byte_encoder
+        )
+        byte_encoder = _byte_to_unicode() if is_byte_encoder else None
+
         try:
             with open(special_chars_file, "w", encoding="utf-8") as f:
                 for char in _SPECIAL_CHARS:
-                    if hasattr(hf_tokenizer, "byte_encoder"):
-                        value = hf_tokenizer.byte_encoder[char]
+                    if byte_encoder is not None:
+                        value = byte_encoder[char]
                     else:
                         value = ''.join(hf_tokenizer.tokenize(chr(char)))
-                    if (value == char):
+                    if value == chr(char):
                         continue
                     f.write(f"{char} == {value}\n")
         except IOError as e:
@@ -109,10 +154,6 @@ def initialize(model_or_path, *args, **kwargs):
         if not os.path.isfile(merges_file_path):
             merges_file_path = None
             sys.stderr.write(f"No merges.txt found for '{model_or_path}'. Continuing without merge rules.\n")
-
-        is_byte_encoder = kwargs.get("is_byte_encoder", 0)
-        if hasattr(hf_tokenizer, 'byte_encoder') and hf_tokenizer.byte_encoder is not None:
-            is_byte_encoder = 1
 
         try:
             result = _hutoken.initialize(vocab_file, special_chars_file, prefix, is_byte_encoder, merges_file_path=merges_file_path, *args, **kwargs)

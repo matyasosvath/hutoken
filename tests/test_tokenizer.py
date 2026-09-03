@@ -6,6 +6,15 @@ from transformers import AutoTokenizer
 import hutoken
 
 
+def test_gpt2_byte_to_unicode_mapping():
+    byte_encoder = hutoken._byte_to_unicode()
+
+    assert len(byte_encoder) == 256
+    assert byte_encoder[32] == "Ġ"
+    assert byte_encoder[173] == "Ń"
+    assert byte_encoder[255] == "ÿ"
+
+
 sentence1 = "How can the net amount of entropy of the universe be massively decreased?"
 sentence1_batch = ["How can the net", " amount of entropy of", " the universe be massively decreased?"]
 sentence2 = "What I cannot create, I do not understand."
