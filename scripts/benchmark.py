@@ -2,6 +2,7 @@ import math
 from itertools import zip_longest
 from typing import Any, cast
 
+import locale
 import time
 import pathlib
 import argparse
@@ -14,6 +15,7 @@ BPE_REGEX_PATTERN = (
     "[ ]?[^[:space:][:alpha:][:digit:]]+|[[:space:]]+"
 )
 
+locale.setlocale(locale.LC_CTYPE, "C.UTF-8")
 hutoken.initialize("openai-community/gpt2", pattern=BPE_REGEX_PATTERN)
 
 import tiktoken
