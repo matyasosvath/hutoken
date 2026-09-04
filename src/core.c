@@ -24,9 +24,6 @@
 #include "hutoken/taskqueue.h"
 #include "hutoken/vector.h"
 
-static const size_t FIXED_ARENA_SIZE = (size_t)16 * 1024 * 1024;
-static const size_t BPE_ARENA_MULTIPLIER = 64;
-
 struct TokenNode {
     int prev;
     int next;
@@ -68,8 +65,9 @@ void bpe_encode_arena_string(struct Arena* arena,
                              struct Boundary token_boundaries[],
                              int tokens[],
                              int* token_num) {
+    (void)arena;
     struct MinPQ pq;
-    if (min_pq_init_arena(arena, &pq, *token_num) != MIN_PQ_SUCCESS) {
+    if (min_pq_init(&pq, *token_num) != MIN_PQ_SUCCESS) {
         log_debug("Failed to initialize priority queue.");
         return;
     }
@@ -78,11 +76,13 @@ void bpe_encode_arena_string(struct Arena* arena,
     // sequence of active tokens. This is because invalidating the tokens after
     // a merge is inefficient, while tracking the active tokens with a linked
     // list is not.
-    struct TokenNode* nodes =
-        arena_alloc(arena, *token_num * sizeof(struct TokenNode));
-    bool* consumed = arena_alloc(arena, *token_num * sizeof(bool));
+    struct TokenNode* nodes = malloc(*token_num * sizeof(struct TokenNode));
+    bool* consumed = malloc(*token_num * sizeof(bool));
     if (!nodes || !consumed) {
         log_debug("Failed to allocate memory for token nodes.");
+        free(nodes);
+        free(consumed);
+        min_pq_release(&pq);
         return;
     }
 
@@ -101,8 +101,11 @@ void bpe_encode_arena_string(struct Arena* arena,
             const struct MergeCandidate candidate = {
                 .rank = rank, .left_idx = i, .right_idx = i + 1};
 
-            if (min_pq_push_arena(arena, &pq, candidate) != MIN_PQ_SUCCESS) {
+            if (min_pq_push(&pq, candidate) != MIN_PQ_SUCCESS) {
                 log_debug("Failed to push to queue.");
+                free(nodes);
+                free(consumed);
+                min_pq_release(&pq);
                 return;
             }
         }
@@ -153,11 +156,10 @@ void bpe_encode_arena_string(struct Arena* arena,
                 left_idx);  // NOLINT: readability-suspicious-call-argument
 
             if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = prev_idx,
-                                            .right_idx = left_idx});
+                min_pq_push(&pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = prev_idx,
+                                                    .right_idx = left_idx});
             }
         }
 
@@ -166,19 +168,21 @@ void bpe_encode_arena_string(struct Arena* arena,
                                                         left_idx, next_idx);
 
             if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = left_idx,
-                                            .right_idx = next_idx});
+                min_pq_push(&pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = left_idx,
+                                                    .right_idx = next_idx});
             }
         }
     }
 
     struct Boundary* final_boundaries =
-        arena_alloc(arena, *token_num * sizeof(struct Boundary));
+        malloc(*token_num * sizeof(struct Boundary));
     if (!final_boundaries) {
         log_debug("Failed to allocate memory for final boundaries.");
+        free(nodes);
+        free(consumed);
+        min_pq_release(&pq);
         return;
     }
 
@@ -206,14 +210,20 @@ void bpe_encode_arena_string(struct Arena* arena,
             hashmap_get(vocab, &(struct Token){.key = token_str});
         tokens[i] = (found_token != NULL) ? found_token->value : -1;
     }
+
+    free(final_boundaries);
+    free(nodes);
+    free(consumed);
+    min_pq_release(&pq);
 }
 
 void bpe_encode_arena_ids(struct Arena* arena,
                           struct HashMap* merges_map,
                           int tokens[],
                           int* token_num) {
+    (void)arena;
     struct MinPQ pq;
-    if (min_pq_init_arena(arena, &pq, *token_num) != MIN_PQ_SUCCESS) {
+    if (min_pq_init(&pq, *token_num) != MIN_PQ_SUCCESS) {
         log_debug("Failed to initialize priority queue.");
         return;
     }
@@ -222,11 +232,13 @@ void bpe_encode_arena_ids(struct Arena* arena,
     // sequence of active tokens. This is because invalidating the tokens after
     // a merge is inefficient, while tracking the active tokens with a linked
     // list is not.
-    struct TokenNode* nodes =
-        arena_alloc(arena, *token_num * sizeof(struct TokenNode));
-    bool* consumed = arena_alloc(arena, *token_num * sizeof(bool));
+    struct TokenNode* nodes = malloc(*token_num * sizeof(struct TokenNode));
+    bool* consumed = malloc(*token_num * sizeof(bool));
     if (!nodes || !consumed) {
         log_debug("Failed to allocate memory for token nodes.");
+        free(nodes);
+        free(consumed);
+        min_pq_release(&pq);
         return;
     }
 
@@ -245,8 +257,11 @@ void bpe_encode_arena_ids(struct Arena* arena,
             const struct MergeCandidate candidate = {
                 .rank = rank, .left_idx = i, .right_idx = i + 1};
 
-            if (min_pq_push_arena(arena, &pq, candidate) != MIN_PQ_SUCCESS) {
+            if (min_pq_push(&pq, candidate) != MIN_PQ_SUCCESS) {
                 log_debug("Failed to push to queue.");
+                free(nodes);
+                free(consumed);
+                min_pq_release(&pq);
                 return;
             }
         }
@@ -304,11 +319,10 @@ void bpe_encode_arena_ids(struct Arena* arena,
                 merges_map, tokens[prev_idx], tokens[left_idx]);
 
             if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = prev_idx,
-                                            .right_idx = left_idx});
+                min_pq_push(&pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = prev_idx,
+                                                    .right_idx = left_idx});
             }
         }
 
@@ -317,11 +331,10 @@ void bpe_encode_arena_ids(struct Arena* arena,
                 merges_map, tokens[left_idx], tokens[next_idx]);
 
             if (rank != -1) {
-                min_pq_push_arena(
-                    arena, &pq,
-                    (struct MergeCandidate){.rank = rank,
-                                            .left_idx = left_idx,
-                                            .right_idx = next_idx});
+                min_pq_push(&pq,
+                            (struct MergeCandidate){.rank = rank,
+                                                    .left_idx = left_idx,
+                                                    .right_idx = next_idx});
             }
         }
     }
@@ -334,15 +347,14 @@ void bpe_encode_arena_ids(struct Arena* arena,
     }
 
     *token_num = final_token_count;
+
+    free(nodes);
+    free(consumed);
+    min_pq_release(&pq);
 }
 
 void encode(struct EncodeTask* task) {
-    struct Arena arena;
-    if (!arena_create(&arena, FIXED_ARENA_SIZE)) {
-        log_debug("Error: Failed to create arena for encoding.");
-        task->error_msg = "Memory allocation failed for arena.";
-        return;
-    }
+    task->error_msg = NULL;
 
     log_debug("Starting encode function with text: %s and pattern: %s",
               task->text, task->ctx->pattern);
@@ -354,14 +366,12 @@ void encode(struct EncodeTask* task) {
         task->error_msg =
             "Embedded NUL characters are not supported with a custom regex "
             "pattern.";
-        arena_destroy(&arena);
         return;
     }
     if (use_regex) {
         if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
             log_debug("Error: Regex could not be compiled.");
             task->error_msg = "Regex could not be compiled.";
-            arena_destroy(&arena);
             return;
         }
     } else {
@@ -406,19 +416,11 @@ void encode(struct EncodeTask* task) {
             continue;
         }
 
-        size_t estimated_needed = word_slice.length * BPE_ARENA_MULTIPLIER;
-        if (estimated_needed > arena.total_size) {
-            task->error_msg =
-                "A single word in the input text is too large to be processed.";
+        char* word = malloc(word_slice.length + 1);
+        if (!word) {
+            task->error_msg = "Failed to allocate memory for pre-token.";
             break;
         }
-
-        // Everything allocated below is temporary state for this pre-token.
-        // Reuse the arena on every iteration so alignment overhead from many
-        // small tokens cannot accumulate and exhaust the fixed-size buffer.
-        arena_reset(&arena);
-
-        char* word = arena_alloc(&arena, word_slice.length + 1);
         memcpy(word, word_slice.start, word_slice.length);
         word[word_slice.length] = '\0';
         log_debug("Matched word: length=%zu, word='%s'", word_slice.length,
@@ -426,10 +428,15 @@ void encode(struct EncodeTask* task) {
 
         if (add_prefix_token && task->ctx->prefix) {
             log_debug("Adding encoded prefix to tokens");
-            char* prefix_encoded = pretokenizer_encode_arena(
-                &arena, task->ctx->prefix,
-                (const char**)task->ctx->special_chars, NULL,
+            char* prefix_encoded = pretokenizer_encode(
+                task->ctx->prefix, (const char**)task->ctx->special_chars, NULL,
                 task->ctx->is_byte_encoder);
+            if (!prefix_encoded) {
+                free(word);
+                task->error_msg =
+                    "Failed to allocate memory for encoded prefix.";
+                break;
+            }
 
             struct Boundary prefix_boundaries[strlen(prefix_encoded)];
             int prefix_tokens[strlen(prefix_encoded)];
@@ -442,20 +449,27 @@ void encode(struct EncodeTask* task) {
                 prefix_boundaries[pcount++] = b;
             }
 
-            bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
+            bpe_encode_arena_string(NULL, task->ctx->vocab_encode,
                                     prefix_boundaries, prefix_tokens, &pcount);
 
             vector_append_array(task->tokens, prefix_tokens, pcount);
             log_debug("Encoded %d prefix tokens.", pcount);
+            free(prefix_encoded);
 
             add_prefix_token = false;
         }
 
-        char* encoded_word = pretokenizer_encode_arena_n(
-            &arena, word, word_slice.length,
-            (const char**)task->ctx->special_chars,
+        char* encoded_word = pretokenizer_encode(
+            word, (const char**)task->ctx->special_chars,
             add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
         add_prefix = false;
+
+        free(word);
+        if (!encoded_word) {
+            task->error_msg =
+                "Failed to allocate memory for encoded pre-token.";
+            break;
+        }
 
         size_t encoded_len = strlen(encoded_word);
         int word_tokens[encoded_len > 0 ? encoded_len : 1];
@@ -480,7 +494,7 @@ void encode(struct EncodeTask* task) {
                 ptr += char_len;
             }
 
-            bpe_encode_arena_ids(&arena, task->ctx->merges_map, word_tokens,
+            bpe_encode_arena_ids(NULL, task->ctx->merges_map, word_tokens,
                                  &word_tokens_num);
         } else {
             log_debug("Using string-based BPE encoding path.");
@@ -494,27 +508,25 @@ void encode(struct EncodeTask* task) {
                 ptr += token_len;
             }
 
-            bpe_encode_arena_string(&arena, task->ctx->vocab_encode,
+            bpe_encode_arena_string(NULL, task->ctx->vocab_encode,
                                     word_token_boundaries, word_tokens,
                                     &word_tokens_num);
         }
 
         vector_append_array(task->tokens, word_tokens, word_tokens_num);
         log_debug("Appended %d word tokens.", word_tokens_num);
+        free(encoded_word);
 
         if (use_regex) {
             cursor = word_slice.start + word_slice.length;
         }
     }
 
-    task->error_msg = NULL;
-
     if (use_regex) {
         regfree(&regex);
     }
     log_debug("Completed encode function. Total tokens: %lu",
               task->tokens->size);
-    arena_destroy(&arena);
 }
 
 void decode(struct DecodeTask* task) {
