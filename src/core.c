@@ -6,6 +6,7 @@
 #endif
 
 #include <assert.h>
+#include <ctype.h>
 #include <regex.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -381,6 +382,19 @@ void encode(struct EncodeTask* task) {
             if (regexec(&regex, cursor, 1, &match, 0) == 0) {
                 word_slice.start = cursor + match.rm_so;
                 word_slice.length = match.rm_eo - match.rm_so;
+
+                bool only_whitespace = word_slice.length > 1;
+                for (size_t i = 0; i < word_slice.length && only_whitespace;
+                     ++i) {
+                    only_whitespace =
+                        isspace((unsigned char)word_slice.start[i]);
+                }
+                if (only_whitespace &&
+                    word_slice.start[word_slice.length] != '\0' &&
+                    !isspace(
+                        (unsigned char)word_slice.start[word_slice.length])) {
+                    word_slice.length--;
+                }
                 has_token = true;
             }
         } else {
