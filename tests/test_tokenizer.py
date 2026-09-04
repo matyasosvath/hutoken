@@ -1,3 +1,4 @@
+import json
 import timeit
 import pytest
 import tiktoken
@@ -13,6 +14,27 @@ def test_gpt2_byte_to_unicode_mapping():
     assert byte_encoder[32] == "Ġ"
     assert byte_encoder[173] == "Ń"
     assert byte_encoder[255] == "ÿ"
+
+
+@pytest.mark.parametrize(
+    "merges",
+    [
+        [["Ġ", "t"], ["h", "e"]],
+        ["Ġ t", "h e"],
+    ],
+)
+def test_write_merges_file_from_tokenizer_json(tmp_path, merges):
+    tokenizer_json = tmp_path / "tokenizer.json"
+    merges_file = tmp_path / "merges.txt"
+    tokenizer_json.write_text(
+        json.dumps({"model": {"type": "BPE", "merges": merges}}),
+        encoding="utf-8",
+    )
+
+    assert hutoken._write_merges_file(tokenizer_json, merges_file)
+    assert merges_file.read_text(encoding="utf-8") == (
+        "#version: 0.2\nĠ t\nh e\n"
+    )
 
 
 sentence1 = "How can the net amount of entropy of the universe be massively decreased?"

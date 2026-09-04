@@ -56,6 +56,41 @@ def _uses_byte_level(tokenizer_json_path):
 
     return contains_byte_level(pre_tokenizer)
 
+
+def _write_merges_file(tokenizer_json_path, merges_file_path):
+    try:
+        with open(tokenizer_json_path, encoding="utf-8") as tokenizer_file:
+            model = json.load(tokenizer_file).get("model", {})
+    except (OSError, ValueError):
+        return False
+
+    merges = model.get("merges") if model.get("type") == "BPE" else None
+    if not merges:
+        return False
+
+    formatted_merges = []
+    for merge in merges:
+        if isinstance(merge, str):
+            formatted_merges.append(merge)
+        elif (
+            isinstance(merge, list)
+            and len(merge) == 2
+            and all(isinstance(token, str) for token in merge)
+        ):
+            formatted_merges.append(" ".join(merge))
+        else:
+            return False
+
+    try:
+        with open(merges_file_path, "w", encoding="utf-8") as merges_file:
+            merges_file.write("#version: 0.2\n")
+            for merge in formatted_merges:
+                merges_file.write(f"{merge}\n")
+    except OSError:
+        return False
+
+    return True
+
 def initialize(model_or_path, *args, **kwargs):
     """
     Initialize hutoken with either a vocab file path or a Hugging Face model name.
@@ -126,9 +161,8 @@ def initialize(model_or_path, *args, **kwargs):
         hf_tokenizer = AutoTokenizer.from_pretrained(model_or_path, **hf_kwargs)
         special_chars_file = os.path.join(vocab_dir, f"{model_name}_special_chars.txt")
 
-        detected_byte_encoder = _uses_byte_level(
-            os.path.join(vocab_dir, "tokenizer.json")
-        )
+        tokenizer_json_path = os.path.join(vocab_dir, "tokenizer.json")
+        detected_byte_encoder = _uses_byte_level(tokenizer_json_path)
         is_byte_encoder = kwargs.pop(
             "is_byte_encoder", detected_byte_encoder
         )
@@ -151,7 +185,10 @@ def initialize(model_or_path, *args, **kwargs):
 
 
         merges_file_path = os.path.join(vocab_dir, "merges.txt")
-        if not os.path.isfile(merges_file_path):
+        if (
+            not os.path.isfile(merges_file_path)
+            and not _write_merges_file(tokenizer_json_path, merges_file_path)
+        ):
             merges_file_path = None
             sys.stderr.write(f"No merges.txt found for '{model_or_path}'. Continuing without merge rules.\n")
 
