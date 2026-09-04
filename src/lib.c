@@ -586,7 +586,8 @@ static PyObject* p_initialize(PyObject* self,
         size_t line_count = 0;
         char line_buffer[MAX_LINE_LENGTH];
         while (fgets(line_buffer, sizeof(line_buffer), merges_file)) {
-            if (line_buffer[0] != '#' && strchr(line_buffer, ' ') != NULL) {
+            if (strncmp(line_buffer, "#version:", 9) != 0 &&
+                strchr(line_buffer, ' ') != NULL) {
                 line_count++;
             }
         }
@@ -607,7 +608,7 @@ static PyObject* p_initialize(PyObject* self,
             int rank = 0;
             while (fgets(line_buffer, sizeof(line_buffer), merges_file) &&
                    current_rule_idx < line_count) {
-                if (line_buffer[0] == '#') {
+                if (strncmp(line_buffer, "#version:", 9) == 0) {
                     continue;
                 }
                 line_buffer[strcspn(line_buffer, "\r\n")] = 0;
