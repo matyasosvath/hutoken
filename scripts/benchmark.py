@@ -8,13 +8,7 @@ import argparse
 from statistics import mean
 
 import hutoken
-
-BPE_REGEX_PATTERN = (
-    "'(s|t|re|ve|m|ll|d)|[ ]?[[:alpha:]]+|[ ]?[[:digit:]]+|"
-    "[ ]?[^[:space:][:alpha:][:digit:]]+|[[:space:]]+"
-)
-
-hutoken.initialize("openai-community/gpt2", pattern=BPE_REGEX_PATTERN)
+hutoken.initialize("openai-community/gpt2")
 
 import tiktoken
 enc = tiktoken.get_encoding("gpt2")
