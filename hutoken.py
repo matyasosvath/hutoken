@@ -193,15 +193,7 @@ def initialize(model_or_path, *args, **kwargs):
             sys.stderr.write(f"No merges.txt found for '{model_or_path}'. Continuing without merge rules.\n")
 
         try:
-            result = _hutoken.initialize(
-                vocab_file,
-                special_chars_file,
-                prefix,
-                is_byte_encoder,
-                merges_file_path=None,
-                *args,
-                **kwargs,
-            )
+            result = _hutoken.initialize(vocab_file, special_chars_file, prefix, is_byte_encoder, merges_file_path=merges_file_path, *args, **kwargs)
         except Exception as e:
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError("An unexpected error occured during "
