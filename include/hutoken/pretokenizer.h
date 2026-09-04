@@ -12,6 +12,11 @@ char* pretokenizer_encode(const char* text,
                           const char** special_chars,
                           const char* prefix,
                           bool is_byte_encoder);
+char* pretokenizer_encode_n(const char* text,
+                            size_t text_len,
+                            const char** special_chars,
+                            const char* prefix,
+                            bool is_byte_encoder);
 char* pretokenizer_encode_arena(struct Arena* arena,
                                 const char* text,
                                 const char** special_chars,

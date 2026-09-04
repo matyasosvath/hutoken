@@ -66,6 +66,9 @@ void bpe_encode_arena_string(struct Arena* arena,
                              int tokens[],
                              int* token_num) {
     (void)arena;
+    if (*token_num <= 0) {
+        return;
+    }
     struct MinPQ pq;
     if (min_pq_init(&pq, *token_num) != MIN_PQ_SUCCESS) {
         log_debug("Failed to initialize priority queue.");
@@ -222,6 +225,9 @@ void bpe_encode_arena_ids(struct Arena* arena,
                           int tokens[],
                           int* token_num) {
     (void)arena;
+    if (*token_num <= 0) {
+        return;
+    }
     struct MinPQ pq;
     if (min_pq_init(&pq, *token_num) != MIN_PQ_SUCCESS) {
         log_debug("Failed to initialize priority queue.");
@@ -459,8 +465,8 @@ void encode(struct EncodeTask* task) {
             add_prefix_token = false;
         }
 
-        char* encoded_word = pretokenizer_encode(
-            word, (const char**)task->ctx->special_chars,
+        char* encoded_word = pretokenizer_encode_n(
+            word, word_slice.length, (const char**)task->ctx->special_chars,
             add_prefix ? task->ctx->prefix : NULL, task->ctx->is_byte_encoder);
         add_prefix = false;
 
