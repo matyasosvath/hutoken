@@ -351,13 +351,6 @@ void encode(struct EncodeTask* task) {
     regex_t regex;
     struct ParserState parser;
     bool use_regex = task->ctx->pattern != NULL;
-    if (use_regex && memchr(task->text, '\0', task->text_len) != NULL) {
-        task->error_msg =
-            "Embedded NUL characters are not supported with a custom regex "
-            "pattern.";
-        arena_destroy(&arena);
-        return;
-    }
     if (use_regex) {
         if (regcomp(&regex, task->ctx->pattern, REG_EXTENDED) == true) {
             log_debug("Error: Regex could not be compiled.");
@@ -370,6 +363,7 @@ void encode(struct EncodeTask* task) {
     }
 
     const char* cursor = task->text;
+    const char* text_end = task->text + task->text_len;
     bool add_prefix = task->text_len > 0 && cursor[0] != ' ';
     bool add_prefix_token = !add_prefix;
 
@@ -378,8 +372,15 @@ void encode(struct EncodeTask* task) {
         bool has_token = false;
 
         if (use_regex) {
-            regmatch_t match;
-            if (regexec(&regex, cursor, 1, &match, 0) == 0) {
+            if (cursor < text_end && *cursor == '\0') {
+                word_slice.start = cursor;
+                word_slice.length = 1;
+                has_token = true;
+            } else if (cursor < text_end) {
+                regmatch_t match;
+                if (regexec(&regex, cursor, 1, &match, 0) != 0) {
+                    break;
+                }
                 word_slice.start = cursor + match.rm_so;
                 word_slice.length = match.rm_eo - match.rm_so;
 

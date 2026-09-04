@@ -135,11 +135,14 @@ def test_embedded_null_with_tiktoken():
     assert hutoken.batch_decode([tokens], num_threads=1) == [text]
 
 
-def test_embedded_null_with_custom_pattern_is_rejected():
+def test_embedded_null_with_custom_pattern():
     hutoken.initialize("openai-community/gpt2", pattern="[[:alpha:]]+")
+    text = "before\0after"
 
-    with pytest.raises(RuntimeError, match="Embedded NUL"):
-        hutoken.encode("before\0after")
+    tokens = hutoken.encode(text)
+
+    assert tokens == tiktoken.get_encoding("gpt2").encode(text)
+    assert hutoken.decode(tokens) == text
 
 
 def test_decode_basic_with_tiktoken():
