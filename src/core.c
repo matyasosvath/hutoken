@@ -364,6 +364,7 @@ void encode(struct EncodeTask* task) {
 
     const char* cursor = task->text;
     const char* text_end = task->text + task->text_len;
+    const char* regex_end = cursor;
     bool add_prefix = task->text_len > 0 && cursor[0] != ' ';
     bool add_prefix_token = !add_prefix;
 
@@ -377,8 +378,18 @@ void encode(struct EncodeTask* task) {
                 word_slice.length = 1;
                 has_token = true;
             } else if (cursor < text_end) {
+                if (cursor >= regex_end) {
+                    const char* nul = memchr(cursor, '\0', text_end - cursor);
+                    regex_end = nul ? nul : text_end;
+                }
                 regmatch_t match;
-                if (regexec(&regex, cursor, 1, &match, 0) != 0) {
+                int regex_flags = 0;
+#ifdef REG_STARTEND
+                match.rm_so = 0;
+                match.rm_eo = (regoff_t)(regex_end - cursor);
+                regex_flags = REG_STARTEND;
+#endif
+                if (regexec(&regex, cursor, 1, &match, regex_flags) != 0) {
                     break;
                 }
                 word_slice.start = cursor + match.rm_so;

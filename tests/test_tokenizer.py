@@ -135,6 +135,15 @@ def test_embedded_null_with_tiktoken():
     assert hutoken.batch_decode([tokens], num_threads=1) == [text]
 
 
+def test_regex_matching_across_nul_delimited_spans():
+    hutoken.initialize("openai-community/gpt2", pattern="[[:alpha:]]+")
+    texts = ["before\0middle\0after", "\0before\0", "\0\0", ""]
+    expected = [tiktoken.get_encoding("gpt2").encode(text) for text in texts]
+
+    assert [hutoken.encode(text) for text in texts] == expected
+    assert hutoken.batch_encode(texts, num_threads=2) == expected
+
+
 def test_embedded_null_with_custom_pattern():
     hutoken.initialize("openai-community/gpt2", pattern="[[:alpha:]]+")
     text = "before\0after"
