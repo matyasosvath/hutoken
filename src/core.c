@@ -39,10 +39,29 @@ static size_t regex_whitespace_length(const char* text, size_t remaining) {
     if (first < 0x80) {
         return 0;
     }
+    // Explicit UTF-8 bytes: older C standards reject the U+0085 universal
+    // character escape, and this table must match UTF-8 input on every build.
     static const char* const whitespace[] = {
-        "\u0085", "\u00a0", "\u1680", "\u2000", "\u2001", "\u2002", "\u2003",
-        "\u2004", "\u2005", "\u2006", "\u2007", "\u2008", "\u2009", "\u200a",
-        "\u2028", "\u2029", "\u202f", "\u205f", "\u3000"};
+        "\xC2\x85",      // U+0085
+        "\xC2\xA0",      // U+00A0
+        "\xE1\x9A\x80",  // U+1680
+        "\xE2\x80\x80",  // U+2000
+        "\xE2\x80\x81",  // U+2001
+        "\xE2\x80\x82",  // U+2002
+        "\xE2\x80\x83",  // U+2003
+        "\xE2\x80\x84",  // U+2004
+        "\xE2\x80\x85",  // U+2005
+        "\xE2\x80\x86",  // U+2006
+        "\xE2\x80\x87",  // U+2007
+        "\xE2\x80\x88",  // U+2008
+        "\xE2\x80\x89",  // U+2009
+        "\xE2\x80\x8A",  // U+200A
+        "\xE2\x80\xA8",  // U+2028
+        "\xE2\x80\xA9",  // U+2029
+        "\xE2\x80\xAF",  // U+202F
+        "\xE2\x81\x9F",  // U+205F
+        "\xE3\x80\x80"   // U+3000
+    };
     for (size_t i = 0; i < sizeof(whitespace) / sizeof(whitespace[0]); ++i) {
         size_t length = strlen(whitespace[i]);
         if (remaining >= length && memcmp(text, whitespace[i], length) == 0) {
