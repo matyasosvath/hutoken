@@ -135,6 +135,28 @@ def test_embedded_null_with_tiktoken():
     assert hutoken.batch_decode([tokens], num_threads=1) == [text]
 
 
+@pytest.mark.parametrize("space", ["\u0085", "\u00a0", "\u2007", "\u202f", "\u3000"])
+def test_regex_unicode_whitespace(space):
+    import locale
+
+    original_locale = locale.setlocale(locale.LC_CTYPE)
+    try:
+        locale.setlocale(locale.LC_CTYPE, "C.UTF-8")
+        pattern = (
+            "'(s|t|re|ve|m|ll|d)|[ ]?[[:alpha:]]+|[ ]?[[:digit:]]+|"
+            f"[ ]?[^[:space:][:alpha:][:digit:]{space}]+|"
+            f"[[:space:]{space}]+"
+        )
+        hutoken.initialize("openai-community/gpt2", pattern=pattern)
+        texts = [f" {space}Mama", f"{space}{space}word", f"a {space}"]
+        expected = [tiktoken.get_encoding("gpt2").encode(text) for text in texts]
+        assert [hutoken.encode(text) for text in texts] == expected
+        assert hutoken.batch_encode(texts, num_threads=2) == expected
+        assert [hutoken.decode(tokens) for tokens in expected] == texts
+    finally:
+        locale.setlocale(locale.LC_CTYPE, original_locale)
+
+
 def test_regex_matching_across_nul_delimited_spans():
     hutoken.initialize("openai-community/gpt2", pattern="[[:alpha:]]+")
     texts = ["before\0middle\0after", "\0before\0", "\0\0", ""]

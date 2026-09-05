@@ -10,9 +10,15 @@ from statistics import mean
 
 import hutoken
 
+# POSIX [:space:] omits non-breaking spaces even in a UTF-8 locale.
+UNICODE_WHITESPACE = (
+    "\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
+    "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
+)
 BPE_REGEX_PATTERN = (
     "'(s|t|re|ve|m|ll|d)|[ ]?[[:alpha:]]+|[ ]?[[:digit:]]+|"
-    "[ ]?[^[:space:][:alpha:][:digit:]]+|[[:space:]]+"
+    f"[ ]?[^[:space:][:alpha:][:digit:]{UNICODE_WHITESPACE}]+|"
+    f"[[:space:]{UNICODE_WHITESPACE}]+"
 )
 
 locale.setlocale(locale.LC_CTYPE, "C.UTF-8")

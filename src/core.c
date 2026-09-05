@@ -28,6 +28,30 @@
 static const size_t FIXED_ARENA_SIZE = (size_t)16 * 1024 * 1024;
 static const size_t BPE_ARENA_MULTIPLIER = 64;
 
+static size_t regex_whitespace_length(const char* text, size_t remaining) {
+    if (remaining == 0) {
+        return 0;
+    }
+    unsigned char first = (unsigned char)text[0];
+    if (first == ' ' || (first >= '\t' && first <= '\r')) {
+        return 1;
+    }
+    if (first < 0x80) {
+        return 0;
+    }
+    static const char* const whitespace[] = {
+        "\u0085", "\u00a0", "\u1680", "\u2000", "\u2001", "\u2002", "\u2003",
+        "\u2004", "\u2005", "\u2006", "\u2007", "\u2008", "\u2009", "\u200a",
+        "\u2028", "\u2029", "\u202f", "\u205f", "\u3000"};
+    for (size_t i = 0; i < sizeof(whitespace) / sizeof(whitespace[0]); ++i) {
+        size_t length = strlen(whitespace[i]);
+        if (remaining >= length && memcmp(text, whitespace[i], length) == 0) {
+            return length;
+        }
+    }
+    return 0;
+}
+
 struct TokenNode {
     int prev;
     int next;
@@ -395,17 +419,25 @@ void encode(struct EncodeTask* task) {
                 word_slice.start = cursor + match.rm_so;
                 word_slice.length = match.rm_eo - match.rm_so;
 
-                bool only_whitespace = word_slice.length > 1;
-                for (size_t i = 0; i < word_slice.length && only_whitespace;
-                     ++i) {
-                    only_whitespace =
-                        isspace((unsigned char)word_slice.start[i]);
+                size_t whitespace_bytes = 0;
+                size_t last_whitespace_length = 0;
+                while (whitespace_bytes < word_slice.length) {
+                    size_t length = regex_whitespace_length(
+                        word_slice.start + whitespace_bytes,
+                        word_slice.length - whitespace_bytes);
+                    if (length == 0) {
+                        break;
+                    }
+                    whitespace_bytes += length;
+                    last_whitespace_length = length;
                 }
-                if (only_whitespace &&
-                    word_slice.start[word_slice.length] != '\0' &&
-                    !isspace(
-                        (unsigned char)word_slice.start[word_slice.length])) {
-                    word_slice.length--;
+                const char* match_end = word_slice.start + word_slice.length;
+                if (whitespace_bytes == word_slice.length &&
+                    whitespace_bytes > last_whitespace_length &&
+                    match_end < text_end &&
+                    regex_whitespace_length(match_end, text_end - match_end) ==
+                        0) {
+                    word_slice.length -= last_whitespace_length;
                 }
                 has_token = true;
             }
