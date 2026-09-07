@@ -5,7 +5,7 @@ from typing import Any, cast
 import time
 import pathlib
 import argparse
-from statistics import mean
+from statistics import mean, stdev
 
 import hutoken
 hutoken.initialize("openai-community/gpt2")
@@ -27,6 +27,26 @@ def flatten(lst: list[Any]) -> list[Any]:
         else:
             flat.append(x)
     return flat
+
+
+def standard_deviation(results: list[float]) -> float:
+    return stdev(results) if len(results) > 1 else 0.0
+
+
+def print_performance_results(results: list[tuple[str, list[float]]]) -> None:
+    print(
+        f"{'Library':<15}{'Mean (bytes/s)':>20}{'Std Dev (bytes/s)':>20}"
+        f"{'Mean (MB/s)':>20}{'Std Dev (MB/s)':>20}"
+    )
+    print("-" * 95)
+    for library, measurements in results:
+        average = mean(measurements)
+        deviation = standard_deviation(measurements)
+        print(
+            f"{library:<15}{average:>20,.2f}{deviation:>20,.2f}"
+            f"{average / 1e6:>20,.2f}{deviation / 1e6:>20,.2f}"
+        )
+
 
 def split_document(document: str, num_parts: int) -> list[str]:
     text_len = len(document)
@@ -133,18 +153,22 @@ def benchmark_test(document: str, iter: int, thread_number: int):
         hf_dec_results.append(hf_dec)
 
     print("\n--- Encoding Performance ---")
-    print(f"{'Library':<15}{'Throughput (bytes/s)':>25}{'Throughput (MB/s)':>25}")
-    print("-" * 65)
-    print(f"{'hutoken':<15}{mean(ht_enc_results):>25,.2f}{mean(ht_enc_results)/1e6:>25,.2f}")
-    print(f"{'tiktoken':<15}{mean(tt_enc_results):>25,.2f}{mean(tt_enc_results)/1e6:>25,.2f}")
-    print(f"{'transformers':<15}{mean(hf_enc_results):>25,.2f}{mean(hf_enc_results)/1e6:>25,.2f}")
+    print_performance_results(
+        [
+            ("hutoken", ht_enc_results),
+            ("tiktoken", tt_enc_results),
+            ("transformers", hf_enc_results),
+        ]
+    )
 
     print("\n--- Decoding Performance ---")
-    print(f"{'Library':<15}{'Throughput (bytes/s)':>25}{'Throughput (MB/s)':>25}")
-    print("-" * 65)
-    print(f"{'hutoken':<15}{mean(ht_dec_results):>25,.2f}{mean(ht_dec_results)/1e6:>25,.2f}")
-    print(f"{'tiktoken':<15}{mean(tt_dec_results):>25,.2f}{mean(tt_dec_results)/1e6:>25,.2f}")
-    print(f"{'transformers':<15}{mean(hf_dec_results):>25,.2f}{mean(hf_dec_results)/1e6:>25,.2f}")
+    print_performance_results(
+        [
+            ("hutoken", ht_dec_results),
+            ("tiktoken", tt_dec_results),
+            ("transformers", hf_dec_results),
+        ]
+    )
     print('\n')
 
 
